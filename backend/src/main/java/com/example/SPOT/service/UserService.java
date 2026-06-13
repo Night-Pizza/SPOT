@@ -57,10 +57,7 @@ public class UserService {
             // TODO: replace with custom exception
             throw new RuntimeException("User with this email is already exists");
 
-        if (userCreateDTO.password() == null || userCreateDTO.password().trim().isEmpty()) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Password cannot be empty");
-        }
+        validatePassword(userCreateDTO.password());
 
         UserModel newUser = new UserModel(
                 null,
