@@ -76,8 +76,7 @@ public class UserController {
         //set security context to session for spring security
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
         
-        return ResponseEntity.ok()
-                .body(userService.loginUser(loginDTO));
+        return ResponseEntity.ok().body(response);
     }
 
     @PostMapping("/register")
@@ -93,7 +92,7 @@ public class UserController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<UserDTO> updateUser(@PathVariable Long id, @RequestBody UserUpdateDTO userUpdateDTO) {
-        return ResponseEntity.ok(userService.updateUser(id, userUpdateDTO));
+        return ResponseEntity.ok(userService.updatePassword(id, userUpdateDTO));
     }
 
 }
