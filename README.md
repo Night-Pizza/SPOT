@@ -58,7 +58,7 @@ The easiest way to launch the entire SPOT environment (Database, Backend API, an
    ```
 
 2. **Configure Environment Variables:**
-   * Rename `.env.example` to `.env` in the root directory.
+   * Rename `env.example` to `.env` in the root directory.
    * Fill the data that is required.
 
 3. **Build and start the services:**
