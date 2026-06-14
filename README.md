@@ -71,8 +71,7 @@ The easiest way to launch the entire SPOT environment (Database, Backend API, an
    ```
 
 5. **Access the application:**
-   * **Frontend Interface:** `http://localhost:5173`
+   * **Frontend Interface:** `http://localhost:80`
    * **Backend API:** `http://localhost:8080`
-   * **PostgreSQL Database:** `localhost:5432`
 
 To stop the application, run: `docker-compose down`
