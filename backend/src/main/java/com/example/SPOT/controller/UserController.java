@@ -7,6 +7,7 @@ import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.Collections;
 import org.springframework.security.core.Authentication;
@@ -15,7 +16,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/user")
 public class UserController {
     private final UserService userService;
+    private final SecurityContextRepository securityContextRepository = 
+            new HttpSessionSecurityContextRepository();
 
     public UserController(UserService userService) {
         this.userService = userService;
@@ -41,13 +44,14 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal UserDTO user) {
-        Long userId = user.id();
+    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        
         return ResponseEntity.ok(userService.getUser(userId));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserDTO> signIn(@RequestBody UserLoginDTO loginDTO, HttpServletRequest request) {
+    public ResponseEntity<UserDTO> signIn(@RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
         UserDTO response = userService.loginUser(loginDTO);
 
         //old session invalidation
@@ -57,7 +61,7 @@ public class UserController {
         }
         
         //new session creation
-        HttpSession session = request.getSession(true);
+        request.getSession(true);
 
         /** set aunthentication params to spring security context
          * principal - user id
@@ -73,11 +77,11 @@ public class UserController {
         securityContext.setAuthentication(authentication);
         SecurityContextHolder.setContext(securityContext);
 
-        //set security context to session for spring security
-        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
+        //set security context
+        securityContextRepository.saveContext(securityContext, request, responseHttp);
         
         return ResponseEntity.ok()
-                .body(userService.loginUser(loginDTO));
+                .body(response);
     }
 
     @PostMapping("/register")
