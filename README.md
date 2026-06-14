@@ -61,16 +61,12 @@ The easiest way to launch the entire SPOT environment (Database, Backend API, an
    * Rename `.env.example` to `.env` in the root directory.
    * Fill the data that is required.
 
-3. **Configure `application-local.properties` file:**
-   * Rename `example-application-local.properties` to `application-local.properties` in the `backend/src/main/resources/` directory.
-   * Fill the data that is required.
-
-4. **Build and start the services:**
+3. **Build and start the services:**
    ```bash
    docker-compose up -d --build
    ```
 
-5. **Access the application:**
+4. **Access the application:**
    * **Frontend Interface:** `http://localhost:80`
    * **Backend API:** `http://localhost:8080`
 
