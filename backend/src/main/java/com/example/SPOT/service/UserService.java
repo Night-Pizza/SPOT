@@ -4,6 +4,7 @@ import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.UserDTO;
+import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -22,15 +23,13 @@ public class UserService {
 
     public UserDTO getUser(Long id) {
         UserModel user = userRepository.findById(id)
-                // TODO: replace with custom exception
-                .orElseThrow(() -> new RuntimeException("User id does not exist"));
+                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "User id does not exist"));
         return mapToDTO(user);
     }
 
     public UserDTO loginUser(UserLoginDTO userLoginDTO) {
         if (userLoginDTO.email() == null || userLoginDTO.password() == null) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Email and password must not be null");
+            throw new CustomException("INVALID_CREDENTIALS", "Email and password must not be null");
         }
 
         validateEmail(userLoginDTO.email());
@@ -38,13 +37,11 @@ public class UserService {
         UserModel user = userRepository.findByEmail(userLoginDTO.email());
 
         if (user == null) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("User with this email does not exist");
+            throw new CustomException("EMAIL_DOES_NOT_EXIST", "User with this email does not exist");
         }
 
         if (!passwordEncoder.matches(userLoginDTO.password(), user.getPassword())) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Password does not match");
+            throw new CustomException("WRONG_PASSWORD", "Password does not match");
         }
 
         return mapToDTO(user);
@@ -54,8 +51,7 @@ public class UserService {
         validateEmail(userCreateDTO.email());
 
         if (userRepository.existsByEmail(userCreateDTO.email()))
-            // TODO: replace with custom exception
-            throw new RuntimeException("User with this email is already exists");
+            throw new CustomException("EMAIL_ALREADY_EXISTS", "User with this email is already exists");
 
         validatePassword(userCreateDTO.password());
 
@@ -69,30 +65,25 @@ public class UserService {
 
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id))
-            // TODO: replace with custom exception
-            throw new RuntimeException("User id does not exist");
+            throw new CustomException("ID_NOT_EXIST", "User id does not exist");
         userRepository.deleteById(id);
     }
 
     @Transactional
     public UserDTO updatePassword(Long id, UserUpdateDTO userUpdateDTO) {
         UserModel userEntity = userRepository.findById(id)
-                // TODO: replace with custom exception
-                .orElseThrow(() -> new RuntimeException("User id does not exist"));
+                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "User id does not exist"));
 
         if (userUpdateDTO.currentPassword() == null || userUpdateDTO.newPassword() == null) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Current and new passwords must not be null");
+            throw new CustomException("INVALID_CREDENTIALS", "Current and new passwords must not be null");
         }
 
         if (!passwordEncoder.matches(userUpdateDTO.currentPassword(), userEntity.getPassword())) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Current password does not match");
+            throw new CustomException("WRONG_PASSWORD", "Current password does not match");
         }
 
         if (userUpdateDTO.currentPassword().equals(userUpdateDTO.newPassword())) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("New password matches current one");
+            throw new CustomException("INVALID_PASSWORD", "New password matches current one");
         }
 
         validatePassword(userUpdateDTO.newPassword());
@@ -111,30 +102,25 @@ public class UserService {
 
     private void validateEmail(String email) {
         if (email == null || email.isEmpty()) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Email cannot be empty");
+            throw new CustomException("INVALID_EMAIL", "Email cannot be empty");
         }
 
         if (email.contains(" ") || !email.equals(email.toLowerCase())) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Email must be in lowercase and contain no spaces");
+            throw new CustomException("INVALID_EMAIL_FORMAT", "Email must be in lowercase and contain no spaces");
         }
 
         if (!(email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university"))) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Email must belong to @innopolis.ru or @innopolis.university");
+            throw new CustomException("INVALID_EMAIL_DOMAIN", "Email must belong to @innopolis.ru or @innopolis.university");
         }
     }
 
     private void validatePassword(String password) {
         if (password == null || password.trim().length() < 8) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Password must be at least 8 characters long");
+            throw new CustomException("WEAK_PASSWORD", "Password must be at least 8 characters long");
         }
 
         if (!password.matches("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
-            // TODO: replace with custom exception
-            throw new RuntimeException("Password must contain at least one digit, one lowercase, one uppercase letter and one special character");
+            throw new CustomException("WEAK_PASSWORD", "Password must contain at least one digit, one lowercase, one uppercase letter and one special character");
         }
     }
 }
