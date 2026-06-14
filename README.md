@@ -32,16 +32,6 @@ Professors can dynamically toggle security layers for each session:
 
 ---
 
-## 🎯 Tech Stack Justification
-
-* **Java 21 & Spring Boot 3+**: The backend is designed to handle the "stampede effect" when hundreds of students attempt to scan a QR code and check in simultaneously at the start of a lecture. Java 21’s Virtual Threads allow the server to process massive spikes of concurrent verification requests with minimal memory overhead, ensuring no timeouts or dropped attendances.
-* **Spring Security**: SPOT handles highly sensitive data, including GPS coordinates and biometric identifiers. Stateless JWT authentication ensures that rapid, successive check-in requests are validated instantly without overloading the database, while robust RBAC prevents students from accessing administrative toggles.
-* **PostgreSQL**: A powerful, open-source relational database that ensures absolute data integrity for transaction-heavy attendance logs. Its scalability and advanced indexing support structured data filtering for complex audit trails.
-* **React, TypeScript & Vite**: Vite provides an ultra-fast development workflow. TypeScript ensures strict type safety across intricate dashboard states, while React delivers a highly responsive, component-driven user interface required for real-time monitoring.
-* **Docker & CI/CD**: Docker isolates and guarantees environment consistency across development, testing, and production stages. Combined with GitHub Actions, it automates delivery pipelines, heavily reducing deployment friction and human error.
-
----
-
 ## ⚙️ Getting Started & Installation
 
 ### Prerequisites
