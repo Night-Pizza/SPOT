@@ -64,9 +64,6 @@ export default function LoginPage() {
                 <div className="auth-secondary-link">
                     <Link to="/register">Register</Link>
                 </div>
-                <div className="auth-bottom-link">
-                    <span>Change password</span>
-                </div>
             </div>
         </div>
     );
