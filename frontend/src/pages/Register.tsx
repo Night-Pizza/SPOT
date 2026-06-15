@@ -2,9 +2,22 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../api/Authentification';
 
+function validateEmail(email: string): string | null {
+    if (!email) return 'Email cannot be empty';
+    if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
+    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+    return null;
+}
+
+function validatePassword(password: string): string | null {
+    if (!password || password.trim().length < 8) return 'Password must be at least 8 characters long';
+    if (!/^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!*~_\-?]).{8,}$/.test(password))
+        return 'Password must contain at least one digit, one lowercase, one uppercase letter and one special character';
+    return null;
+}
+
 export default function RegisterPage() {
     const navigate = useNavigate();
-
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -13,14 +26,19 @@ export default function RegisterPage() {
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setErrorMessage('');
-        setLoading(true);
 
+        const emailError = validateEmail(email);
+        if (emailError) { setErrorMessage(emailError); return; }
+
+        const passwordError = validatePassword(password);
+        if (passwordError) { setErrorMessage(passwordError); return; }
+
+        setLoading(true);
         try {
             await registerUser({ email, password });
-            navigate('/login');
-        } catch (error) {
-            console.error(error);
-            setErrorMessage('Registration failed');
+            navigate('/dashboard');
+        } catch (error: any) {
+            setErrorMessage(error?.message || 'Registration failed');
         } finally {
             setLoading(false);
         }
@@ -29,24 +47,17 @@ export default function RegisterPage() {
     return (
         <div className="auth-screen">
             <div className="auth-inner">
-                <img
-                    src="/iu-logo.png"
-                    alt="Innopolis University"
-                    className="iu-logo"
-                />
-
+                <img src="/iu-logo.png" alt="Innopolis University" className="iu-logo" />
                 <h1 className="auth-heading">Register</h1>
-
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <input
                         className="auth-input"
                         type="email"
-                        placeholder="proverka@example.com"
+                        placeholder="name@innopolis.university"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
                         required
                     />
-
                     <input
                         className="auth-input"
                         type="password"
@@ -55,14 +66,11 @@ export default function RegisterPage() {
                         onChange={(event) => setPassword(event.target.value)}
                         required
                     />
-
                     {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
-
                     <button className="auth-submit" type="submit" disabled={loading}>
                         {loading ? 'Loading...' : 'Register'}
                     </button>
                 </form>
-
                 <div className="auth-secondary-link">
                     <Link to="/login">Login</Link>
                 </div>
