@@ -2,9 +2,15 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginUser } from '../api/Authentification';
 
+function validateEmail(email: string): string | null {
+    if (!email) return 'Email cannot be empty';
+    if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
+    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+    return null;
+}
+
 export default function LoginPage() {
     const navigate = useNavigate();
-
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -13,14 +19,16 @@ export default function LoginPage() {
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setErrorMessage('');
-        setLoading(true);
 
+        const emailError = validateEmail(email);
+        if (emailError) { setErrorMessage(emailError); return; }
+
+        setLoading(true);
         try {
             await loginUser({ email, password });
             navigate('/dashboard');
-        } catch (error) {
-            console.error(error);
-            setErrorMessage('Login failed');
+        } catch (error: any) {
+            setErrorMessage(error?.message || 'Login failed');
         } finally {
             setLoading(false);
         }
@@ -29,24 +37,17 @@ export default function LoginPage() {
     return (
         <div className="auth-screen">
             <div className="auth-inner">
-                <img
-                    src="/iu-logo.png"
-                    alt="Innopolis University"
-                    className="iu-logo"
-                />
-
+                <img src="/iu-logo.png" alt="Innopolis University" className="iu-logo" />
                 <h1 className="auth-heading">Login</h1>
-
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <input
                         className="auth-input"
                         type="email"
-                        placeholder="proverka@example.com"
+                        placeholder="name@innopolis.university"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
                         required
                     />
-
                     <input
                         className="auth-input"
                         type="password"
@@ -55,18 +56,14 @@ export default function LoginPage() {
                         onChange={(event) => setPassword(event.target.value)}
                         required
                     />
-
                     {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
-
                     <button className="auth-submit" type="submit" disabled={loading}>
                         {loading ? 'Loading...' : 'Login'}
                     </button>
                 </form>
-
                 <div className="auth-secondary-link">
                     <Link to="/register">Register</Link>
                 </div>
-
             </div>
         </div>
     );

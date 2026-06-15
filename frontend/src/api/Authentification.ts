@@ -1,6 +1,6 @@
 import type { UserCreateDTO, UserDTO, UserLoginDTO } from '../types/Authentification';
 
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 function getCookie(name: string): string | null {
     const match = document.cookie
@@ -21,7 +21,14 @@ export async function loginUser(data: UserLoginDTO): Promise<UserDTO> {
     });
 
     if (!response.ok) {
-        throw new Error('Login failed');
+        let errorMessage = 'Login failed';
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+            // Ignore
+        }
+        throw new Error(errorMessage);
     }
 
     return response.json();
@@ -38,7 +45,14 @@ export async function registerUser(data: UserCreateDTO): Promise<UserDTO> {
     });
 
     if (!response.ok) {
-        throw new Error('Registration failed');
+        let errorMessage = 'Registration failed';
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+            // Игнорируем ошибку парсинга
+        }
+        throw new Error(errorMessage);
     }
 
     return response.json();
