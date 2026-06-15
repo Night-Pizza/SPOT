@@ -10,9 +10,30 @@ function validateEmail(email: string): string | null {
 }
 
 function validatePassword(password: string): string | null {
-    if (!password || password.trim().length < 8) return 'Password must be at least 8 characters long';
-    if (!/^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!*~_\-?]).{8,}$/.test(password))
-        return 'Password must contain at least one digit, one lowercase, one uppercase letter and one special character';
+    if (!password) {
+        return 'Password cannot be empty';
+    }
+
+    if (password.trim().length < 8) {
+        return 'Password must be at least 8 characters long';
+    }
+
+    if (!/[0-9]/.test(password)) {
+        return 'Password must contain at least one digit';
+    }
+
+    if (!/[a-z]/.test(password)) {
+        return 'Password must contain at least one lowercase letter';
+    }
+
+    if (!/[A-Z]/.test(password)) {
+        return 'Password must contain at least one uppercase letter';
+    }
+
+    if (!/[@#$%^&+=!*~_\-?]/.test(password)) {
+        return 'Password must contain at least one special character';
+    }
+
     return null;
 }
 
