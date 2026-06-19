@@ -3,7 +3,7 @@ name: SPOT CI/CD Pipeline
 on:
     push:
         branches:
-            - deploy_config
+            - main
     workflow_dispatch:
 
 jobs:
