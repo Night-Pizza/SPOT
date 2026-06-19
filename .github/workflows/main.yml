@@ -56,6 +56,6 @@ jobs:
         steps:
             - name: Deploy to Server
               run: |
-                sudo cd /root/spot
-                sudo docker compose pull
-                sudo docker compose up -d
+                cd /home/runner/spot
+                docker compose pull
+                docker compose up -d
