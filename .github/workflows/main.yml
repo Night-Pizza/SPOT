@@ -6,6 +6,10 @@ on:
             - deploy_config
     workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
     backend-build:
         runs-on: ubuntu-latest
@@ -62,3 +66,6 @@ jobs:
                 cd /home/runner/spot
                 docker compose pull
                 docker compose up -d
+
+            - name: Clean Up Unused Docker Images and Containers
+              run: docker system prune -f
