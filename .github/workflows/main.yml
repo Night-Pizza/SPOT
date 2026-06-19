@@ -11,7 +11,7 @@ on:
 
 jobs:
     backend-build:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-latest
         steps:
             - name: Code Clone
               uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
                 tags: ghcr.io/${{ github.repository }}/spot-backend:latest
 
     frontend-build:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-latest
         steps:
             - name: Code Clone
               uses: actions/checkout@v4
@@ -53,16 +53,11 @@ jobs:
                 tags: ghcr.io/${{ github.repository }}/spot-frontend:latest
 
     deploy:
-        runs-on: ubuntu-20.04
+        runs-on: self-hosted
         needs: [backend-build, frontend-build]
         steps:
-            - name: Connect and Deploy to Server
-              uses: appleboy/ssh-action@v1.0.3
-              with:
-                host: ${{ secrets.SERVER_IP }}
-                username: root
-                key: ${{ secrets.SSH_PRIVATE_KEY }}
-                script: |
-                  cd /root/spot
-                  sudo docker compose pull
-                  sudo docker compose up -d
+            - name: Deploy to Server
+              run: |
+                cd /root/baam2.0
+                sudo docker compose pull
+                sudo docker compose up -d
