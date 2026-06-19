@@ -8,6 +8,7 @@ on:
 
 jobs:
     backend-build:
+        if: github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         steps:
             - name: Code Clone
@@ -31,6 +32,7 @@ jobs:
                 tags: ghcr.io/${{ env.REPO_LC }}/spot-backend:latest
 
     frontend-build:
+        if: github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         steps:
             - name: Code Clone
@@ -54,6 +56,7 @@ jobs:
                 tags: ghcr.io/${{ env.REPO_LC }}/spot-frontend:latest
 
     deploy:
+        if: github.ref == 'refs/heads/main'
         runs-on: self-hosted
         needs: [backend-build, frontend-build]
         steps:
