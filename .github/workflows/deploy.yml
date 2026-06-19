@@ -1,4 +1,4 @@
-name: SPOT CI/CD Pipeline
+name: SPOT Deploy Pipeline
 
 on:
     push:
