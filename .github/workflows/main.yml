@@ -29,7 +29,7 @@ jobs:
                 context: .
                 file: ./backend
                 push: true
-                tags: ghcr.io/${{ github.repository }}/spot-backend:latest
+                tags: ghcr.io/night-pizza/spot/spot-backend:latest
 
     frontend-build:
         runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
                 context: .
                 file: ./frontend
                 push: true
-                tags: ghcr.io/${{ github.repository }}/spot-frontend:latest
+                tags: ghcr.io/night-pizza/spot/spot-frontend:latest
 
     deploy:
         runs-on: self-hosted
