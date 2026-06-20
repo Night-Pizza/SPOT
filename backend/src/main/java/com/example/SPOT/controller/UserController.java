@@ -124,7 +124,7 @@ public class UserController {
         userService.deleteUser(userId);
     }
 
-    @PatchMapping("/delete")
+    @PatchMapping("/update")
     public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @RequestBody UserUpdateDTO userUpdateDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok(userService.updatePassword(userId, userUpdateDTO));
