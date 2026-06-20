@@ -58,8 +58,8 @@ export default function RegisterPage() {
         try {
             await registerUser({ email, password });
             navigate('/dashboard');
-        } catch (error: any) {
-            setErrorMessage(error?.message || 'Registration failed');
+        } catch (error: unknown) {
+            setErrorMessage(error instanceof Error ? error.message : 'Registration failed');
         } finally {
             setLoading(false);
         }

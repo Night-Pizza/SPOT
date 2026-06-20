@@ -4,6 +4,8 @@ import RegisterPage from '../pages/Register';
 import DashboardPage from '../pages/Dashboard';
 import AttendancePage from '../pages/Attendance';
 import SessionsPage from '../pages/Sessions';
+import CreateSessionPage from '../pages/CreateSession';
+import ActiveSessionPage from '../pages/ActiveSession';
 import ProfilePage from '../pages/Profile';
 import SettingsPage from '../pages/Settings';
 
@@ -16,6 +18,8 @@ export default function AppRouter() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/sessions" element={<SessionsPage />} />
+            <Route path="/sessions/create" element={<CreateSessionPage />} />
+            <Route path="/sessions/:sessionId" element={<ActiveSessionPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
         </Routes>
