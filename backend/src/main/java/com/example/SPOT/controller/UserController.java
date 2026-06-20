@@ -38,9 +38,10 @@ public class UserController {
         this.userService = userService;
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<UserDTO> getUser(@PathVariable Long id) {
-        return ResponseEntity.ok(userService.getUser(id));
+    @GetMapping()
+    public ResponseEntity<UserDTO> getUser(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(userService.getUser(userId));
     }
 
     @GetMapping("/me")
@@ -85,19 +86,48 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserDTO> createUser(@RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request) {
-        return ResponseEntity.status(201)
-                .body(userService.createUser(userCreateDTO));
+    public ResponseEntity<UserDTO> createUser(@RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+        UserDTO response = userService.createUser(userCreateDTO);
+
+        HttpSession existingSession = request.getSession(false);
+        if (existingSession != null) {
+            existingSession.invalidate();
+        }
+
+        //new session creation
+        request.getSession(true);
+
+        /** set aunthentication params to spring security context
+         * principal - user id
+         * credentials - null (we don't need it after successful login)
+         * authorities - empty list (we don't have roles in our application)
+         **/
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                response.id().toString(),
+                null,
+                Collections.emptyList());
+
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(authentication);
+        SecurityContextHolder.setContext(securityContext);
+
+        //set security context
+        securityContextRepository.saveContext(securityContext, request, responseHttp);
+
+        return ResponseEntity.ok()
+                .body(response);
     }
 
-    @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id){
-        userService.deleteUser(id);
+    @DeleteMapping("/delete")
+    public void deleteUser(@AuthenticationPrincipal String userIdStr){
+        Long userId = Long.valueOf(userIdStr);
+        userService.deleteUser(userId);
     }
 
-    @PatchMapping("/{id}")
-    public ResponseEntity<UserDTO> updateUser(@PathVariable Long id, @RequestBody UserUpdateDTO userUpdateDTO) {
-        return ResponseEntity.ok(userService.updatePassword(id, userUpdateDTO));
+    @PatchMapping("/delete")
+    public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @RequestBody UserUpdateDTO userUpdateDTO) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(userService.updatePassword(userId, userUpdateDTO));
     }
 
 }
