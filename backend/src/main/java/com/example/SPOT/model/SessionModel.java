@@ -29,6 +29,7 @@ public class SessionModel {
     private Double latitude;
     private Double longitude;
     private Double allowedRadius;
+    private String password;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "session_validations", joinColumns = @JoinColumn(name = "session_id"))

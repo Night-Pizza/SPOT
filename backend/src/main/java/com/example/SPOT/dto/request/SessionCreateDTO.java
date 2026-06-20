@@ -12,6 +12,7 @@ public record SessionCreateDTO (
         Double latitude,
         Double longitude,
         Double allowedRadius,
+        String password,
 
         List<ValidationType> validationTypes
 ){}

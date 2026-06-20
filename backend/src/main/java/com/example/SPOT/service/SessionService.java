@@ -46,6 +46,7 @@ public class SessionService {
         sessionModel.setLatitude(request.latitude());
         sessionModel.setLongitude(request.longitude());
         sessionModel.setAllowedRadius(request.allowedRadius());
+        sessionModel.setPassword(request.password());
         if (request.validationTypes() != null) {
             sessionModel.setValidationTypes(request.validationTypes());
         }
@@ -99,4 +100,3 @@ public class SessionService {
         );
     }
 }
-

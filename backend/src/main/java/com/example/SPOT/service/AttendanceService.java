@@ -35,6 +35,12 @@ public class AttendanceService {
         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
+        if (session.getValidationTypes() != null) {
+            for (ValidationType type : session.getValidationTypes()) {
+                validateAttendanceRequirements(type, session, request);
+            }
+        }
+
         AttendanceModel attendanceModel = new AttendanceModel();
         attendanceModel.setUser(userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist")));
         attendanceModel.setSession(session);
@@ -73,6 +79,23 @@ public class AttendanceService {
                 attendanceModel.getTimestamp()
         );
     }
-    
+
+    private void validateAttendanceRequirements(ValidationType type, SessionModel session, AttendanceCreateDTO request) {
+        if (type == ValidationType.PASSWORD) {
+            if (request.payload() == null || !request.payload().containsKey("password")) {
+                throw new CustomException("MISSING_PASSWORD_DATA", "Password validation requires a password in payload");
+            }
+            String studentPassword = request.payload().get("password").toString();
+            if (!studentPassword.equals(session.getPassword())) {
+                throw new CustomException("INVALID_PASSWORD", "The provided password does not match the session password");
+            }
+        }
+        else if (type == ValidationType.NONE) {
+            // Skipped for the reason
+        }
+        else {
+            throw new CustomException("UNSUPPORTED_VALIDATION_TYPE", "Unsupported validation type: " + type);
+        }
+    }
 
 }
