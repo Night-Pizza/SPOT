@@ -25,8 +25,8 @@ export async function loginUser(data: UserLoginDTO): Promise<UserDTO> {
         try {
             const errorData = await response.json();
             errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-            // Ignore
+        } catch {
+
         }
         throw new Error(errorMessage);
     }
@@ -49,8 +49,7 @@ export async function registerUser(data: UserCreateDTO): Promise<UserDTO> {
         try {
             const errorData = await response.json();
             errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-            // Игнорируем ошибку парсинга
+        } catch {
         }
         throw new Error(errorMessage);
     }
