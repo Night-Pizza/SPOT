@@ -1,11 +1,10 @@
-import { NavLink } from 'react-router-dom';
 import {
-    HiHome,
-    HiLocationMarker,
-    HiCalendar,
-    HiUser,
-    HiCog,
-} from 'react-icons/hi';
+    AppstoreOutlined,
+    FileTextOutlined,
+    CalendarOutlined,
+    UserOutlined,
+} from '@ant-design/icons';
+import { NavLink } from 'react-router-dom';
 
 type DrawerMenuProps = {
     isOpen: boolean;
@@ -22,7 +21,14 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
 
             <aside className={isOpen ? 'drawer-menu open' : 'drawer-menu'}>
                 <div className="drawer-logo-box">
-                    <img src="/baam-logo.png" alt="baam" className="drawer-logo-img" />
+                    <div className="brand-lockup sidebar-brand">
+                        <img src="/baam-logo.svg" alt="" className="brand-mark" />
+                        <div className="sidebar-brand-text">
+                            <span>INNOPOLIS</span>
+                            <span>UNIVERSITY</span>
+                            <strong>SPOT</strong>
+                        </div>
+                    </div>
                 </div>
 
                 <nav className="drawer-nav">
@@ -33,7 +39,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         }
                         onClick={onClose}
                     >
-                        <HiHome className="drawer-icon" />
+                        <AppstoreOutlined className="drawer-icon" />
                         <span>Dashboard</span>
                     </NavLink>
 
@@ -44,7 +50,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         }
                         onClick={onClose}
                     >
-                        <HiLocationMarker className="drawer-icon" />
+                        <FileTextOutlined className="drawer-icon" />
                         <span>Attendance</span>
                     </NavLink>
 
@@ -55,7 +61,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         }
                         onClick={onClose}
                     >
-                        <HiCalendar className="drawer-icon" />
+                        <CalendarOutlined className="drawer-icon" />
                         <span>Sessions</span>
                     </NavLink>
 
@@ -66,21 +72,12 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         }
                         onClick={onClose}
                     >
-                        <HiUser className="drawer-icon" />
+                        <UserOutlined className="drawer-icon" />
                         <span>Profile</span>
                     </NavLink>
-
-                    <NavLink
-                        to="/settings"
-                        className={({ isActive }) =>
-                            isActive ? 'drawer-link active' : 'drawer-link'
-                        }
-                        onClick={onClose}
-                    >
-                        <HiCog className="drawer-icon" />
-                        <span>Settings</span>
-                    </NavLink>
                 </nav>
+
+                <div className="drawer-footer">© 2026 Innopolis University</div>
             </aside>
         </>
     );
