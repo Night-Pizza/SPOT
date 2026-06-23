@@ -17,11 +17,11 @@ export default function AppRouter() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
+            <Route path="/attendance/verify" element={<VerificationPage />} />
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/sessions/create" element={<CreateSessionPage />} />
             <Route path="/sessions/:sessionId" element={<ActiveSessionPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
         </Routes>
     );
 }
