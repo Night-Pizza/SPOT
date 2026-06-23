@@ -2,15 +2,23 @@ package com.example.SPOT.service;
 
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
+import com.example.SPOT.model.AttendanceModel;
+import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.AttendanceRepository;
 import com.example.SPOT.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import com.example.SPOT.dto.response.SessionResponseDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.SessionModel;
 import com.example.SPOT.repository.SessionRepository;
+import org.springframework.web.bind.annotation.GetMapping;
+
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,6 +60,14 @@ public class SessionService {
         }
 
         return mapToDTO(sessionRepository.save(sessionModel));
+    }
+
+    @GetMapping("/{id}")
+    public List<UsersForSessionDTO> getAllEmailsForThisSession(Long id){
+        return attendanceRepository.findAllBySessionId(id).stream().map(model ->
+                        new UsersForSessionDTO(
+                                model.getUser().getEmail()))
+                .collect(Collectors.toList());
     }
 
     @Transactional
