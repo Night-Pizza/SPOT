@@ -15,8 +15,8 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import AppShell from '../components/AppShell';
 import { createSession } from '../api/Session';
-import type { CreateSessionRequest } from '../api/Session';
 import GeolocationButton from '../components/GeolocationButton';
+import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 
 type CreateSessionFormValues = {
@@ -29,7 +29,7 @@ type CreateSessionFormValues = {
 export default function CreateSessionPage() {
     const [form] = Form.useForm<CreateSessionFormValues>();
     const navigate = useNavigate();
-    const { t } = useTheme(); // from V1
+    const { t } = useTheme();
     const geolocationEnabled = Form.useWatch('geolocationEnabled', form);
 
     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
@@ -41,29 +41,28 @@ export default function CreateSessionPage() {
             return;
         }
 
-        // Automatic validation types (V2 logic)
         const validationTypes: string[] = [];
         if (values.geolocationEnabled) validationTypes.push('GPS');
         if (values.sessionCode?.trim()) validationTypes.push('PASSWORD');
         if (validationTypes.length === 0) validationTypes.push('NONE');
 
-        const sessionData: CreateSessionRequest = {
+        const sessionData = {
             title: values.title.trim(),
             password: values.sessionCode?.trim() || null,
-            latitude: values.geolocationEnabled ? coords?.lat ?? null : null,
-            longitude: values.geolocationEnabled ? coords?.long ?? null : null,
-            allowedRadius: values.geolocationEnabled ? values.radius ?? null : null,
+            latitude: coords?.lat ?? 0.0,
+            longitude: coords?.long ?? 0.0,
+            allowedRadius: values.geolocationEnabled ? (values.radius ?? null) : null,
             validationTypes,
         };
 
         try {
             setLoading(true);
             const response = await createSession(sessionData);
-            message.success(`${t('sessionCreated') || 'Session created successfully!'} ID: ${response.id}`);
+            message.success(t('sessionCreated') || 'Session created successfully!');
             navigate(`/sessions/${response.id}`, { state: { session: response } });
         } catch (error) {
             console.error(error);
-            message.error(error instanceof Error ? error.message : t('createFailed') || 'Failed to create session');
+            message.error(t('createFailed') || 'Failed to create session');
         } finally {
             setLoading(false);
         }
@@ -106,13 +105,7 @@ export default function CreateSessionPage() {
                             </div>
                         </Space>
                         <Form.Item name="geolocationEnabled" valuePropName="checked" noStyle>
-                            <Switch
-                                onChange={(checked) => {
-                                    if (!checked) {
-                                        setCoords(null);
-                                    }
-                                }}
-                            />
+                            <Switch />
                         </Form.Item>
                     </div>
 
@@ -149,6 +142,18 @@ export default function CreateSessionPage() {
                                     )}
                                 </Flex>
                             </Form.Item>
+
+                            {/* === ВОССТАНОВЛЕННАЯ КАРТА === */}
+                            {coords && (
+                                <Form.Item label="Location preview">
+                                    <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
+                                        <SessionMap
+                                            center={[coords.lat, coords.long]}
+                                            radius={form.getFieldValue('radius') || 100}
+                                        />
+                                    </div>
+                                </Form.Item>
+                            )}
                         </>
                     )}
 
@@ -165,7 +170,6 @@ export default function CreateSessionPage() {
                         <Input.Password placeholder={t('codePlaceholder') || 'Enter password (optional)'} size="large" />
                     </Form.Item>
 
-                    {/* Optional: display computed validation types */}
                     <Form.Item label={t('validationMethods') || 'Validation Methods'}>
                         <Typography.Text type="secondary">
                             {geolocationEnabled && 'GPS'}
