@@ -7,8 +7,12 @@ import {
     Space,
     Typography,
     message,
+    Table
 } from 'antd';
 import AppShell from '../components/AppShell';
+import { useNavigate } from 'react-router-dom';
+import { useApp } from '../contexts/AppContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 type CodeFormValues = {
     sessionCode: string;
@@ -18,14 +22,37 @@ export default function Attendance() {
     const [form] = Form.useForm<CodeFormValues>();
     const [messageApi, contextHolder] = message.useMessage();
     const sessionCode = Form.useWatch('sessionCode', form);
+    const navigate = useNavigate();
+    const { sessions } = useApp();
+    const { t } = useTheme();
 
     const handleSubmit = () => {
-        form.resetFields();
-        void messageApi.success('Session code submitted.');
+        const code = form.getFieldValue('sessionCode');
+        if (!code) return;
+        // Ищем сессию по password
+        const session = sessions.find(s => s.password === code.trim().toUpperCase());
+        if (!session) {
+            void messageApi.error(t('sessionNotFoundError'));
+            return;
+        }
+        navigate(`/attendance/verify?sessionId=${session.id}`);
     };
 
+    const historyData = sessions.map(s => ({
+        key: s.id,
+        name: s.title,
+        date: new Date(s.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        time: new Date(s.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    }));
+
+    const columns = [
+        { title: t('sessionName'), dataIndex: 'name', key: 'name' },
+        { title: t('date'), dataIndex: 'date', key: 'date' },
+        { title: t('time'), dataIndex: 'time', key: 'time' },
+    ];
+
     return (
-        <AppShell title="Attendance" showPageTitle={false} pageClassName="attendance-page">
+        <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
             {contextHolder}
             <div className="attendance-actions-grid">
                 <Card className="attendance-action-card scan-card">
@@ -34,13 +61,13 @@ export default function Attendance() {
                             <CameraOutlined />
                         </span>
                         <div className="centered-copy">
-                            <Typography.Title level={2}>Scan QR Code</Typography.Title>
+                            <Typography.Title level={2}>{t('scanQRCode')}</Typography.Title>
                             <Typography.Paragraph>
-                                Use your camera to scan the session QR code
+                                {t('scanQRDesc')}
                             </Typography.Paragraph>
                         </div>
                         <Button type="primary" size="large" className="primary-action wide-button">
-                            Open Camera
+                            {t('openCamera')}
                         </Button>
                     </Space>
                 </Card>
@@ -52,9 +79,9 @@ export default function Attendance() {
                                 <NumberOutlined />
                             </span>
                             <div>
-                                <Typography.Title level={2}>Enter Session Code</Typography.Title>
+                                <Typography.Title level={2}>{t('enterSessionCode')}</Typography.Title>
                                 <Typography.Paragraph>
-                                    Enter the code shared for this session
+                                    {t('enterCodeDesc')}
                                 </Typography.Paragraph>
                             </div>
                         </Space>
@@ -75,10 +102,26 @@ export default function Attendance() {
                                 className="primary-action wide-button"
                                 disabled={!sessionCode?.trim()}
                             >
-                                Submit Code
+                                {t('submitCode')}
                             </Button>
                         </Form>
                     </Space>
+                </Card>
+            </div>
+
+            <div style={{ marginTop: 48 }}>
+                <Typography.Title level={3} style={{ marginBottom: 16 }}>
+                    {t('attendanceHistory')}
+                </Typography.Title>
+                <Card>
+                    <Table
+                        columns={columns}
+                        dataSource={historyData}
+                        pagination={false}
+                        locale={{
+                            emptyText: <span className="empty-text-light">{t('noAttendanceRecords')}</span>
+                        }}
+                    />
                 </Card>
             </div>
         </AppShell>
