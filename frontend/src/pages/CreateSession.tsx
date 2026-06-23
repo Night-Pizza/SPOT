@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import AppShell from '../components/AppShell';
 import { createSession } from '../api/Session';
+import type { CreateSessionRequest } from '../api/Session';
 import GeolocationButton from '../components/GeolocationButton';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -46,23 +47,23 @@ export default function CreateSessionPage() {
         if (values.sessionCode?.trim()) validationTypes.push('PASSWORD');
         if (validationTypes.length === 0) validationTypes.push('NONE');
 
-        const sessionData = {
+        const sessionData: CreateSessionRequest = {
             title: values.title.trim(),
             password: values.sessionCode?.trim() || null,
-            latitude: coords?.lat ?? 0.0,
-            longitude: coords?.long ?? 0.0,
-            allowedRadius: values.geolocationEnabled ? (values.radius ?? null) : null,
+            latitude: values.geolocationEnabled ? coords?.lat ?? null : null,
+            longitude: values.geolocationEnabled ? coords?.long ?? null : null,
+            allowedRadius: values.geolocationEnabled ? values.radius ?? null : null,
             validationTypes,
         };
 
         try {
             setLoading(true);
             const response = await createSession(sessionData);
-            message.success(t('sessionCreated') || 'Session created successfully!');
+            message.success(`${t('sessionCreated') || 'Session created successfully!'} ID: ${response.id}`);
             navigate(`/sessions/${response.id}`, { state: { session: response } });
         } catch (error) {
             console.error(error);
-            message.error(t('createFailed') || 'Failed to create session');
+            message.error(error instanceof Error ? error.message : t('createFailed') || 'Failed to create session');
         } finally {
             setLoading(false);
         }
@@ -105,7 +106,13 @@ export default function CreateSessionPage() {
                             </div>
                         </Space>
                         <Form.Item name="geolocationEnabled" valuePropName="checked" noStyle>
-                            <Switch />
+                            <Switch
+                                onChange={(checked) => {
+                                    if (!checked) {
+                                        setCoords(null);
+                                    }
+                                }}
+                            />
                         </Form.Item>
                     </div>
 
