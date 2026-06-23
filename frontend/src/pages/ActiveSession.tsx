@@ -83,7 +83,7 @@ export default function ActiveSessionPage() {
     const [isEditingRadius, setIsEditingRadius] = useState(false);
     const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
     const [mapKey, setMapKey] = useState(0);
-    const [isMounted, setIsMounted] = useState(false); // 👈 добавлено
+    const [isMounted, setIsMounted] = useState(false); //
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
     const numericSessionId = sessionId && /^\d+$/.test(sessionId) && Number(sessionId) > 0
@@ -106,10 +106,10 @@ export default function ActiveSessionPage() {
             shadowUrl:
                 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
         });
-        setIsMounted(true); // 👈 устанавливаем флаг после монтирования
+        setIsMounted(true);
     }, []);
 
-    // Инициализация editRadius из активной сессии (как в первом файле)
+    // Инициализация editRadius из активной сессии
     useEffect(() => {
         if (activeSession) {
             setEditRadius(activeSession.radius);
@@ -420,7 +420,6 @@ export default function ActiveSessionPage() {
                         )}
                     </div>
 
-                    {/* 👇 Блок с картой – добавлена проверка isMounted */}
                     {hasLocation && isMounted && (
                         <div
                             style={{
@@ -531,7 +530,6 @@ export default function ActiveSessionPage() {
                 </div>
             </Modal>
 
-            {/* 👇 Модалка карты – тоже с isMounted */}
             <Modal
                 open={mapModalOpen}
                 footer={null}
