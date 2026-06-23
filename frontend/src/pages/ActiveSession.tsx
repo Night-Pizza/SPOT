@@ -3,6 +3,11 @@ import {
     ClockCircleOutlined,
     LeftOutlined,
     PlusOutlined,
+    EnvironmentOutlined,
+    ExpandOutlined,
+    StopOutlined,
+    EditOutlined,
+    SaveOutlined,
 } from '@ant-design/icons';
 import {
     Button,
@@ -18,23 +23,21 @@ import {
     Tooltip,
     Typography,
     message,
+    Modal,
+    InputNumber,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useMemo, useState, useEffect } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import L from 'leaflet';
+
 import AppShell from '../components/AppShell';
+import { useApp } from '../contexts/AppContext';
+import type { Session } from '../contexts/AppContext';
+import SessionMap from '../components/SessionMap';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Полностью совпадает с твоим SessionResponseDTO из Java
-export type SessionResponse = {
-    id: number;
-    title: string;
-    createdAt: string;
-};
-
-type LocationState = {
-    session?: SessionResponse;
-};
-
 type Attendee = {
     id: string;
     name: string;
@@ -45,14 +48,6 @@ type Attendee = {
 type ManualAddValues = {
     email: string;
 };
-
-function isValidSession(value: unknown): value is SessionResponse {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-    const session = value as Partial<SessionResponse>;
-    return session.id !== undefined && typeof session.title === 'string';
-}
 
 function createLocalId(prefix: string) {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -81,29 +76,76 @@ function getCurrentTime() {
 export default function ActiveSessionPage() {
     const navigate = useNavigate();
     const location = useLocation();
-
-    // Безопасно достаем данные сессии
-    const state = location.state as LocationState | null;
-    const session = isValidSession(state?.session) ? state.session : null;
-
+    const { sessionId } = useParams<{ sessionId: string }>();
+    const {
+        getSessionById,
+        getStudentsForSession,
+        addStudentToSession,
+        removeStudentFromSession,
+        sessions,
+        endSession,
+        updateSession,
+    } = useApp();
+    const { t } = useTheme();
     const [form] = Form.useForm<ManualAddValues>();
     const [messageApi, contextHolder] = message.useMessage();
+    const [loading, setLoading] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
+    const [qrModalOpen, setQrModalOpen] = useState(false);
+    const [mapModalOpen, setMapModalOpen] = useState(false);
+    const [isEditingRadius, setIsEditingRadius] = useState(false);
+    const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
+    const [mapKey, setMapKey] = useState(0);
 
-    // Заглушка для студентов (пока не подключим API)
-    const [attendees, setAttendees] = useState<Attendee[]>([
-        { id: 'demo-1', name: 'Amir Seitkali', email: 'a.seitkali@innopolis.university', time: '10:02' },
-        { id: 'demo-2', name: 'Daria Ivanova', email: 'd.ivanova@innopolis.university', time: '10:04' },
-    ]);
+    const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
+
+    // Безопасно достаем данные сессии
+    const state = location.state as  { session?: Session } | null;
+    const sessionFromState = state?.session;
+    const activeSession = sessionFromUrl || sessionFromState;
+
+    const scannedStudents = useMemo(() => {
+        if (!activeSession) return [];
+        return getStudentsForSession(activeSession.id);
+    }, [activeSession, getStudentsForSession]);
+
+    useEffect(() => {
+        if (activeSession) {
+            setEditRadius(activeSession.radius);
+        }
+    }, [activeSession]);
+
+    useEffect(() => {
+        delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl:
+                'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+            iconUrl:
+                'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+            shadowUrl:
+                'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        });
+        setIsMounted(true);
+    }, []);
+
+    useEffect(() => {
+        setLoading(false);
+    }, [sessionId, sessions, sessionFromUrl, sessionFromState, activeSession]);
+
+    useEffect(() => {
+        if (!loading && !activeSession) {
+            void messageApi.error(t('sessionNotFoundError'));
+        }
+    }, [loading, activeSession, messageApi, t]);
 
     const columns = useMemo<ColumnsType<Attendee>>(
         () => [
             {
-                title: 'Name',
+                title: 'name',
                 dataIndex: 'name',
                 key: 'name',
-                width: 190,
                 render: (name: string) => (
-                    <Space size={12} className="student-name-cell">
+                    <Space size={8} className="student-name-cell">
                         <span className="attendee-avatar">{name.charAt(0)}</span>
                         <Typography.Text strong>{name}</Typography.Text>
                     </Space>
@@ -113,14 +155,12 @@ export default function ActiveSessionPage() {
                 title: 'Email',
                 dataIndex: 'email',
                 key: 'email',
-                width: 250,
                 render: (email: string) => <span className="student-email-cell">{email}</span>,
             },
             {
                 title: 'Time',
                 dataIndex: 'time',
                 key: 'time',
-                width: 100,
                 render: (time: string) => (
                     <Space size={6} className="student-time-cell">
                         <ClockCircleOutlined className="muted-icon" />
@@ -130,26 +170,28 @@ export default function ActiveSessionPage() {
             },
             {
                 title: 'Actions',
-                key: 'actions',
                 align: 'center',
-                width: 72,
+                width: 60,
                 render: (_, attendee) => (
                     <span className="student-action-cell">
                         <Popconfirm
                             title="Remove this attendee from the list?"
                             okText="Remove"
                             cancelText="Cancel"
-                            onConfirm={() =>
-                                setAttendees((current) => current.filter((item) => item.id !== attendee.id))
+                            onConfirm={() =>{
+                                if (activeSession) {
+                                removeStudentFromSession(activeSession.id, attendee.id);
                             }
+                            }}
                         >
-                            <Tooltip title="Remove attendee">
+                            <Tooltip title={t('removeAttendee') || 'Remove attendee'}>
                                 <Button
                                     shape="circle"
                                     danger
                                     type="text"
                                     icon={<CloseOutlined />}
                                     aria-label={`Remove ${attendee.name}`}
+                                    size="small"
                                 />
                             </Tooltip>
                         </Popconfirm>
@@ -157,39 +199,90 @@ export default function ActiveSessionPage() {
                 ),
             },
         ],
-        [],
+        [removeStudentFromSession, activeSession, t],
     );
 
     const addAttendee = ({ email }: ManualAddValues) => {
         const normalizedEmail = email.trim();
-        const attendee: Attendee = {
+        if (!activeSession) return;
+        addStudentToSession(activeSession.id,{
             id: createLocalId('attendee'),
             name: getDisplayName(normalizedEmail),
             email: normalizedEmail,
             time: getCurrentTime(),
-        };
+        });
 
-        setAttendees((current) => [...current, attendee]);
         form.resetFields();
-        void messageApi.success('Attendee added locally.');
+        void messageApi.success(t('attendeeAdded') || 'Attendee added.');
     };
 
-    if (!session) {
+    const handleEndSession = () => {
+        if (activeSession) {
+            endSession(activeSession.id);
+            void messageApi.success('Session ended');
+            navigate('/sessions');
+        }
+    };
+
+    const handleSaveRadius = () => {
+        if (activeSession && editRadius !== undefined && editRadius > 0) {
+            updateSession(activeSession.id, { radius: editRadius });
+            setEditRadius(editRadius);
+            setIsEditingRadius(false);
+            setMapKey((prev) => prev + 1);
+            void messageApi.success('Radius updated');
+        } else {
+            void messageApi.error('Please enter a valid radius');
+        }
+    };
+
+    if (loading) {
         return (
-            <AppShell title="Active Session" pageClassName="active-session-page">
-                <Card className="empty-route-card">
-                    <Empty description="No session data found. Please select a session from the list.">
-                        <Button type="primary" className="primary-action" onClick={() => navigate('/sessions')}>
-                            Go to Sessions List
-                        </Button>
-                    </Empty>
+            <AppShell title={t('loading')} showPageTitle={false}>
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                    <Typography.Title level={3}>{t('loadingSession')}</Typography.Title>
+                </div>
+            </AppShell>
+        );
+    }
+
+    if (!activeSession) {
+        return (
+            <AppShell title={t('sessionNotFound')} showPageTitle={false}>
+                <Card style={{ maxWidth: 500, margin: '40px auto', textAlign: 'center' }}>
+                    <Empty description={t('sessionNotFound')} />
+                    <Button type="primary" onClick={() => navigate('/sessions')}>
+                        {t('goToSessions')}
+                    </Button>
                 </Card>
             </AppShell>
         );
     }
 
+    const hasLocation =
+        activeSession.geolocationEnabled &&
+        activeSession.lat !== undefined &&
+        activeSession.lng !== undefined;
+
+    const qrData = JSON.stringify({
+        sessionId: activeSession.id,
+        code: activeSession.password,
+    });
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+        qrData
+    )}`;
+    const qrFullUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(
+        qrData
+    )}`;
+
+    const isActive = activeSession.isActive !== false;
+
     return (
-        <AppShell title={session.title} showPageTitle={false} pageClassName="active-session-page">
+        <AppShell
+            title={activeSession.title}
+            showPageTitle={false}
+            pageClassName="active-session-page"
+        >
             {contextHolder}
             <div className="active-session-header">
                 <Button
@@ -197,78 +290,276 @@ export default function ActiveSessionPage() {
                     size="large"
                     icon={<LeftOutlined />}
                     onClick={() => navigate('/sessions')}
-                    aria-label="Back to sessions"
+                    aria-label={t('back')}
                 />
                 <div>
-                    <Typography.Title level={1}>{session.title}</Typography.Title>
+                    <Typography.Title level={1}>{activeSession.title}</Typography.Title>
                     <Space size={12}>
-                        <Tag color="success">Active</Tag>
-                        <Typography.Text type="secondary">Session live</Typography.Text>
+                        <Tag color={isActive ? 'success' : 'default'}>
+                            {isActive ? t('active') : 'Ended'}
+                        </Tag>
+                        <Typography.Text type="secondary">
+                            {isActive ? t('sessionLive') : 'Session finished'}
+                        </Typography.Text>
                     </Space>
                 </div>
             </div>
 
             <div className="active-session-grid">
-                <Card title="Session QR Code" className="active-card qr-card">
-                    <div className="qr-placeholder" aria-label="Reserved QR code area" />
+                <Card
+                    title={t('sessionDetails')}
+                    className="active-card qr-card"
+                    extra={
+                        <Button
+                            type="text"
+                            icon={<ExpandOutlined />}
+                            onClick={() => setQrModalOpen(true)}
+                            aria-label="Expand QR"
+                        />
+                    }
+                >
+                    {isMounted && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'center',
+                                marginBottom: 24,
+                                cursor: 'pointer',
+                            }}
+                            onClick={() => setQrModalOpen(true)}
+                        >
+                            <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
+                        </div>
+                    )}
 
                     <div className="session-detail-list">
                         <Flex justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">Session Title</Typography.Text>
-                            <Typography.Text strong>{session.title}</Typography.Text>
+                            <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
+                            <Typography.Text strong>{activeSession.password}</Typography.Text>
                         </Flex>
-                        {/* Выводим дату создания из бэкенда */}
+
+                        {activeSession.validationTypes &&
+                            activeSession.validationTypes.length > 0 && (
+                                <Flex justify="space-between" gap={16}>
+                                    <Typography.Text type="secondary">
+                                        Validation Methods
+                                    </Typography.Text>
+                                    <Typography.Text strong>
+                                        {activeSession.validationTypes.join(', ')}
+                                    </Typography.Text>
+                                </Flex>
+                            )}
+
                         <Flex justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">Created At</Typography.Text>
-                            <Typography.Text strong>
-                                {new Date(session.createdAt).toLocaleString()}
+                            <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
+                            <Typography.Text
+                                strong
+                                className={activeSession.geolocationEnabled ? 'green-text' : undefined}
+                            >
+                                {activeSession.geolocationEnabled ? (
+                                    <Space size={6}>
+                                        <EnvironmentOutlined />
+                                        {t('enabled')}
+                                        {activeSession.radius ? ` · ${activeSession.radius}m` : ''}
+                                    </Space>
+                                ) : (
+                                    t('disabled')
+                                )}
                             </Typography.Text>
                         </Flex>
+                        {hasLocation && (
+                            <Flex justify="space-between" gap={16}>
+                                <Typography.Text type="secondary">{t('location')}</Typography.Text>
+                                <Typography.Text strong>
+                                    {activeSession.lat?.toFixed(5)}, {activeSession.lng?.toFixed(5)}
+                                </Typography.Text>
+                            </Flex>
+                        )}
+                        {hasLocation && isActive && (
+                            <Flex justify="space-between" gap={16} align="center">
+                                <Typography.Text type="secondary">Radius</Typography.Text>
+                                {isEditingRadius ? (
+                                    <Space>
+                                        <InputNumber
+                                            min={1}
+                                            value={editRadius}
+                                            onChange={(val) => setEditRadius(val ?? undefined)}
+                                            addonAfter="m"
+                                            size="small"
+                                        />
+                                        <Button
+                                            type="primary"
+                                            size="small"
+                                            icon={<SaveOutlined />}
+                                            onClick={handleSaveRadius}
+                                        >
+                                            Save
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            onClick={() => {
+                                                setIsEditingRadius(false);
+                                                setEditRadius(activeSession.radius);
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </Space>
+                                ) : (
+                                    <Space>
+                                        <Typography.Text strong>
+                                            {activeSession.radius ? `${activeSession.radius}m` : 'N/A'}
+                                        </Typography.Text>
+                                        {isActive && (
+                                            <Button
+                                                type="text"
+                                                icon={<EditOutlined />}
+                                                onClick={() => setIsEditingRadius(true)}
+                                                size="small"
+                                            />
+                                        )}
+                                    </Space>
+                                )}
+                            </Flex>
+                        )}
                     </div>
+
+                    {hasLocation && isMounted && (
+                        <div
+                            style={{
+                                marginTop: 24,
+                                height: 220,
+                                borderRadius: 16,
+                                overflow: 'hidden',
+                                position: 'relative',
+                            }}
+                        >
+                            <SessionMap
+                                key={mapKey}
+                                center={[activeSession.lat!, activeSession.lng!]}
+                                radius={activeSession.radius || 100}
+                            />
+                            <Button
+                                type="primary"
+                                shape="circle"
+                                icon={<ExpandOutlined />}
+                                style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000 }}
+                                onClick={() => setMapModalOpen(true)}
+                                aria-label="Expand Map"
+                            />
+                        </div>
+                    )}
                 </Card>
 
                 <Card
                     title={
                         <Flex justify="space-between" align="center">
-                            <span>Scanned Students</span>
-                            <Tag color="success">{attendees.length}</Tag>
+                            <span>{t('scannedStudents')}</span>
+                            <Space>
+                                <Tag color="success">{scannedStudents.length}</Tag>
+                                {isActive && (
+                                    <Popconfirm
+                                        title="Are you sure you want to end this session?"
+                                        okText="Yes"
+                                        cancelText="No"
+                                        onConfirm={handleEndSession}
+                                    >
+                                        <Button danger size="small" icon={<StopOutlined />}>
+                                            End Session
+                                        </Button>
+                                    </Popconfirm>
+                                )}
+                            </Space>
                         </Flex>
                     }
                     className="active-card scanned-card"
                 >
                     <Table
                         columns={columns}
-                        dataSource={attendees}
+                        dataSource={scannedStudents}
                         rowKey="id"
                         pagination={false}
-                        scroll={{ x: 612 }}
-                        locale={{ emptyText: <Empty description="No attendees yet" /> }}
+                        locale={{ emptyText: <Empty description={t('noAttendees')} /> }}
+                        size="middle"
+                        style={{ overflow: 'auto' }}
                     />
 
-                    <div className="manual-add-section">
-                        <Typography.Title level={4}>
-                            <Space size={8}>
-                                <PlusOutlined />
-                                Add Student Manually
-                            </Space>
-                        </Typography.Title>
-                        <Form form={form} onFinish={addAttendee} className="manual-add-form">
-                            <Form.Item
-                                name="email"
-                                rules={[
-                                    { required: true, whitespace: true, message: 'Please enter an email.' },
-                                    { type: 'email', message: 'Please enter a valid email.' },
-                                ]}
-                            >
-                                <Input size="large" placeholder="student@innopolis.university" />
-                            </Form.Item>
-                            <Button type="primary" htmlType="submit" size="large" className="primary-action">
-                                Add
-                            </Button>
-                        </Form>
-                    </div>
+                    {isActive && (
+                        <div className="manual-add-section">
+                            <Typography.Title level={4}>
+                                <Space size={8}>
+                                    <PlusOutlined />
+                                    {t('addStudentManually')}
+                                </Space>
+                            </Typography.Title>
+                            <Form form={form} onFinish={addAttendee} className="manual-add-form">
+                                <Form.Item
+                                    name="email"
+                                    rules={[
+                                        { required: true, whitespace: true },
+                                        { type: 'email', message: 'Please enter a valid email.' },
+                                    ]}
+                                >
+                                    <Input size="large" placeholder="student@innopolis.university" />
+                                </Form.Item>
+                                <Button
+                                    type="primary"
+                                    htmlType="submit"
+                                    size="large"
+                                    className="primary-action"
+                                >
+                                    {t('add')}
+                                </Button>
+                            </Form>
+                        </div>
+                    )}
                 </Card>
             </div>
+
+            {/* Модалка QR */}
+            <Modal
+                open={qrModalOpen}
+                footer={null}
+                onCancel={() => setQrModalOpen(false)}
+                width="80%"
+                style={{ maxWidth: 600 }}
+                centered
+                closable
+            >
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+                    <img
+                        src={qrFullUrl}
+                        alt="QR Code Full"
+                        style={{ width: '100%', maxWidth: 500, height: 'auto' }}
+                    />
+                </div>
+                <div style={{ textAlign: 'center', marginTop: 12 }}>
+                    <Typography.Text strong>
+                        {t('sessionCode')}: {activeSession.password}
+                    </Typography.Text>
+                </div>
+            </Modal>
+
+            {/* Модалка карты */}
+            <Modal
+                open={mapModalOpen}
+                footer={null}
+                onCancel={() => setMapModalOpen(false)}
+                width="90%"
+                style={{ maxWidth: 1200 }}
+                centered
+                className="map-modal"
+                closable
+                title="Session Location"
+            >
+                <div style={{ height: '80vh' }}>
+                    <SessionMap
+                        key={mapKey + 1000}
+                        center={[activeSession.lat!, activeSession.lng!]}
+                        radius={activeSession.radius || 100}
+                    />
+                </div>
+            </Modal>
         </AppShell>
     );
 }
