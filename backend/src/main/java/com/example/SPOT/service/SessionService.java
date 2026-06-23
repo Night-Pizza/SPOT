@@ -1,0 +1,118 @@
+package com.example.SPOT.service;
+
+import com.example.SPOT.dto.request.SessionCreateDTO;
+import com.example.SPOT.dto.request.SessionUpdateDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
+import com.example.SPOT.model.AttendanceModel;
+import com.example.SPOT.model.UserModel;
+import com.example.SPOT.repository.AttendanceRepository;
+import com.example.SPOT.repository.UserRepository;
+import jakarta.transaction.Transactional;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import com.example.SPOT.dto.response.SessionResponseDTO;
+import com.example.SPOT.exception.CustomException;
+import com.example.SPOT.model.SessionModel;
+import com.example.SPOT.repository.SessionRepository;
+import org.springframework.web.bind.annotation.GetMapping;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class SessionService {
+    private final SessionRepository sessionRepository;
+    private final UserRepository userRepository;
+    private final AttendanceRepository attendanceRepository;
+
+    public SessionService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository) {
+        this.sessionRepository = sessionRepository;
+        this.userRepository = userRepository;
+        this.attendanceRepository = attendanceRepository;
+    }
+
+
+    public SessionModel initializeSessionModel(String title, Long ownerId){
+        SessionModel sessionModel = new SessionModel();
+
+        sessionModel.setTitle(title);
+        sessionModel.setOwner(userRepository.findById(ownerId).orElseThrow(() ->
+                new CustomException("OWNER_ID_NOT_EXIST","Session owner id does not exist")));
+
+        sessionModel.setActive(true);
+        sessionModel.setCreateAt(LocalDateTime.now());
+
+        return sessionModel;
+    }
+
+    public SessionResponseDTO createSession(SessionCreateDTO request, Long ownerId){
+        SessionModel sessionModel = initializeSessionModel(request.title(), ownerId);
+        
+        sessionModel.setLatitude(request.latitude());
+        sessionModel.setLongitude(request.longitude());
+        sessionModel.setAllowedRadius(request.allowedRadius());
+        sessionModel.setPassword(request.password());
+        if (request.validationTypes() != null) {
+            sessionModel.setValidationTypes(request.validationTypes());
+        }
+
+        return mapToDTO(sessionRepository.save(sessionModel));
+    }
+
+    @GetMapping("/{id}")
+    public List<UsersForSessionDTO> getAllEmailsForThisSession(Long id){
+        return attendanceRepository.findAllBySessionId(id).stream().map(model ->
+                        new UsersForSessionDTO(
+                                model.getUser().getEmail()))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteSession(Long id){
+        if (!(sessionRepository.existsById(id)))
+            throw new CustomException("ID_NOT_EXIST","Session id does not exist");
+
+        attendanceRepository.deleteBySessionId(id);
+
+        sessionRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void updateSessionName(Long id, SessionUpdateDTO request){
+        SessionModel sessionModel = sessionRepository.findById(id).orElseThrow(() ->
+                new CustomException("ID_NOT_EXIST","Session id does not exist"));
+        sessionModel.setTitle(request.title());
+    }
+
+    @Transactional
+    public void closeSession(Long id){
+        SessionModel sessionModel = sessionRepository.findById(id).orElseThrow(() ->
+                new CustomException("ID_NOT_EXIST","Session id does not exist"));
+        if (!(sessionModel.isActive())) throw new CustomException("SESSION_ALREADY_CLOSE", "This session is already closed");
+        sessionModel.setActive(false);
+    }
+
+    public List<SessionResponseDTO> getAllSessions(){
+        return sessionRepository.findAll().stream().map(sessionModel ->
+                        new SessionResponseDTO(
+                                sessionModel.getId(),
+                                sessionModel.getTitle(),
+                                sessionModel.getCreateAt()))
+                .collect(Collectors.toList());
+    }
+
+    public List<Long> getAllaSessions(){
+        return sessionRepository.findAllActiveIds();
+    }
+
+    private SessionResponseDTO mapToDTO(SessionModel sessionModel) {
+        return new SessionResponseDTO(
+                sessionModel.getId(),
+                sessionModel.getTitle(),
+                sessionModel.getCreateAt()
+        );
+    }
+}
