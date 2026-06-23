@@ -40,6 +40,20 @@ export default function Attendance() {
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
+            // Запрашиваем геопозицию у браузера пользователя
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Геолокация не поддерживается вашим браузером.'));
+                } else {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true, // Запрашиваем более точные координаты
+                        timeout: 5000,            // Таймаут ожидания 5 секунд
+                    });
+                }
+            });
+
+            const { latitude, longitude } = position.coords;
+
             const response = await fetch(`${API_BASE_URL}/attendance/create`, {
                 method: 'POST',
                 credentials: 'include',
@@ -50,6 +64,8 @@ export default function Attendance() {
                     sessionId: values.sessionId,
                     payload: {
                         password: values.sessionCode,
+                        latitude: latitude,   // Передаем широту в payload
+                        longitude: longitude, // Передаем долготу в payload
                     },
                 }),
             });
@@ -61,7 +77,12 @@ export default function Attendance() {
             void messageApi.success('Attendance submitted');
             form.resetFields();
         } catch (error: unknown) {
-            void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+            // Обрабатываем системную ошибку браузера, если пользователь запретил доступ к GPS
+            if (error instanceof GeolocationPositionError) {
+                void messageApi.error('Необходимо разрешить доступ к геоданным в браузере для отметки присутствия.');
+            } else {
+                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+            }
         } finally {
             setSubmitting(false);
         }
