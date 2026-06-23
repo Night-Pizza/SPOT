@@ -58,8 +58,23 @@ export default function CreateSessionPage() {
         try {
             setLoading(true);
             const response = await createSession(sessionData);
+
+            // Формируем объект сессии для передачи через state
+            const sessionForState = {
+                id: response.id,
+                title: values.title.trim(),
+                password: values.sessionCode?.trim() || '',
+                geolocationEnabled: values.geolocationEnabled || false,
+                radius: values.geolocationEnabled ? values.radius : undefined,
+                lat: coords?.lat,
+                lng: coords?.long,
+                createdAt: new Date().toISOString(),
+                validationTypes: validationTypes,
+                isActive: true,
+            };
+
             message.success(t('sessionCreated') || 'Session created successfully!');
-            navigate(`/sessions/${response.id}`, { state: { session: response } });
+            navigate(`/sessions/${response.id}`, { state: { session: sessionForState } });
         } catch (error) {
             console.error(error);
             message.error(t('createFailed') || 'Failed to create session');
@@ -143,7 +158,6 @@ export default function CreateSessionPage() {
                                 </Flex>
                             </Form.Item>
 
-                            {/* === ВОССТАНОВЛЕННАЯ КАРТА === */}
                             {coords && (
                                 <Form.Item label="Location preview">
                                     <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
