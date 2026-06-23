@@ -291,7 +291,7 @@ export default function ActiveSessionPage() {
                             {isActive ? t('active') : 'Ended'}
                         </Tag>
                         <Typography.Text type="secondary">
-                            Session ID: {sessionId}
+                            Session ID: {numericSessionId}
                         </Typography.Text>
                         <Typography.Text type="secondary">
                             {isActive ? t('sessionLive') : 'Session finished'}
