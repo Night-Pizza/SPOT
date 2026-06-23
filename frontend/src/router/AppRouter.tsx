@@ -7,7 +7,7 @@ import SessionsPage from '../pages/Sessions';
 import CreateSessionPage from '../pages/CreateSession';
 import ActiveSessionPage from '../pages/ActiveSession';
 import ProfilePage from '../pages/Profile';
-import SettingsPage from '../pages/Settings';
+import VerificationPage from '../pages/Verification';
 
 export default function AppRouter() {
     return (
