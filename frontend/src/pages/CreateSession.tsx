@@ -9,13 +9,14 @@ import {
     Space,
     Switch,
     Typography,
-    message
+    message,
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import AppShell from '../components/AppShell';
 import { createSession } from '../api/Session';
-import GeoButton from '../components/GeolocationButton'; // Убедись, что путь к кнопке верный
+import GeolocationButton from '../components/GeolocationButton';
+import { useTheme } from '../contexts/ThemeContext';
 
 type CreateSessionFormValues = {
     title: string;
@@ -27,43 +28,41 @@ type CreateSessionFormValues = {
 export default function CreateSessionPage() {
     const [form] = Form.useForm<CreateSessionFormValues>();
     const navigate = useNavigate();
+    const { t } = useTheme(); // from V1
     const geolocationEnabled = Form.useWatch('geolocationEnabled', form);
 
-    // Стейты для координат и индикации загрузки при запросе к API
     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (values: CreateSessionFormValues) => {
-        // Защита от дурака: если гео включено, но юзер не нажал кнопку
         if (values.geolocationEnabled && !coords) {
-            message.error("Please set your location first!");
+            message.error(t('pleaseSetLocation') || 'Please set your location first.');
             return;
         }
 
-        // Собираем правильный массив для бэкенда
+        // Automatic validation types (V2 logic)
         const validationTypes: string[] = [];
         if (values.geolocationEnabled) validationTypes.push('GPS');
         if (values.sessionCode?.trim()) validationTypes.push('PASSWORD');
         if (validationTypes.length === 0) validationTypes.push('NONE');
 
-        // Подгоняем данные под твой SessionCreateDTO
         const sessionData = {
             title: values.title.trim(),
             password: values.sessionCode?.trim() || null,
             latitude: coords?.lat ?? 0.0,
             longitude: coords?.long ?? 0.0,
             allowedRadius: values.geolocationEnabled ? (values.radius ?? null) : null,
-            validationTypes: validationTypes
+            validationTypes,
         };
 
         try {
             setLoading(true);
             const response = await createSession(sessionData);
-            message.success('Session created successfully!');
+            message.success(t('sessionCreated') || 'Session created successfully!');
             navigate(`/sessions/${response.id}`, { state: { session: response } });
         } catch (error) {
             console.error(error);
-            message.error('Failed to create session');
+            message.error(t('createFailed') || 'Failed to create session');
         } finally {
             setLoading(false);
         }
@@ -71,8 +70,8 @@ export default function CreateSessionPage() {
 
     return (
         <AppShell
-            title="Create Session"
-            subtitle="Set up a new attendance session"
+            title={t('createSession')}
+            subtitle={t('sessionDetails')}
             pageClassName="create-session-page"
         >
             <Card className="session-form-card">
@@ -84,13 +83,13 @@ export default function CreateSessionPage() {
                     requiredMark={false}
                 >
                     <Form.Item
-                        label="Session Title"
+                        label={t('sessionTitle')}
                         name="title"
                         rules={[
-                            { required: true, whitespace: true, message: 'Please enter a session title.' },
+                            { required: true, whitespace: true, message: t('titleRequired') || 'Please enter a session title.' },
                         ]}
                     >
-                        <Input placeholder="e.g. Machine Learning Lecture" size="large" />
+                        <Input placeholder={t('titlePlaceholder') || 'e.g. Machine Learning Lecture'} size="large" />
                     </Form.Item>
 
                     <div className="session-switch-row" style={{ marginBottom: 16 }}>
@@ -99,9 +98,9 @@ export default function CreateSessionPage() {
                                 <EnvironmentOutlined />
                             </span>
                             <div>
-                                <Typography.Text strong>Enable Geolocation</Typography.Text>
+                                <Typography.Text strong>{t('enableGeolocation')}</Typography.Text>
                                 <Typography.Paragraph className="field-helper" style={{ margin: 0 }}>
-                                    Restrict attendance to a physical location
+                                    {t('geolocationHelp') || 'Restrict attendance to a physical location'}
                                 </Typography.Paragraph>
                             </div>
                         </Space>
@@ -113,29 +112,34 @@ export default function CreateSessionPage() {
                     {geolocationEnabled && (
                         <>
                             <Form.Item
-                                label="Allowed Radius"
+                                label={t('allowedRadius')}
                                 name="radius"
                                 rules={[
-                                    { required: true, message: 'Please enter an allowed radius.' },
-                                    {
-                                        type: 'number',
-                                        min: 1,
-                                        message: 'Radius must be a positive number.',
-                                    },
+                                    { required: true, message: t('radiusRequired') || 'Please enter an allowed radius.' },
+                                    { type: 'number', min: 1, message: t('radiusMin') || 'Radius must be a positive number.' },
                                 ]}
                             >
                                 <InputNumber
                                     size="large"
                                     min={1}
-                                    addonAfter="meters"
+                                    addonAfter={t('meters') || 'meters'}
                                     className="full-width-input"
                                 />
                             </Form.Item>
 
-                            <Form.Item label="Session Location" required>
+                            <Form.Item label={t('sessionLocation') || 'Session Location'} required>
                                 <Flex align="center" gap="small">
-                                    <GeoButton onLocationSuccess={(newCoords) => setCoords(newCoords)} />
-                                    {coords && <Typography.Text type="success">Location set!</Typography.Text>}
+                                    <GeolocationButton
+                                        onLocationSuccess={(newCoords) => {
+                                            setCoords(newCoords);
+                                            message.success(t('locationSet') || 'Location set!');
+                                        }}
+                                    />
+                                    {coords && (
+                                        <Typography.Text type="success">
+                                            Lat: {coords.lat.toFixed(5)}, Lng: {coords.long.toFixed(5)}
+                                        </Typography.Text>
+                                    )}
                                 </Flex>
                             </Form.Item>
                         </>
@@ -145,13 +149,23 @@ export default function CreateSessionPage() {
                         label={
                             <Space size={8}>
                                 <KeyOutlined className="muted-icon" />
-                                <span>Session Code</span>
+                                <span>{t('sessionCode') || 'Session Code'}</span>
                             </Space>
                         }
                         name="sessionCode"
-                        extra="Participants can use this code to join the session. Leave blank for no password."
+                        extra={t('codeExtra') || 'Participants can use this code to join. Leave blank for no password.'}
                     >
-                        <Input.Password placeholder="Enter password (optional)" size="large" />
+                        <Input.Password placeholder={t('codePlaceholder') || 'Enter password (optional)'} size="large" />
+                    </Form.Item>
+
+                    {/* Optional: display computed validation types */}
+                    <Form.Item label={t('validationMethods') || 'Validation Methods'}>
+                        <Typography.Text type="secondary">
+                            {geolocationEnabled && 'GPS'}
+                            {geolocationEnabled && (form.getFieldValue('sessionCode')?.trim() ? ', ' : '')}
+                            {form.getFieldValue('sessionCode')?.trim() && 'Password'}
+                            {!geolocationEnabled && !form.getFieldValue('sessionCode')?.trim() && 'None'}
+                        </Typography.Text>
                     </Form.Item>
 
                     <Flex className="form-actions" gap={16} wrap="wrap">
@@ -162,10 +176,10 @@ export default function CreateSessionPage() {
                             className="primary-action"
                             loading={loading}
                         >
-                            Create Session
+                            {t('createSession')}
                         </Button>
                         <Button size="large" onClick={() => navigate('/sessions')}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                     </Flex>
                 </Form>
