@@ -1,7 +1,6 @@
 import {
     CloseOutlined,
     ClockCircleOutlined,
-    EnvironmentOutlined,
     LeftOutlined,
     PlusOutlined,
 } from '@ant-design/icons';
@@ -24,10 +23,16 @@ import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
-import type { LocalSession } from './CreateSession';
+
+// Полностью совпадает с твоим SessionResponseDTO из Java
+export type SessionResponse = {
+    id: number;
+    title: string;
+    createdAt: string;
+};
 
 type LocationState = {
-    session?: LocalSession;
+    session?: SessionResponse;
 };
 
 type Attendee = {
@@ -41,20 +46,18 @@ type ManualAddValues = {
     email: string;
 };
 
-function isLocalSession(value: unknown): value is LocalSession {
+function isValidSession(value: unknown): value is SessionResponse {
     if (!value || typeof value !== 'object') {
         return false;
     }
-
-    const session = value as Partial<LocalSession>;
-    return typeof session.id === 'string' && typeof session.title === 'string';
+    const session = value as Partial<SessionResponse>;
+    return session.id !== undefined && typeof session.title === 'string';
 }
 
 function createLocalId(prefix: string) {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
         return crypto.randomUUID();
     }
-
     return `${prefix}-${Date.now()}`;
 }
 
@@ -78,17 +81,18 @@ function getCurrentTime() {
 export default function ActiveSessionPage() {
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Безопасно достаем данные сессии
     const state = location.state as LocationState | null;
-    const session = isLocalSession(state?.session) ? state.session : null;
+    const session = isValidSession(state?.session) ? state.session : null;
+
     const [form] = Form.useForm<ManualAddValues>();
     const [messageApi, contextHolder] = message.useMessage();
 
-    // TODO: replace local attendees with backend attendance data when the API is available.
+    // Заглушка для студентов (пока не подключим API)
     const [attendees, setAttendees] = useState<Attendee[]>([
         { id: 'demo-1', name: 'Amir Seitkali', email: 'a.seitkali@innopolis.university', time: '10:02' },
         { id: 'demo-2', name: 'Daria Ivanova', email: 'd.ivanova@innopolis.university', time: '10:04' },
-        { id: 'demo-3', name: 'Bekzod Tursunov', email: 'b.tursunov@innopolis.university', time: '10:05' },
-        { id: 'demo-4', name: 'Lena Park', email: 'l.park@innopolis.university', time: '10:09' },
     ]);
 
     const columns = useMemo<ColumnsType<Attendee>>(
@@ -174,9 +178,9 @@ export default function ActiveSessionPage() {
         return (
             <AppShell title="Active Session" pageClassName="active-session-page">
                 <Card className="empty-route-card">
-                    <Empty description="No local session data is available for this route.">
-                        <Button type="primary" className="primary-action" onClick={() => navigate('/sessions/create')}>
-                            Create New Session
+                    <Empty description="No session data found. Please select a session from the list.">
+                        <Button type="primary" className="primary-action" onClick={() => navigate('/sessions')}>
+                            Go to Sessions List
                         </Button>
                     </Empty>
                 </Card>
@@ -213,17 +217,11 @@ export default function ActiveSessionPage() {
                             <Typography.Text type="secondary">Session Title</Typography.Text>
                             <Typography.Text strong>{session.title}</Typography.Text>
                         </Flex>
+                        {/* Выводим дату создания из бэкенда */}
                         <Flex justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">Geolocation</Typography.Text>
-                            <Typography.Text strong className={session.geolocationEnabled ? 'green-text' : undefined}>
-                                {session.geolocationEnabled ? (
-                                    <Space size={6}>
-                                        <EnvironmentOutlined />
-                                        Enabled{session.radius ? ` · ${session.radius}m` : ''}
-                                    </Space>
-                                ) : (
-                                    'Disabled'
-                                )}
+                            <Typography.Text type="secondary">Created At</Typography.Text>
+                            <Typography.Text strong>
+                                {new Date(session.createdAt).toLocaleString()}
                             </Typography.Text>
                         </Flex>
                     </div>

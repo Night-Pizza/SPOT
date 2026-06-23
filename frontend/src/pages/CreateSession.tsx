@@ -9,18 +9,13 @@ import {
     Space,
     Switch,
     Typography,
+    message
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import AppShell from '../components/AppShell';
-
-export type LocalSession = {
-    id: string;
-    title: string;
-    sessionCode: string;
-    geolocationEnabled: boolean;
-    radius?: number;
-    createdAt: string;
-};
+import { createSession } from '../api/Session';
+import GeoButton from '../components/GeolocationButton'; // Убедись, что путь к кнопке верный
 
 type CreateSessionFormValues = {
     title: string;
@@ -29,34 +24,49 @@ type CreateSessionFormValues = {
     sessionCode?: string;
 };
 
-function createLocalId() {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-        return crypto.randomUUID();
-    }
-
-    return `session-${Date.now()}`;
-}
-
-function createFallbackCode() {
-    return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
-
 export default function CreateSessionPage() {
     const [form] = Form.useForm<CreateSessionFormValues>();
     const navigate = useNavigate();
     const geolocationEnabled = Form.useWatch('geolocationEnabled', form);
 
-    const handleSubmit = (values: CreateSessionFormValues) => {
-        const session: LocalSession = {
-            id: createLocalId(),
+    // Стейты для координат и индикации загрузки при запросе к API
+    const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (values: CreateSessionFormValues) => {
+        // Защита от дурака: если гео включено, но юзер не нажал кнопку
+        if (values.geolocationEnabled && !coords) {
+            message.error("Please set your location first!");
+            return;
+        }
+
+        // Собираем правильный массив для бэкенда
+        const validationTypes: string[] = [];
+        if (values.geolocationEnabled) validationTypes.push('GPS');
+        if (values.sessionCode?.trim()) validationTypes.push('PASSWORD');
+        if (validationTypes.length === 0) validationTypes.push('NONE');
+
+        // Подгоняем данные под твой SessionCreateDTO
+        const sessionData = {
             title: values.title.trim(),
-            sessionCode: values.sessionCode?.trim() || createFallbackCode(),
-            geolocationEnabled: Boolean(values.geolocationEnabled),
-            radius: values.geolocationEnabled ? values.radius : undefined,
-            createdAt: new Date().toISOString(),
+            password: values.sessionCode?.trim() || null,
+            latitude: coords?.lat ?? 0.0,
+            longitude: coords?.long ?? 0.0,
+            allowedRadius: values.geolocationEnabled ? (values.radius ?? null) : null,
+            validationTypes: validationTypes
         };
 
-        navigate(`/sessions/${session.id}`, { state: { session } });
+        try {
+            setLoading(true);
+            const response = await createSession(sessionData);
+            message.success('Session created successfully!');
+            navigate(`/sessions/${response.id}`, { state: { session: response } });
+        } catch (error) {
+            console.error(error);
+            message.error('Failed to create session');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -83,14 +93,14 @@ export default function CreateSessionPage() {
                         <Input placeholder="e.g. Machine Learning Lecture" size="large" />
                     </Form.Item>
 
-                    <div className="session-switch-row">
+                    <div className="session-switch-row" style={{ marginBottom: 16 }}>
                         <Space size={16} align="center">
                             <span className="field-icon field-icon-green">
                                 <EnvironmentOutlined />
                             </span>
                             <div>
                                 <Typography.Text strong>Enable Geolocation</Typography.Text>
-                                <Typography.Paragraph className="field-helper">
+                                <Typography.Paragraph className="field-helper" style={{ margin: 0 }}>
                                     Restrict attendance to a physical location
                                 </Typography.Paragraph>
                             </div>
@@ -101,25 +111,34 @@ export default function CreateSessionPage() {
                     </div>
 
                     {geolocationEnabled && (
-                        <Form.Item
-                            label="Allowed Radius"
-                            name="radius"
-                            rules={[
-                                { required: true, message: 'Please enter an allowed radius.' },
-                                {
-                                    type: 'number',
-                                    min: 1,
-                                    message: 'Radius must be a positive number.',
-                                },
-                            ]}
-                        >
-                            <InputNumber
-                                size="large"
-                                min={1}
-                                addonAfter="meters"
-                                className="full-width-input"
-                            />
-                        </Form.Item>
+                        <>
+                            <Form.Item
+                                label="Allowed Radius"
+                                name="radius"
+                                rules={[
+                                    { required: true, message: 'Please enter an allowed radius.' },
+                                    {
+                                        type: 'number',
+                                        min: 1,
+                                        message: 'Radius must be a positive number.',
+                                    },
+                                ]}
+                            >
+                                <InputNumber
+                                    size="large"
+                                    min={1}
+                                    addonAfter="meters"
+                                    className="full-width-input"
+                                />
+                            </Form.Item>
+
+                            <Form.Item label="Session Location" required>
+                                <Flex align="center" gap="small">
+                                    <GeoButton onLocationSuccess={(newCoords) => setCoords(newCoords)} />
+                                    {coords && <Typography.Text type="success">Location set!</Typography.Text>}
+                                </Flex>
+                            </Form.Item>
+                        </>
                     )}
 
                     <Form.Item
@@ -130,13 +149,19 @@ export default function CreateSessionPage() {
                             </Space>
                         }
                         name="sessionCode"
-                        extra="Participants can use this code to join the session."
+                        extra="Participants can use this code to join the session. Leave blank for no password."
                     >
-                        <Input.Password placeholder="Leave blank to generate" size="large" />
+                        <Input.Password placeholder="Enter password (optional)" size="large" />
                     </Form.Item>
 
                     <Flex className="form-actions" gap={16} wrap="wrap">
-                        <Button type="primary" htmlType="submit" size="large" className="primary-action">
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            size="large"
+                            className="primary-action"
+                            loading={loading}
+                        >
                             Create Session
                         </Button>
                         <Button size="large" onClick={() => navigate('/sessions')}>

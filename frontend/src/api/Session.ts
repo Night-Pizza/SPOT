@@ -2,10 +2,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 interface CreateSessionProps {
     title: string;
-    password: string;
+    password: string | null;
     latitude: number;
     longitude: number;
-    allowedRadius: number;
+    allowedRadius: number | null;
     validationTypes: string[];
 }
 
