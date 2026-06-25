@@ -99,6 +99,23 @@ public class AttendanceService {
             boolean inClass = isInClass(session.getLatitude(), session.getLongitude(), session.getAllowedRadius(), studentLat, studentLong);
             if (!inClass) throw new CustomException("OUT_OF_ATTENDANCE_RADIUS", "User is out of attendance radius");
         }
+        else if (type == ValidationType.FACE) {
+            if (request.payload() == null || !request.payload().containsKey("photos")) {
+                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 photos");
+            }
+
+            Object photosObj = request.payload().get("photos");
+            if (!(photosObj instanceof List)) {
+                throw new CustomException("INVALID_PHOTO_DATA", "Photos must be a list");
+            }
+
+            List<String> photos = (List<String>) photosObj;
+            if (photos.size() != 3) {
+                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 photos");
+            }
+
+            validateFace((List<String>) photos);
+        }
         else if (type == ValidationType.NONE) {
             // Skipped for the reason
         }
@@ -120,6 +137,16 @@ public class AttendanceService {
         double distance = EARTH_RADIUS_METERS * c;
 
         return distance <= allowedRadius;
+    }
+
+    private void validateFace(List<String> photos) {
+        for (String photo : photos) {
+            if (photo == null || photo.isEmpty()) {
+                throw new CustomException("INVALID_PHOTO_DATA", "Each photo must be a non-empty string");
+            }
+
+
+        }
     }
 
 }
