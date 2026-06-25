@@ -1,9 +1,11 @@
 package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.service.AttendanceService;
+import com.example.SPOT.service.QRTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +19,11 @@ import java.util.List;
 @CrossOrigin(origins = "http://localhost:5173")
 public class AttendanceController {
     private final AttendanceService attendanceService;
+    private final QRTokenService qrTokenService;
 
-    public AttendanceController(AttendanceService attendanceService) {
+    public AttendanceController(AttendanceService attendanceService, QRTokenService qrTokenService) {
         this.attendanceService = attendanceService;
+        this.qrTokenService = qrTokenService;
     }
 
     @PostMapping("/create")
@@ -43,5 +47,17 @@ public class AttendanceController {
     @GetMapping("/all")
     public ResponseEntity<List<AttendanceResponseDTO>> getAllAttendance(){
         return ResponseEntity.ok().body(attendanceService.getAllAttendance());
+    }
+
+    @PostMapping("/scan")
+    public ResponseEntity<AttendanceResponseDTO> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr){
+        Long userId = Long.valueOf(userIdStr);
+        Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
+
+        AttendanceCreateDTO createDTO = new AttendanceCreateDTO(
+                sessionId,
+                qrScanRequestDTO.payload()
+        );
+        return ResponseEntity.ok().body(attendanceService.createAttendance(userId, createDTO));
     }
 }
