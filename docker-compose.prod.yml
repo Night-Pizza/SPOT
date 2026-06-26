@@ -76,7 +76,7 @@ services:
       CLUSTER_ID: ${KAFKA_CLUSTER_ID}
       
   face_recognition:
-    build: ./face_recognition
+    image: ghcr.io/night-pizza/spot/spot-face_recognition:latest
     container_name: face_recognition_service
     restart: always
     networks:
