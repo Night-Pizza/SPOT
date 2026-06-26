@@ -63,7 +63,21 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
       
+  face_recognition:
+    build: ./face_recognition
+    container_name: face_recognition_service
+    restart: always
+    networks:
+      - app-network
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_REQUEST_TOPIC: face.recognition.requests
+      KAFKA_RESPONSE_TOPIC: system.events
+
 volumes:
   db_data:

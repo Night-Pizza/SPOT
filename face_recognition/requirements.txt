@@ -2,3 +2,4 @@ insightface
 onnxruntime
 opencv-python-headless
 numpy
+kafka-python
