@@ -1,5 +1,6 @@
 package com.example.SPOT.service;
 
+import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
@@ -58,7 +59,8 @@ public class UserService {
         UserModel newUser = new UserModel(
                 null,
                 userCreateDTO.email(),
-                passwordEncoder.encode(userCreateDTO.password())
+                passwordEncoder.encode(userCreateDTO.password()),
+                null
         );
         return mapToDTO(userRepository.save(newUser));
     }
@@ -89,6 +91,14 @@ public class UserService {
         validatePassword(userUpdateDTO.newPassword());
 
         userEntity.setPassword(passwordEncoder.encode(userUpdateDTO.newPassword()));
+
+        return mapToDTO(userRepository.save(userEntity));
+    }
+
+    public UserDTO addFace(Long id, AddFaceDTO addFaceDTO) {
+        UserModel userEntity = userRepository.findById(id)
+                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "User id does not exist"));
+
 
         return mapToDTO(userRepository.save(userEntity));
     }

@@ -1,5 +1,6 @@
 package com.example.SPOT.controller;
 
+import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
@@ -128,6 +129,12 @@ public class UserController {
     public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @RequestBody UserUpdateDTO userUpdateDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok(userService.updatePassword(userId, userUpdateDTO));
+    }
+
+    @PostMapping("/face")
+    public ResponseEntity<UserDTO> addFace(@AuthenticationPrincipal String userIdStr, @RequestBody AddFaceDTO addFaceDTO) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(userService.addFace(userId, addFaceDTO));
     }
 
 }

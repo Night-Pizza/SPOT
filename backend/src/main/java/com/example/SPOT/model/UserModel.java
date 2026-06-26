@@ -1,9 +1,12 @@
 package com.example.SPOT.model;
 
+import com.example.SPOT.converter.DoubleArrayConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.lang.reflect.Array;
 
 @Data
 @Entity
@@ -21,4 +24,10 @@ public class UserModel {
 
     @Column(name = "password")
     private String password;
+
+    @Lob
+    @Column(name = "embedding")
+    @Convert(converter = DoubleArrayConverter.class)
+    private Double[] embedding;
+
 }
