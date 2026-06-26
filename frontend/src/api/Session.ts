@@ -2,10 +2,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export type CreateSessionRequest = {
     title: string;
-    password: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    allowedRadius: number | null;
+    password?: string;
+    latitude?: number;
+    longitude?: number;
+    allowedRadius?: number;
     validationTypes: string[];
 };
 
