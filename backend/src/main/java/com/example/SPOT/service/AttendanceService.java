@@ -1,10 +1,13 @@
 package com.example.SPOT.service;
 
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
+import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
+import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.model.AttendanceModel;
 import com.example.SPOT.model.SessionModel;
+import com.example.SPOT.model.UserModel;
 import com.example.SPOT.model.ValidationType;
 import com.example.SPOT.repository.AttendanceRepository;
 import com.example.SPOT.repository.UserRepository;
@@ -49,9 +52,40 @@ public class AttendanceService {
         return mapToDTO(attendanceRepository.save(attendanceModel));
     }
 
+    public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request){
+        if (!(userRepository.existsByEmail(request.email())))
+            throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
 
+        UserModel user = userRepository.findByEmail(request.email());
+        Long userId = user.getId();
+        if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
+            throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
-    public void deleteAttendance(Long id){
+        SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
+        if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
+
+        AttendanceModel attendanceModel = new AttendanceModel();
+        attendanceModel.setUser(userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist")));
+        attendanceModel.setSession(session);
+        attendanceModel.setTimestamp(LocalDateTime.now());
+
+        return mapToDTO(attendanceRepository.save(attendanceModel));
+    }
+
+    public void deleteAttendance(DeleteAttendanceRequestDTO request){
+        if (!(userRepository.existsByEmail(request.email())))
+            throw new CustomException("EMAIL_NOT_EXIST","Email does not exist");
+        if (!(sessionRepository.existsById(request.sessionId())))
+            throw new CustomException("SESSION_DOES_NOT_EXISTS", "Session with this id does not exists");
+        UserModel user = userRepository.findByEmail(request.email());
+        Long userId = user.getId();
+        if (!(attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId())))
+            throw new CustomException("USER_HAS_NOT_ATTENDED_SESSION", "User with this this id has NOT attended session with this id");
+
+        attendanceRepository.deleteById(attendanceRepository.findByUserIdAndSessionId(userId, request.sessionId()).getId());
+    }
+
+    public void deleteMyAttendance(Long id){
         if (!(attendanceRepository.existsById(id)))
             throw new CustomException("ID_NOT_EXIST","Attendance id does not exist");
         attendanceRepository.deleteById(id);

@@ -1,6 +1,8 @@
 package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
+import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
+import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
@@ -32,9 +34,20 @@ public class AttendanceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
     }
 
+    @PostMapping("/create/email")
+    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(attendanceService.createAttendanceByEmail(emailAttendanceCreateDTO));
+    }
+
+    @DeleteMapping("/delete")
+    public ResponseEntity<Void> deleteAttendance(@Valid @RequestBody DeleteAttendanceRequestDTO deleteAttendanceCreateDTO) {
+        attendanceService.deleteAttendance(deleteAttendanceCreateDTO);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAttendance(@PathVariable Long id) {
-        attendanceService.deleteAttendance(id);
+    public ResponseEntity<Void> deleteMyAttendance(@PathVariable Long id) {
+        attendanceService.deleteMyAttendance(id);
         return ResponseEntity.noContent().build();
     }
 
