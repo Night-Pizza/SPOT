@@ -1,33 +1,30 @@
 import {
-    CloseOutlined,
-    ClockCircleOutlined,
     LeftOutlined,
-    PlusOutlined,
     EnvironmentOutlined,
     ExpandOutlined,
     StopOutlined,
     EditOutlined,
     SaveOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import {
     Button,
     Card,
     Empty,
     Flex,
-    Form,
-    Input,
     Popconfirm,
     Space,
     Table,
     Tag,
-    Tooltip,
     Typography,
     message,
     Modal,
     InputNumber,
+    Alert,
+    Spin,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import L from 'leaflet';
 
@@ -36,25 +33,19 @@ import { useApp } from '../contexts/AppContext';
 import type { Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
+import { subscribeToQrToken } from '../api/Qr';
 
-// Полностью совпадает с твоим SessionResponseDTO из Java
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 type Attendee = {
     id: string;
     name: string;
     email: string;
-    time: string;
 };
 
-type ManualAddValues = {
+type SessionUserResponse = {
     email: string;
 };
-
-function createLocalId(prefix: string) {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-        return crypto.randomUUID();
-    }
-    return `${prefix}-${Date.now()}`;
-}
 
 function getDisplayName(email: string) {
     const [localPart] = email.split('@');
@@ -65,12 +56,13 @@ function getDisplayName(email: string) {
         .join(' ') || email;
 }
 
-function getCurrentTime() {
-    return new Intl.DateTimeFormat('en', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    }).format(new Date());
+async function readErrorMessage(response: Response, fallback: string) {
+    try {
+        const data = await response.json() as { message?: string; error?: string };
+        return data.message || data.error || fallback;
+    } catch {
+        return fallback;
+    }
 }
 
 export default function ActiveSessionPage() {
@@ -79,42 +71,34 @@ export default function ActiveSessionPage() {
     const { sessionId } = useParams<{ sessionId: string }>();
     const {
         getSessionById,
-        getStudentsForSession,
-        addStudentToSession,
-        removeStudentFromSession,
-        sessions,
-        endSession,
         updateSession,
     } = useApp();
     const { t } = useTheme();
-    const [form] = Form.useForm<ManualAddValues>();
     const [messageApi, contextHolder] = message.useMessage();
-    const [loading, setLoading] = useState(true);
-    const [isMounted, setIsMounted] = useState(false);
+    const [attendees, setAttendees] = useState<Attendee[]>([]);
+    const [attendeesLoading, setAttendeesLoading] = useState(false);
+    const [attendeesError, setAttendeesError] = useState('');
+    const [endingSession, setEndingSession] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
     const [isEditingRadius, setIsEditingRadius] = useState(false);
     const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
     const [mapKey, setMapKey] = useState(0);
+    const [isMounted, setIsMounted] = useState(false); //
+    const [qrToken, setQrToken] = useState('');
+    const [qrError, setQrError] = useState('');
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
+    const numericSessionId = sessionId && /^\d+$/.test(sessionId) && Number(sessionId) > 0
+        ? Number(sessionId)
+        : null;
 
     // Безопасно достаем данные сессии
     const state = location.state as  { session?: Session } | null;
     const sessionFromState = state?.session;
     const activeSession = sessionFromUrl || sessionFromState;
 
-    const scannedStudents = useMemo(() => {
-        if (!activeSession) return [];
-        return getStudentsForSession(activeSession.id);
-    }, [activeSession, getStudentsForSession]);
-
-    useEffect(() => {
-        if (activeSession) {
-            setEditRadius(activeSession.radius);
-        }
-    }, [activeSession]);
-
+    // Настройка иконок Leaflet + isMounted (как в первом файле)
     useEffect(() => {
         delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
         L.Icon.Default.mergeOptions({
@@ -128,20 +112,85 @@ export default function ActiveSessionPage() {
         setIsMounted(true);
     }, []);
 
+    // Инициализация editRadius из активной сессии
     useEffect(() => {
-        setLoading(false);
-    }, [sessionId, sessions, sessionFromUrl, sessionFromState, activeSession]);
+        if (activeSession) {
+            setEditRadius(activeSession.radius);
+        }
+    }, [activeSession]);
+
+    const isQrSession = activeSession?.mode !== 'CODE';
 
     useEffect(() => {
-        if (!loading && !activeSession) {
-            void messageApi.error(t('sessionNotFoundError'));
+        if (numericSessionId === null || !isQrSession) {
+            setQrToken('');
+            setQrError('');
+            return undefined;
         }
-    }, [loading, activeSession, messageApi, t]);
+
+        return subscribeToQrToken(
+            numericSessionId,
+            (token) => {
+                setQrToken(token);
+                setQrError('');
+            },
+            (errorMessage) => {
+                setQrError(errorMessage);
+                void messageApi.error(errorMessage);
+            },
+        );
+    }, [isQrSession, messageApi, numericSessionId]);
+
+    const loadSessionUsers = useCallback(async () => {
+        if (numericSessionId === null) {
+            setAttendees([]);
+            setAttendeesError('Session ID must be a positive number.');
+            setAttendeesLoading(false);
+            return;
+        }
+
+        setAttendeesLoading(true);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                throw new Error(await readErrorMessage(response, 'Failed to load checked-in users.'));
+            }
+
+            const users = await response.json() as SessionUserResponse[];
+            setAttendees(
+                users.map((user) => ({
+                    id: user.email,
+                    email: user.email,
+                    name: getDisplayName(user.email),
+                })),
+            );
+            setAttendeesError('');
+        } catch (error: unknown) {
+            setAttendeesError(error instanceof Error ? error.message : 'Failed to load checked-in users.');
+        } finally {
+            setAttendeesLoading(false);
+        }
+    }, [numericSessionId]);
+
+    useEffect(() => {
+        const timerId = window.setTimeout(() => {
+            void loadSessionUsers();
+        }, 0);
+
+        return () => {
+            window.clearTimeout(timerId);
+        };
+    }, [loadSessionUsers]);
 
     const columns = useMemo<ColumnsType<Attendee>>(
         () => [
             {
-                title: 'name',
+                title: 'Name',
                 dataIndex: 'name',
                 key: 'name',
                 render: (name: string) => (
@@ -158,99 +207,64 @@ export default function ActiveSessionPage() {
                 render: (email: string) => <span className="student-email-cell">{email}</span>,
             },
             {
-                title: 'Time',
-                dataIndex: 'time',
-                key: 'time',
-                render: (time: string) => (
-                    <Space size={6} className="student-time-cell">
-                        <ClockCircleOutlined className="muted-icon" />
-                        <span>{time}</span>
-                    </Space>
-                ),
-            },
-            {
                 title: 'Actions',
                 align: 'center',
                 width: 60,
-                render: (_, attendee) => (
+                render: () => (
                     <span className="student-action-cell">
-                        <Popconfirm
-                            title="Remove this attendee from the list?"
-                            okText="Remove"
-                            cancelText="Cancel"
-                            onConfirm={() =>{
-                                if (activeSession) {
-                                removeStudentFromSession(activeSession.id, attendee.id);
-                            }
-                            }}
-                        >
-                            <Tooltip title={t('removeAttendee') || 'Remove attendee'}>
-                                <Button
-                                    shape="circle"
-                                    danger
-                                    type="text"
-                                    icon={<CloseOutlined />}
-                                    aria-label={`Remove ${attendee.name}`}
-                                    size="small"
-                                />
-                            </Tooltip>
-                        </Popconfirm>
+                        <Typography.Text type="secondary">Unavailable</Typography.Text>
                     </span>
                 ),
             },
         ],
-        [removeStudentFromSession, activeSession, t],
+        [],
     );
 
-    const addAttendee = ({ email }: ManualAddValues) => {
-        const normalizedEmail = email.trim();
-        if (!activeSession) return;
-        addStudentToSession(activeSession.id,{
-            id: createLocalId('attendee'),
-            name: getDisplayName(normalizedEmail),
-            email: normalizedEmail,
-            time: getCurrentTime(),
-        });
+    const handleEndSession = async () => {
+        if (numericSessionId === null) {
+            void messageApi.error('Session ID must be a positive number.');
+            return;
+        }
 
-        form.resetFields();
-        void messageApi.success(t('attendeeAdded') || 'Attendee added.');
-    };
+        setEndingSession(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/session/close/${numericSessionId}`, {
+                method: 'PATCH',
+                credentials: 'include',
+            });
 
-    const handleEndSession = () => {
-        if (activeSession) {
-            endSession(activeSession.id);
+            if (!response.ok) {
+                throw new Error(await readErrorMessage(response, 'Failed to end session.'));
+            }
+
             void messageApi.success('Session ended');
             navigate('/sessions');
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to end session.');
+        } finally {
+            setEndingSession(false);
         }
     };
 
     const handleSaveRadius = () => {
-        if (activeSession && editRadius !== undefined && editRadius > 0) {
-            updateSession(activeSession.id, { radius: editRadius });
-            setEditRadius(editRadius);
+        const nextRadius = editRadius ?? activeSession?.radius;
+
+        if (activeSession && nextRadius !== undefined && nextRadius > 0) {
+            updateSession(activeSession.id, { radius: nextRadius });
+            setEditRadius(nextRadius);
             setIsEditingRadius(false);
-            setMapKey((prev) => prev + 1);
+            setMapKey((prev) => prev + 1); // 👈 обновляем карту
             void messageApi.success('Radius updated');
         } else {
             void messageApi.error('Please enter a valid radius');
         }
     };
 
-    if (loading) {
-        return (
-            <AppShell title={t('loading')} showPageTitle={false}>
-                <div style={{ textAlign: 'center', padding: 40 }}>
-                    <Typography.Title level={3}>{t('loadingSession')}</Typography.Title>
-                </div>
-            </AppShell>
-        );
-    }
-
-    if (!activeSession) {
+    if (numericSessionId === null) {
         return (
             <AppShell title={t('sessionNotFound')} showPageTitle={false}>
                 <Card style={{ maxWidth: 500, margin: '40px auto', textAlign: 'center' }}>
-                    <Empty description={t('sessionNotFound')} />
+                    <Empty description="Session ID must be a positive number." />
                     <Button type="primary" onClick={() => navigate('/sessions')}>
                         {t('goToSessions')}
                     </Button>
@@ -260,26 +274,25 @@ export default function ActiveSessionPage() {
     }
 
     const hasLocation =
-        activeSession.geolocationEnabled &&
-        activeSession.lat !== undefined &&
-        activeSession.lng !== undefined;
+        Boolean(activeSession?.geolocationEnabled) &&
+        activeSession?.lat !== undefined &&
+        activeSession?.lng !== undefined;
 
-    const qrData = JSON.stringify({
-        sessionId: activeSession.id,
-        code: activeSession.password,
-    });
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-        qrData
-    )}`;
-    const qrFullUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(
-        qrData
-    )}`;
+    const displayTitle = activeSession?.title || `Session ${numericSessionId}`;
+    const sessionPassword = activeSession?.password || '';
+    const qrPayload = qrToken ? JSON.stringify({ token: qrToken }) : '';
+    const qrUrl = qrPayload
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrPayload)}`
+        : '';
+    const qrFullUrl = qrPayload
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrPayload)}`
+        : '';
 
-    const isActive = activeSession.isActive !== false;
+    const isActive = activeSession?.isActive !== false;
 
     return (
         <AppShell
-            title={activeSession.title}
+            title={displayTitle}
             showPageTitle={false}
             pageClassName="active-session-page"
         >
@@ -291,13 +304,26 @@ export default function ActiveSessionPage() {
                     icon={<LeftOutlined />}
                     onClick={() => navigate('/sessions')}
                     aria-label={t('back')}
+                    style={{
+                        width: 40,
+                        height: 40,
+                        minWidth: 40,
+                        padding: 0,
+                        borderRadius: '50%',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
                 />
                 <div>
-                    <Typography.Title level={1}>{activeSession.title}</Typography.Title>
+                    <Typography.Title level={1}>{displayTitle}</Typography.Title>
                     <Space size={12}>
                         <Tag color={isActive ? 'success' : 'default'}>
                             {isActive ? t('active') : 'Ended'}
                         </Tag>
+                        <Typography.Text type="secondary">
+                            Session ID: {numericSessionId}
+                        </Typography.Text>
                         <Typography.Text type="secondary">
                             {isActive ? t('sessionLive') : 'Session finished'}
                         </Typography.Text>
@@ -310,35 +336,53 @@ export default function ActiveSessionPage() {
                     title={t('sessionDetails')}
                     className="active-card qr-card"
                     extra={
-                        <Button
-                            type="text"
-                            icon={<ExpandOutlined />}
-                            onClick={() => setQrModalOpen(true)}
-                            aria-label="Expand QR"
-                        />
+                        isQrSession ? (
+                            <Button
+                                type="text"
+                                icon={<ExpandOutlined />}
+                                onClick={() => setQrModalOpen(true)}
+                                aria-label="Expand QR"
+                                disabled={!qrUrl}
+                            />
+                        ) : null
                     }
                 >
-                    {isMounted && (
+                    {isQrSession && (
                         <div
                             style={{
                                 display: 'flex',
                                 justifyContent: 'center',
                                 marginBottom: 24,
-                                cursor: 'pointer',
+                                cursor: qrUrl ? 'pointer' : 'default',
+                                minHeight: 200,
+                                alignItems: 'center',
                             }}
-                            onClick={() => setQrModalOpen(true)}
+                            onClick={() => {
+                                if (qrUrl) setQrModalOpen(true);
+                            }}
                         >
-                            <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
+                            {qrUrl ? (
+                                <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
+                            ) : (
+                                <Space direction="vertical" align="center">
+                                    <Spin />
+                                    <Typography.Text type="secondary">
+                                        {qrError || 'Waiting for backend QR token...'}
+                                    </Typography.Text>
+                                </Space>
+                            )}
                         </div>
                     )}
 
                     <div className="session-detail-list">
-                        <Flex justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
-                            <Typography.Text strong>{activeSession.password}</Typography.Text>
-                        </Flex>
+                        {!isQrSession && (
+                            <Flex justify="space-between" gap={16}>
+                                <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
+                                <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
+                            </Flex>
+                        )}
 
-                        {activeSession.validationTypes &&
+                        {activeSession?.validationTypes &&
                             activeSession.validationTypes.length > 0 && (
                                 <Flex justify="space-between" gap={16}>
                                     <Typography.Text type="secondary">
@@ -354,13 +398,13 @@ export default function ActiveSessionPage() {
                             <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
                             <Typography.Text
                                 strong
-                                className={activeSession.geolocationEnabled ? 'green-text' : undefined}
+                                className={activeSession?.geolocationEnabled ? 'green-text' : undefined}
                             >
-                                {activeSession.geolocationEnabled ? (
+                                {activeSession?.geolocationEnabled ? (
                                     <Space size={6}>
                                         <EnvironmentOutlined />
                                         {t('enabled')}
-                                        {activeSession.radius ? ` · ${activeSession.radius}m` : ''}
+                                        {activeSession?.radius ? ` · ${activeSession.radius}m` : ''}
                                     </Space>
                                 ) : (
                                     t('disabled')
@@ -371,7 +415,7 @@ export default function ActiveSessionPage() {
                             <Flex justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('location')}</Typography.Text>
                                 <Typography.Text strong>
-                                    {activeSession.lat?.toFixed(5)}, {activeSession.lng?.toFixed(5)}
+                                    {activeSession?.lat?.toFixed(5)}, {activeSession?.lng?.toFixed(5)}
                                 </Typography.Text>
                             </Flex>
                         )}
@@ -382,7 +426,7 @@ export default function ActiveSessionPage() {
                                     <Space>
                                         <InputNumber
                                             min={1}
-                                            value={editRadius}
+                                            value={editRadius ?? activeSession?.radius}
                                             onChange={(val) => setEditRadius(val ?? undefined)}
                                             addonAfter="m"
                                             size="small"
@@ -399,7 +443,7 @@ export default function ActiveSessionPage() {
                                             size="small"
                                             onClick={() => {
                                                 setIsEditingRadius(false);
-                                                setEditRadius(activeSession.radius);
+                                                setEditRadius(undefined);
                                             }}
                                         >
                                             Cancel
@@ -408,13 +452,16 @@ export default function ActiveSessionPage() {
                                 ) : (
                                     <Space>
                                         <Typography.Text strong>
-                                            {activeSession.radius ? `${activeSession.radius}m` : 'N/A'}
+                                            {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
                                         </Typography.Text>
                                         {isActive && (
                                             <Button
                                                 type="text"
                                                 icon={<EditOutlined />}
-                                                onClick={() => setIsEditingRadius(true)}
+                                                onClick={() => {
+                                                    setEditRadius(activeSession?.radius);
+                                                    setIsEditingRadius(true);
+                                                }}
                                                 size="small"
                                             />
                                         )}
@@ -436,8 +483,8 @@ export default function ActiveSessionPage() {
                         >
                             <SessionMap
                                 key={mapKey}
-                                center={[activeSession.lat!, activeSession.lng!]}
-                                radius={activeSession.radius || 100}
+                                center={[activeSession!.lat!, activeSession!.lng!]}
+                                radius={activeSession!.radius || 100}
                             />
                             <Button
                                 type="primary"
@@ -456,7 +503,15 @@ export default function ActiveSessionPage() {
                         <Flex justify="space-between" align="center">
                             <span>{t('scannedStudents')}</span>
                             <Space>
-                                <Tag color="success">{scannedStudents.length}</Tag>
+                                <Tag color="success">{attendees.length}</Tag>
+                                <Button
+                                    size="small"
+                                    icon={<ReloadOutlined />}
+                                    onClick={() => void loadSessionUsers()}
+                                    loading={attendeesLoading}
+                                >
+                                    Refresh
+                                </Button>
                                 {isActive && (
                                     <Popconfirm
                                         title="Are you sure you want to end this session?"
@@ -464,7 +519,7 @@ export default function ActiveSessionPage() {
                                         cancelText="No"
                                         onConfirm={handleEndSession}
                                     >
-                                        <Button danger size="small" icon={<StopOutlined />}>
+                                        <Button danger size="small" icon={<StopOutlined />} loading={endingSession}>
                                             End Session
                                         </Button>
                                     </Popconfirm>
@@ -474,45 +529,31 @@ export default function ActiveSessionPage() {
                     }
                     className="active-card scanned-card"
                 >
+                    {attendeesError && (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message={attendeesError}
+                            style={{ margin: 16 }}
+                        />
+                    )}
+                    {attendeesLoading && !attendees.length ? (
+                        <div style={{ padding: 32, textAlign: 'center' }}>
+                            <Spin />
+                            <div style={{ marginTop: 12 }}>
+                                <Typography.Text type="secondary">Loading checked-in users...</Typography.Text>
+                            </div>
+                        </div>
+                    ) : null}
                     <Table
                         columns={columns}
-                        dataSource={scannedStudents}
+                        dataSource={attendees}
                         rowKey="id"
                         pagination={false}
                         locale={{ emptyText: <Empty description={t('noAttendees')} /> }}
                         size="middle"
                         style={{ overflow: 'auto' }}
                     />
-
-                    {isActive && (
-                        <div className="manual-add-section">
-                            <Typography.Title level={4}>
-                                <Space size={8}>
-                                    <PlusOutlined />
-                                    {t('addStudentManually')}
-                                </Space>
-                            </Typography.Title>
-                            <Form form={form} onFinish={addAttendee} className="manual-add-form">
-                                <Form.Item
-                                    name="email"
-                                    rules={[
-                                        { required: true, whitespace: true },
-                                        { type: 'email', message: 'Please enter a valid email.' },
-                                    ]}
-                                >
-                                    <Input size="large" placeholder="student@innopolis.university" />
-                                </Form.Item>
-                                <Button
-                                    type="primary"
-                                    htmlType="submit"
-                                    size="large"
-                                    className="primary-action"
-                                >
-                                    {t('add')}
-                                </Button>
-                            </Form>
-                        </div>
-                    )}
                 </Card>
             </div>
 
@@ -527,20 +568,18 @@ export default function ActiveSessionPage() {
                 closable
             >
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
-                    <img
-                        src={qrFullUrl}
-                        alt="QR Code Full"
-                        style={{ width: '100%', maxWidth: 500, height: 'auto' }}
-                    />
-                </div>
-                <div style={{ textAlign: 'center', marginTop: 12 }}>
-                    <Typography.Text strong>
-                        {t('sessionCode')}: {activeSession.password}
-                    </Typography.Text>
+                    {qrFullUrl ? (
+                        <img
+                            src={qrFullUrl}
+                            alt="QR Code Full"
+                            style={{ width: '100%', maxWidth: 500, height: 'auto' }}
+                        />
+                    ) : (
+                        <Spin />
+                    )}
                 </div>
             </Modal>
 
-            {/* Модалка карты */}
             <Modal
                 open={mapModalOpen}
                 footer={null}
@@ -553,11 +592,13 @@ export default function ActiveSessionPage() {
                 title="Session Location"
             >
                 <div style={{ height: '80vh' }}>
-                    <SessionMap
-                        key={mapKey + 1000}
-                        center={[activeSession.lat!, activeSession.lng!]}
-                        radius={activeSession.radius || 100}
-                    />
+                    {isMounted && (
+                        <SessionMap
+                            key={mapKey + 1000}
+                            center={[activeSession!.lat!, activeSession!.lng!]}
+                            radius={activeSession!.radius || 100}
+                        />
+                    )}
                 </div>
             </Modal>
         </AppShell>

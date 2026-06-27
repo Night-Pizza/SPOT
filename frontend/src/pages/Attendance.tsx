@@ -4,52 +4,197 @@ import {
     Card,
     Form,
     Input,
+    InputNumber,
+    Modal,
     Space,
     Typography,
     message,
-    Table
 } from 'antd';
 import AppShell from '../components/AppShell';
-import { useNavigate } from 'react-router-dom';
-import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createAttendance, scanQrAttendance } from '../api/Attendance';
 
 type CodeFormValues = {
+    sessionId: number;
     sessionCode: string;
 };
+
+type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
+    detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+};
+
+declare global {
+    interface Window {
+        BarcodeDetector?: BarcodeDetectorConstructor;
+    }
+}
+
+function extractQrToken(rawValue: string) {
+    try {
+        const parsed = JSON.parse(rawValue) as { token?: unknown };
+        if (typeof parsed.token === 'string' && parsed.token.trim()) return parsed.token.trim();
+    } catch {
+        // The QR can also be a raw token or a URL containing token.
+    }
+
+    try {
+        const url = new URL(rawValue);
+        const token = url.searchParams.get('token');
+        if (token?.trim()) return token.trim();
+    } catch {
+        // Ignore non-URL QR content.
+    }
+
+    return rawValue.trim();
+}
+
+async function getBrowserLocation() {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Геолокация не поддерживается вашим браузером.'));
+        } else {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+            });
+        }
+    });
+
+    return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+    };
+}
 
 export default function Attendance() {
     const [form] = Form.useForm<CodeFormValues>();
     const [messageApi, contextHolder] = message.useMessage();
+    const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
-    const navigate = useNavigate();
-    const { sessions } = useApp();
     const { t } = useTheme();
+    const [submitting, setSubmitting] = useState(false);
+    const [scanOpen, setScanOpen] = useState(false);
+    const [scanLoading, setScanLoading] = useState(false);
+    const [scanError, setScanError] = useState('');
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const scanningRef = useRef(false);
 
-    const handleSubmit = () => {
-        const code = form.getFieldValue('sessionCode');
-        if (!code) return;
-        // Ищем сессию по password
-        const session = sessions.find(s => s.password === code.trim().toUpperCase());
-        if (!session) {
-            void messageApi.error(t('sessionNotFoundError'));
-            return;
+    const handleSubmit = async (values: CodeFormValues) => {
+        setSubmitting(true);
+        try {
+            const location = await getBrowserLocation();
+
+            await createAttendance(values.sessionId, {
+                password: values.sessionCode,
+                latitude: location.latitude,
+                longitude: location.longitude,
+            });
+
+            void messageApi.success('Attendance submitted');
+            form.resetFields();
+        } catch (error: unknown) {
+            // Обрабатываем системную ошибку браузера, если пользователь запретил доступ к GPS
+            if (error instanceof GeolocationPositionError) {
+                void messageApi.error('Необходимо разрешить доступ к геоданным в браузере для отметки присутствия.');
+            } else {
+                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+            }
+        } finally {
+            setSubmitting(false);
         }
-        navigate(`/attendance/verify?sessionId=${session.id}`);
     };
 
-    const historyData = sessions.map(s => ({
-        key: s.id,
-        name: s.title,
-        date: new Date(s.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        time: new Date(s.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-    }));
+    const stopScanner = useCallback(() => {
+        scanningRef.current = false;
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+    }, []);
 
-    const columns = [
-        { title: t('sessionName'), dataIndex: 'name', key: 'name' },
-        { title: t('date'), dataIndex: 'date', key: 'date' },
-        { title: t('time'), dataIndex: 'time', key: 'time' },
-    ];
+    const submitScannedToken = useCallback(async (rawValue: string) => {
+        const token = extractQrToken(rawValue);
+        if (!token) {
+            setScanError('QR code did not contain a token.');
+            return;
+        }
+
+        setScanLoading(true);
+        try {
+            let payload = {};
+            try {
+                payload = await getBrowserLocation();
+            } catch {
+                payload = {};
+            }
+
+            await scanQrAttendance(token, payload);
+            void messageApi.success('QR attendance submitted');
+            setScanOpen(false);
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+            setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+        } finally {
+            setScanLoading(false);
+        }
+    }, [messageApi]);
+
+    const startScanner = useCallback(async () => {
+        setScanError('');
+
+        if (!window.BarcodeDetector) {
+            setScanError('QR scanning is not supported by this browser.');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+            });
+            streamRef.current = stream;
+
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play();
+            }
+
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            scanningRef.current = true;
+
+            const scanFrame = async () => {
+                if (!scanningRef.current || !videoRef.current) return;
+
+                try {
+                    const codes = await detector.detect(videoRef.current);
+                    if (codes[0]?.rawValue) {
+                        scanningRef.current = false;
+                        await submitScannedToken(codes[0].rawValue);
+                        return;
+                    }
+                } catch {
+                    setScanError('Failed to read QR code from camera.');
+                }
+
+                window.setTimeout(() => {
+                    void scanFrame();
+                }, 300);
+            };
+
+            void scanFrame();
+        } catch (error: unknown) {
+            setScanError(error instanceof Error ? error.message : 'Failed to open camera.');
+        }
+    }, [submitScannedToken]);
+
+    useEffect(() => {
+        if (scanOpen) {
+            void startScanner();
+        } else {
+            stopScanner();
+        }
+
+        return stopScanner;
+    }, [scanOpen, startScanner, stopScanner]);
 
     return (
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
@@ -66,7 +211,13 @@ export default function Attendance() {
                                 {t('scanQRDesc')}
                             </Typography.Paragraph>
                         </div>
-                        <Button type="primary" size="large" className="primary-action wide-button">
+                        <Button
+                            type="primary"
+                            size="large"
+                            className="primary-action wide-button"
+                            onClick={() => setScanOpen(true)}
+                            loading={scanLoading}
+                        >
                             {t('openCamera')}
                         </Button>
                     </Space>
@@ -88,19 +239,41 @@ export default function Attendance() {
 
                         <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false}>
                             <Form.Item
+                                name="sessionId"
+                                label="Session ID"
+                                rules={[
+                                    { required: true, message: 'Please enter a session ID.' },
+                                    {
+                                        type: 'integer',
+                                        min: 1,
+                                        message: 'Session ID must be a positive integer.',
+                                    },
+                                ]}
+                            >
+                                <InputNumber
+                                    size="large"
+                                    placeholder="123"
+                                    min={1}
+                                    precision={0}
+                                    className="full-width-space"
+                                />
+                            </Form.Item>
+                            <Form.Item
                                 name="sessionCode"
+                                label="Session Code"
                                 rules={[
                                     { required: true, whitespace: true, message: 'Please enter a session code.' },
                                 ]}
                             >
-                                <Input.Password size="large" placeholder="e.g. ML2026" />
+                                <Input.Password size="large" placeholder="Session password" />
                             </Form.Item>
                             <Button
                                 type="primary"
                                 htmlType="submit"
                                 size="large"
                                 className="primary-action wide-button"
-                                disabled={!sessionCode?.trim()}
+                                loading={submitting}
+                                disabled={!sessionId || !sessionCode?.trim()}
                             >
                                 {t('submitCode')}
                             </Button>
@@ -108,22 +281,24 @@ export default function Attendance() {
                     </Space>
                 </Card>
             </div>
-
-            <div style={{ marginTop: 48 }}>
-                <Typography.Title level={3} style={{ marginBottom: 16 }}>
-                    {t('attendanceHistory')}
-                </Typography.Title>
-                <Card>
-                    <Table
-                        columns={columns}
-                        dataSource={historyData}
-                        pagination={false}
-                        locale={{
-                            emptyText: <span className="empty-text-light">{t('noAttendanceRecords')}</span>
-                        }}
+            <Modal
+                title={t('scanQRCode')}
+                open={scanOpen}
+                onCancel={() => setScanOpen(false)}
+                footer={null}
+                centered
+            >
+                <Space direction="vertical" size={16} className="full-width-space">
+                    <video
+                        ref={videoRef}
+                        muted
+                        playsInline
+                        style={{ width: '100%', borderRadius: 16, background: '#000' }}
                     />
-                </Card>
-            </div>
+                    {scanError && <Typography.Text type="danger">{scanError}</Typography.Text>}
+                    {scanLoading && <Typography.Text type="secondary">Submitting attendance...</Typography.Text>}
+                </Space>
+            </Modal>
         </AppShell>
     );
 }

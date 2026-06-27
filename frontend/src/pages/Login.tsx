@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginUser } from '../api/Authentification';
+import { useAuth } from '../contexts/AuthContext';
 
 function validateEmail(email: string): string | null {
     if (!email) return 'Email cannot be empty';
@@ -11,6 +12,7 @@ function validateEmail(email: string): string | null {
 
 export default function LoginPage() {
     const navigate = useNavigate();
+    const { setAuthenticatedUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -25,7 +27,8 @@ export default function LoginPage() {
 
         setLoading(true);
         try {
-            await loginUser({ email, password });
+            const user = await loginUser({ email, password });
+            setAuthenticatedUser(user);
             navigate('/dashboard');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : 'Login failed');

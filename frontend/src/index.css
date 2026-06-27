@@ -537,6 +537,21 @@ body {
   font-weight: 800;
 }
 
+.session-mode-choice .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled),
+.session-mode-choice .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled):hover {
+  color: #fff;
+  background: #5ec832;
+  border-color: #5ec832;
+}
+
+.session-mode-choice .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)::before {
+  background-color: #5ec832;
+}
+
+.session-mode-choice .ant-radio-button-wrapper:hover {
+  color: #5ec832;
+}
+
 .session-switch-row {
   display: flex;
   align-items: center;

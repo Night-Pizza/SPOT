@@ -3,6 +3,7 @@ package com.example.SPOT.controller;
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.service.SessionService;
@@ -55,6 +56,12 @@ public class SessionController {
     public ResponseEntity<List<SessionResponseDTO>> getAllSessions(){
         return ResponseEntity.ok().body(sessionService.getAllSessions());
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id){
+        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id));
+    }
+
 
     @GetMapping("/alla")
     public ResponseEntity<List<Long>> getAllaSessions(){
