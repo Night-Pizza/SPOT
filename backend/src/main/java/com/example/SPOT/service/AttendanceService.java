@@ -1,5 +1,6 @@
 package com.example.SPOT.service;
 
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
@@ -28,14 +29,16 @@ public class AttendanceService {
     private final AttendanceRepository attendanceRepository;
     private final KafkaMessagingService kafka;
     private final KafkaRepository kafkaRepository;
+    private final QRTokenService qrTokenService;
 
     public AttendanceService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository,
-                             KafkaMessagingService kafka, KafkaRepository kafkaRepository) {
+                             KafkaMessagingService kafka, KafkaRepository kafkaRepository, QRTokenService qrTokenService) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
         this.kafka = kafka;
         this.kafkaRepository = kafkaRepository;
+        this.qrTokenService = qrTokenService;
     }
 
     public Map<String, Object> createAttendance(Long userId, AttendanceCreateDTO request){
@@ -71,6 +74,12 @@ public class AttendanceService {
         attendanceRepository.save(attendanceModel);
 
         return Map.of("attendanceId", attendanceModel.getId(), "status", "SUCCESS");
+    }
+
+    public Map<String, Object> scanAttendance(Long userId, QrScanRequestDTO request) {
+        Long sessionId = qrTokenService.validateTokenAndGetSesionId(request.token());
+        AttendanceCreateDTO createDTO = new AttendanceCreateDTO(sessionId, request.payload());
+        return createAttendance(userId, createDTO);
     }
 
 

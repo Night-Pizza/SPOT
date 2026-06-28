@@ -105,6 +105,7 @@ def main():
     
     for message in consumer:
         data = message.value
+        request_id = data.get('request_id')
         user_id = data.get('user_id')
         base64_image = data.get('image_base64')
         
@@ -123,6 +124,7 @@ def main():
             
             # Prepare response payload
             response_payload = {
+                "request_id": request_id,
                 "user_id": user_id,
                 "success": result["success"],
             }

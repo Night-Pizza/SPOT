@@ -8,6 +8,7 @@ interface FaceCaptureProps {
     onCancel?: () => void;
     loading?: boolean;
     error?: string | null;
+    mode?: 'single' | 'triple';
 }
 
 // Функция применения фильтра к изображению через Canvas
@@ -48,7 +49,7 @@ function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | '
     });
 }
 
-const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading, error }) => {
+const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading, error, mode = 'triple' }) => {
     const webcamRef = useRef<Webcam>(null);
     const [photos, setPhotos] = useState<File[]>([]);
     const [capturing, setCapturing] = useState(false);
@@ -58,29 +59,42 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
         if (!webcamRef.current) return;
         setCapturing(true);
         const newPhotos: File[] = [];
-        // Массив фильтров: оригинал, яркость, ч/б
-        const filters: ('original' | 'brightness' | 'grayscale')[] = ['original', 'brightness', 'grayscale'];
 
-        for (let i = 0; i < 3; i++) {
-            setCountdown(3 - i);
+        if (mode === 'single') {
+            setCountdown(1);
             await new Promise(resolve => setTimeout(resolve, 1000));
             const imageSrc = webcamRef.current.getScreenshot();
             if (imageSrc) {
-                // Применяем фильтр
-                const filteredSrc = await applyFilter(imageSrc, filters[i]);
-                const response = await fetch(filteredSrc);
+                const response = await fetch(imageSrc);
                 const blob = await response.blob();
-                const file = new File([blob], `face_${Date.now()}_${i}.jpg`, { type: 'image/jpeg' });
+                const file = new File([blob], `face_${Date.now()}_0.jpg`, { type: 'image/jpeg' });
                 newPhotos.push(file);
+            }
+        } else {
+            // Массив фильтров: оригинал, яркость, ч/б
+            const filters: ('original' | 'brightness' | 'grayscale')[] = ['original', 'brightness', 'grayscale'];
+
+            for (let i = 0; i < 3; i++) {
+                setCountdown(3 - i);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                const imageSrc = webcamRef.current.getScreenshot();
+                if (imageSrc) {
+                    // Применяем фильтр
+                    const filteredSrc = await applyFilter(imageSrc, filters[i]);
+                    const response = await fetch(filteredSrc);
+                    const blob = await response.blob();
+                    const file = new File([blob], `face_${Date.now()}_${i}.jpg`, { type: 'image/jpeg' });
+                    newPhotos.push(file);
+                }
             }
         }
         setPhotos(newPhotos);
         setCapturing(false);
         setCountdown(null);
-    }, []);
+    }, [mode]);
 
     const handleSubmit = () => {
-        if (photos.length === 3) {
+        if (photos.length === (mode === 'single' ? 1 : 3)) {
             onCapture(photos);
         }
     };
@@ -126,7 +140,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                             loading={capturing}
                             disabled={capturing}
                         >
-                            Capture 3 Photos
+                            {mode === 'single' ? 'Capture Photo' : 'Capture 3 Photos'}
                         </Button>
                         {onCancel && <Button onClick={onCancel}>Cancel</Button>}
                     </Space>

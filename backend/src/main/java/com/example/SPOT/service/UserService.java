@@ -134,7 +134,8 @@ public class UserService {
     private UserDTO mapToDTO(UserModel userModel) {
         return new UserDTO(
                 userModel.getId(),
-                userModel.getEmail()
+                userModel.getEmail(),
+                userModel.getEmbedding() != null
         );
     }
 

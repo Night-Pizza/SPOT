@@ -45,7 +45,7 @@ public class KafkaMessagingService {
     }
 
     public void dispatchFace(Long requestId, Long userId, String imageBase64) {
-        if (kafkaRepository.findByUserId(userId) == null) {
+        if (!kafkaRepository.existsById(requestId)) {
             return;
         }
 
@@ -63,11 +63,11 @@ public class KafkaMessagingService {
     }
 
     @KafkaListener(topics = "${kafka.topic.systemEvents}", groupId = "spot-group")
-    public void processFace(String payload) {
+    public synchronized void processFace(String payload) {
         try {
             Map<String, Object> response = objectMapper.readValue(payload, Map.class);
             Long requestId = ((Number) response.get("request_id")).longValue();
-            Long userId = (Long) response.get("user_id");
+            Long userId = ((Number) response.get("user_id")).longValue();
             boolean success = (boolean) response.get("success");
 
             KafkaModel request = (KafkaModel) kafkaRepository.findById(requestId).orElse(null);
