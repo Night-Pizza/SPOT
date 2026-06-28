@@ -20,8 +20,18 @@ public class KafkaModel {
     @JoinColumn(name = "user_id", foreignKey = @ForeignKey(name = "user_id"))
     private Long userId;
 
+    @Column(name = "session_id")
+    private Long sessionId;
+
     @Column(nullable = false)
-    private EmbeddingStatus status;
+    @Enumerated(EnumType.STRING)
+    private EmbeddingStatus status;;
+
+    @Column(name = "attempts", nullable = false)
+    private Integer attempts = 0;
+
+    @Column(name = "error_message")
+    private String errorMessage;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

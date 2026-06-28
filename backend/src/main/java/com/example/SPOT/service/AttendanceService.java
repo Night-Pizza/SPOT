@@ -18,6 +18,7 @@ import com.example.SPOT.repository.SessionRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,17 +38,29 @@ public class AttendanceService {
         this.kafkaRepository = kafkaRepository;
     }
 
-    public AttendanceResponseDTO createAttendance(Long userId, AttendanceCreateDTO request){
+    public Map<String, Object> createAttendance(Long userId, AttendanceCreateDTO request){
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
+        boolean needsFaceValidation = false;
+
         if (session.getValidationTypes() != null) {
             for (ValidationType type : session.getValidationTypes()) {
-                validateAttendanceRequirements(userId, type, session, request);
+                if (type == ValidationType.FACE) {
+                    needsFaceValidation = true;
+                } else {
+                    validateAttendanceRequirements(userId, type, session, request);
+                }
             }
+        }
+
+        if (needsFaceValidation) {
+            Long requestId = validateFace(userId, session.getId(), request);
+
+            return Map.of("requestId", requestId, "status", "PENDING_FOR_ATTENDANCE");
         }
 
         AttendanceModel attendanceModel = new AttendanceModel();
@@ -55,7 +68,9 @@ public class AttendanceService {
         attendanceModel.setSession(session);
         attendanceModel.setTimestamp(LocalDateTime.now());
 
-        return mapToDTO(attendanceRepository.save(attendanceModel));
+        attendanceRepository.save(attendanceModel);
+
+        return Map.of("attendanceId", attendanceModel.getId(), "status", "SUCCESS");
     }
 
 
@@ -108,23 +123,6 @@ public class AttendanceService {
             boolean inClass = isInClass(session.getLatitude(), session.getLongitude(), session.getAllowedRadius(), studentLat, studentLong);
             if (!inClass) throw new CustomException("OUT_OF_ATTENDANCE_RADIUS", "User is out of attendance radius");
         }
-        else if (type == ValidationType.FACE) {
-            if (request.payload() == null || !request.payload().containsKey("images")) {
-                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
-            }
-
-            Object imagesObj = request.payload().get("images");
-            if (!(imagesObj instanceof List)) {
-                throw new CustomException("INVALID_image_DATA", "images must be a list");
-            }
-
-            List<String> images = (List<String>) imagesObj;
-            if (images.size() != 3) {
-                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
-            }
-
-            validateFace(userId, (List<String>) images);
-        }
         else if (type == ValidationType.NONE) {
             // Skipped for the reason
         }
@@ -148,11 +146,28 @@ public class AttendanceService {
         return distance <= allowedRadius;
     }
 
-    private void validateFace(Long userId, List<String> images) {
+    private Long validateFace(Long userId, Long sessionId, AttendanceCreateDTO request) {
+        if (request.payload() == null || !request.payload().containsKey("images")) {
+            throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
+        }
+
+        Object imagesObj = request.payload().get("images");
+        if (!(imagesObj instanceof List)) {
+            throw new CustomException("INVALID_image_DATA", "images must be a list");
+        }
+
+        List<String> images = (List<String>) imagesObj;
+        if (images.size() != 3) {
+            throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
+        }
+
         KafkaModel kafkaRequest = new KafkaModel(
                 null,
                 userId,
+                sessionId,
                 EmbeddingStatus.PENDING_FOR_ATTENDANCE,
+                0,
+                null,
                 null
         );
         kafkaRepository.save(kafkaRequest);
@@ -161,8 +176,10 @@ public class AttendanceService {
             if (image == null || image.isEmpty()) {
                 throw new CustomException("INVALID_image_DATA", "Each image must be a non-empty string");
             }
-            kafka.dispatchFace(userId, image);
+            kafka.dispatchFace(kafkaRequest.getId(), userId, image);
         }
+
+        return kafkaRequest.getId();
     }
 
 }

@@ -4,6 +4,7 @@ import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
+import com.example.SPOT.dto.response.FaceResponseDTO;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.kafka.KafkaMessagingService;
@@ -104,21 +105,30 @@ public class UserService {
         return mapToDTO(userRepository.save(userEntity));
     }
 
-    public UserDTO addFace(Long id, AddFaceDTO addFaceDTO) {
+    public FaceResponseDTO addFace(Long id, AddFaceDTO addFaceDTO) {
         UserModel userEntity = userRepository.findById(id)
                 .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "User id does not exist"));
 
         KafkaModel kafkaRequest = new KafkaModel(
                 null,
                 id,
+                null,
                 EmbeddingStatus.PENDING_FOR_DB,
+                0,
+                null,
                 null
         );
         kafkaRepository.save(kafkaRequest);
-        kafka.dispatchFace(id, addFaceDTO.image());
+        kafka.dispatchFace(kafkaRequest.getId(), id, addFaceDTO.image());
 
-        //smth to save into
-        return mapToDTO(userRepository.save(userEntity));
+        return mapToDTO(kafkaRequest.getId(), EmbeddingStatus.PENDING_FOR_DB);
+    }
+
+    private FaceResponseDTO mapToDTO(Long id, EmbeddingStatus embeddingStatus) {
+        return new FaceResponseDTO(
+                id,
+                embeddingStatus
+        );
     }
 
     private UserDTO mapToDTO(UserModel userModel) {
