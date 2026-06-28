@@ -1,5 +1,6 @@
 package com.example.SPOT.controller;
 
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
@@ -32,6 +33,12 @@ public class AttendanceController {
     public ResponseEntity<Map<String, Object>> createAttendance(@Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
+    }
+
+    @PostMapping("/scan")
+    public ResponseEntity<Map<String, Object>> scanAttendance(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.scanAttendance(userId, qrScanRequestDTO));
     }
 
     @DeleteMapping("/{id}")
