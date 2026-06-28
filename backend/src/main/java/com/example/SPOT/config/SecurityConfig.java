@@ -29,11 +29,6 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CsrfCookieFilter csrfCookieFilter() {
-        return new CsrfCookieFilter();
-    }
-
-    @Bean
     public SecurityContextRepository securityContextRepository() {
         return new HttpSessionSecurityContextRepository();
     }
@@ -48,7 +43,6 @@ public class SecurityConfig {
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(requestHandler)
                         .ignoringRequestMatchers("/user/login", "/user/register"))
-                .addFilterBefore(csrfCookieFilter(), org.springframework.security.web.csrf.CsrfFilter.class)
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository())
                 )
