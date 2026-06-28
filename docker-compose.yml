@@ -1,26 +1,53 @@
 version: '3.9'
-
 services:
+  traefik:
+      image: traefik:v3
+      container_name: traefik
+      environment:
+      - DOCKER_API_VERSION=1.44
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+      ports:
+        - "80:80"
+        - "443:443"
+        - "8080:8080"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+        - ./traefik/certs:/certs:ro
+        - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+        - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      restart: unless-stopped
   backend:
     build: ./backend
-    ports:
-      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${APP_HOST}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls=true"
+      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
+      - "traefik.http.routers.backend.middlewares=strip-api"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
     environment:
       SPRING_PROFILES_ACTIVE: default
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: DEBUG
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: DEBUG
   frontend:
     build: ./frontend
-    ports:
-      - "80:80"
     depends_on:
       - backend
-
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${APP_HOST}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
+      # Если фронтенд использует Nginx (порт 80 внутри контейнера)
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
   postgres:
     image: postgres:16-alpine
     environment:
@@ -32,10 +59,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$DB_USER -d $$DB_NAME"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
-
 volumes:
   postgres_data:

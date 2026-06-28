@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { converter } from './Converter';
 
 interface CreateSessionProps {
     title: string;
@@ -11,7 +11,7 @@ interface CreateSessionProps {
 
 
 export async function createSession(data: CreateSessionProps) {
-  const response = await fetch(`${API_BASE_URL}/session/create`, { // Скорректировал путь на /session/create
+  const response = await converter(`/session/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

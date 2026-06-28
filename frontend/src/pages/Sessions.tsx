@@ -5,10 +5,10 @@ import { createSession } from '../api/Session';
 
 
 export default function SessionsPage() {
-    const [title, setTitle] = useState('');
-    const [password, setPassword] = useState('');
-    const [allowedRadius, setAllowedRadius] = useState('');
-    const [validationTypes, setValidationTypes] = useState<string[]>([]);
+    const [title, _setTitle] = useState('');
+    const [password, _setPassword] = useState('');
+    const [allowedRadius, _setAllowedRadius] = useState('');
+    const [validationTypes, _setValidationTypes] = useState<string[]>([]);
     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
 
     const handleCreateSession = async () => {
