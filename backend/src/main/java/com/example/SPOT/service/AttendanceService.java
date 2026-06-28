@@ -3,10 +3,14 @@ package com.example.SPOT.service;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.kafka.KafkaMessagingService;
 import com.example.SPOT.model.AttendanceModel;
+import com.example.SPOT.model.EmbeddingStatus;
+import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.model.SessionModel;
 import com.example.SPOT.model.ValidationType;
 import com.example.SPOT.repository.AttendanceRepository;
+import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import com.example.SPOT.exception.CustomException;
@@ -21,11 +25,16 @@ public class AttendanceService {
     private final SessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final AttendanceRepository attendanceRepository;
+    private final KafkaMessagingService kafka;
+    private final KafkaRepository kafkaRepository;
 
-    public AttendanceService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository) {
+    public AttendanceService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository,
+                             KafkaMessagingService kafka, KafkaRepository kafkaRepository) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
+        this.kafka = kafka;
+        this.kafkaRepository = kafkaRepository;
     }
 
     public AttendanceResponseDTO createAttendance(Long userId, AttendanceCreateDTO request){
@@ -37,7 +46,7 @@ public class AttendanceService {
 
         if (session.getValidationTypes() != null) {
             for (ValidationType type : session.getValidationTypes()) {
-                validateAttendanceRequirements(type, session, request);
+                validateAttendanceRequirements(userId, type, session, request);
             }
         }
 
@@ -80,7 +89,7 @@ public class AttendanceService {
         );
     }
 
-    private void validateAttendanceRequirements(ValidationType type, SessionModel session, AttendanceCreateDTO request) {
+    private void validateAttendanceRequirements(Long userId, ValidationType type, SessionModel session, AttendanceCreateDTO request) {
         if (type == ValidationType.PASSWORD) {
             if (request.payload() == null || !request.payload().containsKey("password")) {
                 throw new CustomException("MISSING_PASSWORD_DATA", "Password validation requires a password in payload");
@@ -98,6 +107,23 @@ public class AttendanceService {
             Double studentLong = Double.valueOf(request.payload().get("longitude").toString());
             boolean inClass = isInClass(session.getLatitude(), session.getLongitude(), session.getAllowedRadius(), studentLat, studentLong);
             if (!inClass) throw new CustomException("OUT_OF_ATTENDANCE_RADIUS", "User is out of attendance radius");
+        }
+        else if (type == ValidationType.FACE) {
+            if (request.payload() == null || !request.payload().containsKey("images")) {
+                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
+            }
+
+            Object imagesObj = request.payload().get("images");
+            if (!(imagesObj instanceof List)) {
+                throw new CustomException("INVALID_image_DATA", "images must be a list");
+            }
+
+            List<String> images = (List<String>) imagesObj;
+            if (images.size() != 3) {
+                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
+            }
+
+            validateFace(userId, (List<String>) images);
         }
         else if (type == ValidationType.NONE) {
             // Skipped for the reason
@@ -120,6 +146,23 @@ public class AttendanceService {
         double distance = EARTH_RADIUS_METERS * c;
 
         return distance <= allowedRadius;
+    }
+
+    private void validateFace(Long userId, List<String> images) {
+        KafkaModel kafkaRequest = new KafkaModel(
+                null,
+                userId,
+                EmbeddingStatus.PENDING_FOR_ATTENDANCE,
+                null
+        );
+        kafkaRepository.save(kafkaRequest);
+
+        for (String image : images) {
+            if (image == null || image.isEmpty()) {
+                throw new CustomException("INVALID_image_DATA", "Each image must be a non-empty string");
+            }
+            kafka.dispatchFace(userId, image);
+        }
     }
 
 }
