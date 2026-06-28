@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 export type Session = {
     id: string;
     title: string;
+    mode?: 'QR' | 'CODE';
     password: string;
     geolocationEnabled: boolean;
     radius?: number;

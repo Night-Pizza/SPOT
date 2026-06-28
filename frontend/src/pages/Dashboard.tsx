@@ -9,13 +9,13 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function Dashboard() {
     const navigate = useNavigate();
     const { sessions } = useApp();
-    const { user } = useAuth();
+    const { user, loading } = useAuth();
     const { t } = useTheme();
 
     return (
         <AppShell title={t('dashboard')} showPageTitle={false} pageClassName="dashboard-page">
             <Typography.Title level={1} className="dashboard-greeting">
-                {t('hello')}, <span>{user.name}</span>
+                {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
             </Typography.Title>
 
             <Typography.Title level={2} className="section-kicker">

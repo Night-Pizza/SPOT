@@ -33,6 +33,7 @@ import { useApp } from '../contexts/AppContext';
 import type { Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
+import { subscribeToQrToken } from '../api/Qr';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -84,6 +85,8 @@ export default function ActiveSessionPage() {
     const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
     const [mapKey, setMapKey] = useState(0);
     const [isMounted, setIsMounted] = useState(false); //
+    const [qrToken, setQrToken] = useState('');
+    const [qrError, setQrError] = useState('');
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
     const numericSessionId = sessionId && /^\d+$/.test(sessionId) && Number(sessionId) > 0
@@ -115,6 +118,28 @@ export default function ActiveSessionPage() {
             setEditRadius(activeSession.radius);
         }
     }, [activeSession]);
+
+    const isQrSession = activeSession?.mode !== 'CODE';
+
+    useEffect(() => {
+        if (numericSessionId === null || !isQrSession) {
+            setQrToken('');
+            setQrError('');
+            return undefined;
+        }
+
+        return subscribeToQrToken(
+            numericSessionId,
+            (token) => {
+                setQrToken(token);
+                setQrError('');
+            },
+            (errorMessage) => {
+                setQrError(errorMessage);
+                void messageApi.error(errorMessage);
+            },
+        );
+    }, [isQrSession, messageApi, numericSessionId]);
 
     const loadSessionUsers = useCallback(async () => {
         if (numericSessionId === null) {
@@ -255,17 +280,13 @@ export default function ActiveSessionPage() {
 
     const displayTitle = activeSession?.title || `Session ${numericSessionId}`;
     const sessionPassword = activeSession?.password || '';
-
-    const qrData = JSON.stringify({
-        sessionId: numericSessionId,
-        code: sessionPassword,
-    });
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-        qrData
-    )}`;
-    const qrFullUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(
-        qrData
-    )}`;
+    const qrPayload = qrToken ? JSON.stringify({ token: qrToken }) : '';
+    const qrUrl = qrPayload
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrPayload)}`
+        : '';
+    const qrFullUrl = qrPayload
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrPayload)}`
+        : '';
 
     const isActive = activeSession?.isActive !== false;
 
@@ -283,6 +304,16 @@ export default function ActiveSessionPage() {
                     icon={<LeftOutlined />}
                     onClick={() => navigate('/sessions')}
                     aria-label={t('back')}
+                    style={{
+                        width: 40,
+                        height: 40,
+                        minWidth: 40,
+                        padding: 0,
+                        borderRadius: '50%',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
                 />
                 <div>
                     <Typography.Title level={1}>{displayTitle}</Typography.Title>
@@ -305,31 +336,51 @@ export default function ActiveSessionPage() {
                     title={t('sessionDetails')}
                     className="active-card qr-card"
                     extra={
-                        <Button
-                            type="text"
-                            icon={<ExpandOutlined />}
-                            onClick={() => setQrModalOpen(true)}
-                            aria-label="Expand QR"
-                        />
+                        isQrSession ? (
+                            <Button
+                                type="text"
+                                icon={<ExpandOutlined />}
+                                onClick={() => setQrModalOpen(true)}
+                                aria-label="Expand QR"
+                                disabled={!qrUrl}
+                            />
+                        ) : null
                     }
                 >
-                    <div
-                        style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            marginBottom: 24,
-                            cursor: 'pointer',
-                        }}
-                        onClick={() => setQrModalOpen(true)}
-                    >
-                        <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
-                    </div>
+                    {isQrSession && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'center',
+                                marginBottom: 24,
+                                cursor: qrUrl ? 'pointer' : 'default',
+                                minHeight: 200,
+                                alignItems: 'center',
+                            }}
+                            onClick={() => {
+                                if (qrUrl) setQrModalOpen(true);
+                            }}
+                        >
+                            {qrUrl ? (
+                                <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
+                            ) : (
+                                <Space direction="vertical" align="center">
+                                    <Spin />
+                                    <Typography.Text type="secondary">
+                                        {qrError || 'Waiting for backend QR token...'}
+                                    </Typography.Text>
+                                </Space>
+                            )}
+                        </div>
+                    )}
 
                     <div className="session-detail-list">
-                        <Flex justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
-                            <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
-                        </Flex>
+                        {!isQrSession && (
+                            <Flex justify="space-between" gap={16}>
+                                <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
+                                <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
+                            </Flex>
+                        )}
 
                         {activeSession?.validationTypes &&
                             activeSession.validationTypes.length > 0 && (
@@ -517,16 +568,15 @@ export default function ActiveSessionPage() {
                 closable
             >
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
-                    <img
-                        src={qrFullUrl}
-                        alt="QR Code Full"
-                        style={{ width: '100%', maxWidth: 500, height: 'auto' }}
-                    />
-                </div>
-                <div style={{ textAlign: 'center', marginTop: 12 }}>
-                    <Typography.Text strong>
-                        {t('sessionCode')}: {sessionPassword || 'Unavailable'}
-                    </Typography.Text>
+                    {qrFullUrl ? (
+                        <img
+                            src={qrFullUrl}
+                            alt="QR Code Full"
+                            style={{ width: '100%', maxWidth: 500, height: 'auto' }}
+                        />
+                    ) : (
+                        <Spin />
+                    )}
                 </div>
             </Modal>
 

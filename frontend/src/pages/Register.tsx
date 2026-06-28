@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../api/Authentification';
+import { useAuth } from '../contexts/AuthContext';
 
 function validateEmail(email: string): string | null {
     if (!email) return 'Email cannot be empty';
@@ -39,6 +40,7 @@ function validatePassword(password: string): string | null {
 
 export default function RegisterPage() {
     const navigate = useNavigate();
+    const { setAuthenticatedUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -56,7 +58,8 @@ export default function RegisterPage() {
 
         setLoading(true);
         try {
-            await registerUser({ email, password });
+            const user = await registerUser({ email, password });
+            setAuthenticatedUser(user);
             navigate('/dashboard');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : 'Registration failed');
