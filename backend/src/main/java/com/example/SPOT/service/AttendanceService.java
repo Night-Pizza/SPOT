@@ -1,5 +1,6 @@
 package com.example.SPOT.service;
 
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
@@ -72,7 +73,6 @@ public class AttendanceService {
 
         return Map.of("attendanceId", attendanceModel.getId(), "status", "SUCCESS");
     }
-
 
 
     public void deleteAttendance(Long id){
@@ -168,7 +168,7 @@ public class AttendanceService {
                 EmbeddingStatus.PENDING_FOR_ATTENDANCE,
                 0,
                 null,
-                null
+                java.time.LocalDateTime.now()
         );
         kafkaRepository.save(kafkaRequest);
 

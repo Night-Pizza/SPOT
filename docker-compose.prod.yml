@@ -9,6 +9,8 @@ services:
     image: postgres:16-alpine
     container_name: spot_db
     restart: always
+    networks:
+      - app-network
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -36,11 +38,14 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    networks:
+      - app-network
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
   
   frontend:
     image: ghcr.io/night-pizza/spot/spot-frontend:latest
@@ -50,6 +55,8 @@ services:
       - backend
     ports:
       - "80:80"
+    networks:
+      - app-network
 
   kafka:
     image: confluentinc/cp-kafka:latest
@@ -69,6 +76,7 @@ services:
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -83,10 +91,14 @@ services:
       - app-network
     depends_on:
       - kafka
+    volumes:
+      - face_models:/root/.insightface
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_REQUEST_TOPIC: face.recognition.requests
       KAFKA_RESPONSE_TOPIC: system.events
+      PYTHONUNBUFFERED: "1"
 
 volumes:
   db_data:
+  face_models:

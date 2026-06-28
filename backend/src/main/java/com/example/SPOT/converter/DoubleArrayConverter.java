@@ -11,6 +11,9 @@ public class DoubleArrayConverter implements AttributeConverter<Double[], String
 
     @Override
     public String convertToDatabaseColumn(Double[] attribute) {
+        if (attribute == null) {
+            return null;
+        }
         try {
             return objectMapper.writeValueAsString(attribute);
         } catch (JsonProcessingException e) {
@@ -20,6 +23,9 @@ public class DoubleArrayConverter implements AttributeConverter<Double[], String
 
     @Override
     public Double[] convertToEntityAttribute(String dbData) {
+        if (dbData == null || dbData.isEmpty()) {
+            return null;
+        }
         try {
             return objectMapper.readValue(dbData, Double[].class);
         } catch (Exception e) {

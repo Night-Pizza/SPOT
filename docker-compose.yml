@@ -16,11 +16,14 @@ services:
         condition: service_healthy
       face_recognition:
         condition: service_started
+    networks:
+      - app-network
     environment:
       SPRING_PROFILES_ACTIVE: default
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
   frontend:
     build: ./frontend
@@ -28,9 +31,13 @@ services:
       - "80:80"
     depends_on:
       - backend
+    networks:
+      - app-network
 
   postgres:
     image: postgres:16-alpine
+    networks:
+      - app-network
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -63,6 +70,7 @@ services:
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -76,10 +84,14 @@ services:
       - app-network
     depends_on:
       - kafka
+    volumes:
+      - face_models:/root/.insightface
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_REQUEST_TOPIC: face.recognition.requests
       KAFKA_RESPONSE_TOPIC: system.events
+      PYTHONUNBUFFERED: "1"
 
 volumes:
   postgres_data:
+  face_models:
