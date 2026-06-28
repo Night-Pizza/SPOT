@@ -1,14 +1,12 @@
 package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
-import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.AttendanceService;
-import com.example.SPOT.service.QRTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
