@@ -116,7 +116,7 @@ public class UserService {
                 EmbeddingStatus.PENDING_FOR_DB,
                 0,
                 null,
-                null
+                java.time.LocalDateTime.now()
         );
         kafkaRepository.save(kafkaRequest);
         kafka.dispatchFace(kafkaRequest.getId(), id, addFaceDTO.image());

@@ -177,7 +177,7 @@ public class AttendanceService {
                 EmbeddingStatus.PENDING_FOR_ATTENDANCE,
                 0,
                 null,
-                null
+                java.time.LocalDateTime.now()
         );
         kafkaRepository.save(kafkaRequest);
 

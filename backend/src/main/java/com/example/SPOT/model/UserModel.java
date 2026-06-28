@@ -23,8 +23,7 @@ public class UserModel {
     @Column(name = "password")
     private String password;
 
-    @Lob
-    @Column(name = "embedding")
+    @Column(name = "embedding", columnDefinition = "TEXT")
     @Convert(converter = DoubleArrayConverter.class)
     private Double[] embedding;
 
