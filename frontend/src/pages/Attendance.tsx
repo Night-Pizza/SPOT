@@ -5,28 +5,66 @@ import {
     Form,
     Input,
     InputNumber,
+    Modal,
     Space,
     Typography,
     message,
 } from 'antd';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createAttendance, scanQrAttendance } from '../api/Attendance';
 
 type CodeFormValues = {
     sessionId: number;
     sessionCode: string;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
+    detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+};
 
-async function readErrorMessage(response: Response, fallback: string) {
-    try {
-        const data = await response.json() as { message?: string; error?: string };
-        return data.message || data.error || fallback;
-    } catch {
-        return fallback;
+declare global {
+    interface Window {
+        BarcodeDetector?: BarcodeDetectorConstructor;
     }
+}
+
+function extractQrToken(rawValue: string) {
+    try {
+        const parsed = JSON.parse(rawValue) as { token?: unknown };
+        if (typeof parsed.token === 'string' && parsed.token.trim()) return parsed.token.trim();
+    } catch {
+        // The QR can also be a raw token or a URL containing token.
+    }
+
+    try {
+        const url = new URL(rawValue);
+        const token = url.searchParams.get('token');
+        if (token?.trim()) return token.trim();
+    } catch {
+        // Ignore non-URL QR content.
+    }
+
+    return rawValue.trim();
+}
+
+async function getBrowserLocation() {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Геолокация не поддерживается вашим браузером.'));
+        } else {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+            });
+        }
+    });
+
+    return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+    };
 }
 
 export default function Attendance() {
@@ -36,43 +74,23 @@ export default function Attendance() {
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
     const [submitting, setSubmitting] = useState(false);
+    const [scanOpen, setScanOpen] = useState(false);
+    const [scanLoading, setScanLoading] = useState(false);
+    const [scanError, setScanError] = useState('');
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const scanningRef = useRef(false);
 
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
-            // Запрашиваем геопозицию у браузера пользователя
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    reject(new Error('Геолокация не поддерживается вашим браузером.'));
-                } else {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true, // Запрашиваем более точные координаты
-                        timeout: 5000,            // Таймаут ожидания 5 секунд
-                    });
-                }
+            const location = await getBrowserLocation();
+
+            await createAttendance(values.sessionId, {
+                password: values.sessionCode,
+                latitude: location.latitude,
+                longitude: location.longitude,
             });
-
-            const { latitude, longitude } = position.coords;
-
-            const response = await fetch(`${API_BASE_URL}/attendance/create`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sessionId: values.sessionId,
-                    payload: {
-                        password: values.sessionCode,
-                        latitude: latitude,   // Передаем широту в payload
-                        longitude: longitude, // Передаем долготу в payload
-                    },
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to submit attendance.'));
-            }
 
             void messageApi.success('Attendance submitted');
             form.resetFields();
@@ -87,6 +105,96 @@ export default function Attendance() {
             setSubmitting(false);
         }
     };
+
+    const stopScanner = useCallback(() => {
+        scanningRef.current = false;
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+    }, []);
+
+    const submitScannedToken = useCallback(async (rawValue: string) => {
+        const token = extractQrToken(rawValue);
+        if (!token) {
+            setScanError('QR code did not contain a token.');
+            return;
+        }
+
+        setScanLoading(true);
+        try {
+            let payload = {};
+            try {
+                payload = await getBrowserLocation();
+            } catch {
+                payload = {};
+            }
+
+            await scanQrAttendance(token, payload);
+            void messageApi.success('QR attendance submitted');
+            setScanOpen(false);
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+            setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+        } finally {
+            setScanLoading(false);
+        }
+    }, [messageApi]);
+
+    const startScanner = useCallback(async () => {
+        setScanError('');
+
+        if (!window.BarcodeDetector) {
+            setScanError('QR scanning is not supported by this browser.');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+            });
+            streamRef.current = stream;
+
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play();
+            }
+
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            scanningRef.current = true;
+
+            const scanFrame = async () => {
+                if (!scanningRef.current || !videoRef.current) return;
+
+                try {
+                    const codes = await detector.detect(videoRef.current);
+                    if (codes[0]?.rawValue) {
+                        scanningRef.current = false;
+                        await submitScannedToken(codes[0].rawValue);
+                        return;
+                    }
+                } catch {
+                    setScanError('Failed to read QR code from camera.');
+                }
+
+                window.setTimeout(() => {
+                    void scanFrame();
+                }, 300);
+            };
+
+            void scanFrame();
+        } catch (error: unknown) {
+            setScanError(error instanceof Error ? error.message : 'Failed to open camera.');
+        }
+    }, [submitScannedToken]);
+
+    useEffect(() => {
+        if (scanOpen) {
+            void startScanner();
+        } else {
+            stopScanner();
+        }
+
+        return stopScanner;
+    }, [scanOpen, startScanner, stopScanner]);
 
     return (
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
@@ -103,7 +211,13 @@ export default function Attendance() {
                                 {t('scanQRDesc')}
                             </Typography.Paragraph>
                         </div>
-                        <Button type="primary" size="large" className="primary-action wide-button">
+                        <Button
+                            type="primary"
+                            size="large"
+                            className="primary-action wide-button"
+                            onClick={() => setScanOpen(true)}
+                            loading={scanLoading}
+                        >
                             {t('openCamera')}
                         </Button>
                     </Space>
@@ -167,6 +281,24 @@ export default function Attendance() {
                     </Space>
                 </Card>
             </div>
+            <Modal
+                title={t('scanQRCode')}
+                open={scanOpen}
+                onCancel={() => setScanOpen(false)}
+                footer={null}
+                centered
+            >
+                <Space direction="vertical" size={16} className="full-width-space">
+                    <video
+                        ref={videoRef}
+                        muted
+                        playsInline
+                        style={{ width: '100%', borderRadius: 16, background: '#000' }}
+                    />
+                    {scanError && <Typography.Text type="danger">{scanError}</Typography.Text>}
+                    {scanLoading && <Typography.Text type="secondary">Submitting attendance...</Typography.Text>}
+                </Space>
+            </Modal>
         </AppShell>
     );
 }
