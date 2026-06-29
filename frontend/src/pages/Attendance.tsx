@@ -14,30 +14,27 @@ import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createAttendance, scanQrAttendance } from '../api/Attendance';
+import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 
 type CodeFormValues = {
     sessionId: number;
     sessionCode: string;
 };
 
-type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
-    detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
-};
-
-declare global {
-    interface Window {
-        BarcodeDetector?: BarcodeDetectorConstructor;
-    }
-}
-
 const SCAN_ERRORS = {
     permissionDenied: 'Camera access was denied. Allow camera permission in your browser and try again.',
     noCamera: 'No camera was found on this device.',
     insecureContext: 'Camera scanning requires HTTPS or localhost. Open this site through HTTPS or localhost and try again.',
-    unsupportedApi: 'This browser does not support the camera QR scanning APIs required by this app.',
+    unsupportedApi: 'This browser does not support the camera APIs required by this app.',
     initializationFailed: 'Could not start the QR scanner. Close the modal and try again.',
     readFailed: 'Failed to read QR code from camera.',
 } as const;
+
+const RECOVERABLE_SCAN_ERROR_KINDS = new Set([
+    'NotFoundException',
+    'ChecksumException',
+    'FormatException',
+]);
 
 function isLocalhost(hostname: string) {
     return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
@@ -52,11 +49,36 @@ function getScannerPreflightError() {
         return SCAN_ERRORS.insecureContext;
     }
 
-    if (!navigator.mediaDevices?.getUserMedia || !window.BarcodeDetector) {
+    if (!navigator.mediaDevices?.getUserMedia) {
         return SCAN_ERRORS.unsupportedApi;
     }
 
     return '';
+}
+
+function isRecoverableScanError(error: unknown) {
+    if (typeof error !== 'object' || error === null) return false;
+
+    const errorRecord = error as {
+        name?: unknown;
+        getKind?: unknown;
+        constructor?: { name?: string; kind?: string };
+    };
+    const kind = typeof errorRecord.getKind === 'function'
+        ? errorRecord.getKind()
+        : errorRecord.constructor?.kind;
+    const errorName = typeof errorRecord.name === 'string'
+        ? errorRecord.name
+        : errorRecord.constructor?.name;
+
+    return (typeof kind === 'string' && RECOVERABLE_SCAN_ERROR_KINDS.has(kind))
+        || (typeof errorName === 'string' && RECOVERABLE_SCAN_ERROR_KINDS.has(errorName));
+}
+
+function logScannerError(error: unknown) {
+    if (import.meta.env.DEV) {
+        console.error('QR scanner error:', error);
+    }
 }
 
 function getCameraErrorMessage(error: unknown) {
@@ -125,7 +147,7 @@ export default function Attendance() {
     const [scanLoading, setScanLoading] = useState(false);
     const [scanError, setScanError] = useState('');
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
+    const scannerControlsRef = useRef<IScannerControls | null>(null);
     const scanningRef = useRef(false);
     const scanRunRef = useRef(0);
 
@@ -157,10 +179,15 @@ export default function Attendance() {
     const stopScanner = useCallback(() => {
         scanningRef.current = false;
         scanRunRef.current += 1;
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
+        scannerControlsRef.current?.stop();
+        scannerControlsRef.current = null;
 
         if (videoRef.current) {
+            const stream = videoRef.current.srcObject;
+            if (stream instanceof MediaStream) {
+                stream.getTracks().forEach((track) => track.stop());
+            }
+
             videoRef.current.pause();
             videoRef.current.srcObject = null;
             videoRef.current.removeAttribute('src');
@@ -204,70 +231,78 @@ export default function Attendance() {
             return;
         }
 
-        const BarcodeDetector = window.BarcodeDetector;
-        if (!BarcodeDetector) {
-            setScanError(SCAN_ERRORS.unsupportedApi);
+        if (!videoRef.current) {
+            const error = new Error('QR scanner video element is not mounted.');
+            logScannerError(error);
+            setScanError(SCAN_ERRORS.initializationFailed);
             return;
         }
 
         const scanRun = scanRunRef.current + 1;
         scanRunRef.current = scanRun;
+        scanningRef.current = true;
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
+            const videoElement = videoRef.current;
+            const codeReader = new BrowserQRCodeReader(undefined, {
+                delayBetweenScanAttempts: 300,
+                delayBetweenScanSuccess: 300,
+            });
+            const controls = await codeReader.decodeFromConstraints({
                 video: { facingMode: 'environment' },
+            }, videoElement, (result, error, controls) => {
+                if (!scanningRef.current || scanRun !== scanRunRef.current) return;
+
+                const rawValue = result?.getText();
+                if (rawValue) {
+                    scanningRef.current = false;
+                    controls.stop();
+                    scannerControlsRef.current = null;
+                    void submitScannedToken(rawValue);
+                    return;
+                }
+
+                if (error && !isRecoverableScanError(error)) {
+                    logScannerError(error);
+                    scanningRef.current = false;
+                    controls.stop();
+                    scannerControlsRef.current = null;
+                }
             });
 
-            if (scanRun !== scanRunRef.current) {
-                stream.getTracks().forEach((track) => track.stop());
+            if (scanRun !== scanRunRef.current || !scanningRef.current) {
+                controls.stop();
                 return;
             }
 
-            streamRef.current = stream;
-
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                await videoRef.current.play();
+            if (videoElement.paused) {
+                await videoElement.play();
             }
 
-            const detector = new BarcodeDetector({ formats: ['qr_code'] });
-            scanningRef.current = true;
-
-            const scanFrame = async () => {
-                if (!scanningRef.current || scanRun !== scanRunRef.current || !videoRef.current) return;
-
-                try {
-                    const codes = await detector.detect(videoRef.current);
-                    if (codes[0]?.rawValue) {
-                        scanningRef.current = false;
-                        await submitScannedToken(codes[0].rawValue);
-                        return;
-                    }
-                } catch {
-                    setScanError(SCAN_ERRORS.readFailed);
-                }
-
-                window.setTimeout(() => {
-                    void scanFrame();
-                }, 300);
-            };
-
-            void scanFrame();
+            scannerControlsRef.current = controls;
         } catch (error: unknown) {
+            logScannerError(error);
+            scanningRef.current = false;
             setScanError(getCameraErrorMessage(error));
             stopScanner();
         }
     }, [stopScanner, submitScannedToken]);
 
-    useEffect(() => {
-        if (scanOpen) {
+    const handleScannerModalOpenChange = useCallback((open: boolean) => {
+        if (open) {
             void startScanner();
         } else {
             stopScanner();
         }
+    }, [startScanner, stopScanner]);
+
+    useEffect(() => {
+        if (!scanOpen) {
+            stopScanner();
+        }
 
         return stopScanner;
-    }, [scanOpen, startScanner, stopScanner]);
+    }, [scanOpen, stopScanner]);
 
     return (
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
@@ -358,6 +393,7 @@ export default function Attendance() {
                 title={t('scanQRCode')}
                 open={scanOpen}
                 onCancel={() => setScanOpen(false)}
+                afterOpenChange={handleScannerModalOpenChange}
                 footer={null}
                 centered
             >
