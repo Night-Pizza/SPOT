@@ -25,9 +25,9 @@ export default function Profile() {
     try {
             await logoutUser();
         } catch (error) {
-            console.error("Ошибка при выходе:", error);
+            console.error("Error while logout:", error);
         } finally {
-            navigate('/login');
+            window.location.href = '/login';
         }
     };
 
