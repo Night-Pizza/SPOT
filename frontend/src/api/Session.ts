@@ -1,11 +1,11 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { converter } from './Converter';
 
 export type CreateSessionRequest = {
     title: string;
-    password: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    allowedRadius: number | null;
+    password?: string;
+    latitude?: number;
+    longitude?: number;
+    allowedRadius?: number;
     validationTypes: string[];
 };
 
@@ -24,15 +24,12 @@ async function readErrorMessage(response: Response, fallback: string) {
     }
 }
 
-export async function createSession(data: CreateSessionRequest): Promise<SessionResponse> {
-    const response = await fetch(`${API_BASE_URL}/session/create`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    });
+export async function createSession(data: CreateSessionRequest) {
+  const response = await converter(`/session/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
 
     if (!response.ok) {
         throw new Error(await readErrorMessage(response, 'Error creating session'));

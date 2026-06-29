@@ -1,41 +1,44 @@
 package com.example.SPOT.controller;
 
+import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
+import com.example.SPOT.dto.response.FaceResponseDTO;
 import com.example.SPOT.dto.response.UserDTO;
+import com.example.SPOT.model.KafkaModel;
+import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.UserService;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.Collections;
+import java.util.Map;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import com.example.SPOT.dto.request.UserUpdateDTO;
+import jakarta.servlet.http.Cookie;
+
 
 @RestController
 @RequestMapping("/user")
 public class UserController {
     private final UserService userService;
-    private final SecurityContextRepository securityContextRepository = 
-            new HttpSessionSecurityContextRepository();
+    private final SecurityContextRepository securityContextRepository;
+    private final KafkaRepository kafkaRepository;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, KafkaRepository kafkaRepository, SecurityContextRepository securityContextRepository) {
         this.userService = userService;
+        this.kafkaRepository = kafkaRepository;
+        this.securityContextRepository = securityContextRepository;
     }
 
     @GetMapping()
@@ -55,20 +58,13 @@ public class UserController {
     public ResponseEntity<UserDTO> signIn(@RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
         UserDTO response = userService.loginUser(loginDTO);
 
-        //old session invalidation
         HttpSession existingSession = request.getSession(false);
         if (existingSession != null) {
             existingSession.invalidate();
         }
         
-        //new session creation
         request.getSession(true);
 
-        /** set aunthentication params to spring security context
-         * principal - user id
-         * credentials - null (we don't need it after successful login)
-         * authorities - empty list (we don't have roles in our application)
-         **/
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
@@ -78,12 +74,11 @@ public class UserController {
         securityContext.setAuthentication(authentication);
         SecurityContextHolder.setContext(securityContext);
 
-        //set security context
         securityContextRepository.saveContext(securityContext, request, responseHttp);
         
-        return ResponseEntity.ok()
-                .body(response);
+        return ResponseEntity.ok().body(response);
     }
+
 
     @PostMapping("/register")
     public ResponseEntity<UserDTO> createUser(@RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
@@ -94,14 +89,8 @@ public class UserController {
             existingSession.invalidate();
         }
 
-        //new session creation
         request.getSession(true);
 
-        /** set aunthentication params to spring security context
-         * principal - user id
-         * credentials - null (we don't need it after successful login)
-         * authorities - empty list (we don't have roles in our application)
-         **/
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
@@ -111,11 +100,31 @@ public class UserController {
         securityContext.setAuthentication(authentication);
         SecurityContextHolder.setContext(securityContext);
 
-        //set security context
         securityContextRepository.saveContext(securityContext, request, responseHttp);
 
-        return ResponseEntity.ok()
-                .body(response);
+        return ResponseEntity.ok().body(response);
+    }
+
+        @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse responseHttp) {
+        HttpSession existingSession = request.getSession(false);
+        if (existingSession != null) {
+            existingSession.invalidate();
+        }
+
+        SecurityContextHolder.clearContext();
+
+        Cookie sessionCookie = new Cookie("JSESSIONID", null);
+        sessionCookie.setMaxAge(0);
+        sessionCookie.setPath("/");
+        responseHttp.addCookie(sessionCookie); 
+
+        Cookie csrfCookie = new Cookie("XSRF-TOKEN", null);
+        csrfCookie.setMaxAge(0);
+        csrfCookie.setPath("/");
+        responseHttp.addCookie(csrfCookie); 
+
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete")
@@ -128,6 +137,27 @@ public class UserController {
     public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @RequestBody UserUpdateDTO userUpdateDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok(userService.updatePassword(userId, userUpdateDTO));
+    }
+
+    @PostMapping("/face")
+    public ResponseEntity<FaceResponseDTO> addFace(@AuthenticationPrincipal String userIdStr, @RequestBody AddFaceDTO addFaceDTO) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(userService.addFace(userId, addFaceDTO));
+    }
+
+    @GetMapping("/face/status/{requestId}")
+    public ResponseEntity<Map<String, Object>> checkFaceStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
+        KafkaModel request = (KafkaModel) kafkaRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Request not found"));
+
+        if (!request.getUserId().equals(Long.valueOf(userIdStr))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "status", request.getStatus().name(),
+                "errorMessage", request.getErrorMessage() != null ? request.getErrorMessage() : ""
+        ));
     }
 
 }

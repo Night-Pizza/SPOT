@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoginPage from '../pages/Login';
 import RegisterPage from '../pages/Register';
 import DashboardPage from '../pages/Dashboard';
@@ -8,8 +8,27 @@ import CreateSessionPage from '../pages/CreateSession';
 import ActiveSessionPage from '../pages/ActiveSession';
 import ProfilePage from '../pages/Profile';
 import VerificationPage from '../pages/Verification';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AppRouter() {
+    const { user, loading } = useAuth();
+    const location = useLocation();
+
+    if (loading) {
+        return null;
+    }
+
+    const publicPaths = ['/login', '/register'];
+    const isPublicPath = publicPaths.includes(location.pathname);
+
+    if (!user.id && !isPublicPath) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    if (user.id && isPublicPath) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
     return (
         <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />

@@ -1,20 +1,33 @@
-import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { MailOutlined } from '@ant-design/icons';
-import { Button, Card, Flex, Typography, Modal, Form, Input, message } from 'antd';
+import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
+import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
+import { logoutUser } from '../api/Authentification';
 
 export default function Profile() {
-    const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, loading, error, refreshCurrentUser } = useAuth();
     const { sessions } = useApp();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
+    const email = user.email || 'Unavailable';
+    const avatarText = user.email.charAt(0).toUpperCase() || '?';
+
+    const handleLogout = async () => {
+    try {
+            await logoutUser();
+        } catch (error) {
+            console.error("Error while logout:", error);
+        } finally {
+            window.location.href = '/login';
+        }
+    };
 
     const handleChangePassword = async (values: { oldPassword: string; newPassword: string; confirmPassword: string }) => {
         if (values.newPassword !== values.confirmPassword) {
@@ -34,13 +47,22 @@ export default function Profile() {
     return (
         <AppShell title={t('profile')}>
             {contextHolder}
+            {error && (
+                <Alert
+                    type="error"
+                    showIcon
+                    message={error}
+                    action={<Button size="small" onClick={() => void refreshCurrentUser()}>Retry</Button>}
+                    style={{ marginBottom: 16 }}
+                />
+            )}
             <div className="profile-card">
                 <div className="profile-avatar-placeholder">
-                    {user.name.split(' ').map(part => part.charAt(0).toUpperCase()).join('')}
+                    {loading ? <Spin size="small" /> : avatarText}
                 </div>
                 <div className="profile-info">
-                    <p className="profile-name">{user.name}</p>
-                    <p className="profile-email">{user.email}</p>
+                    <p className="profile-name">{loading ? 'Loading...' : email}</p>
+                    <p className="profile-email">{email}</p>
                 </div>
             </div>
 
@@ -60,7 +82,7 @@ export default function Profile() {
                     <span className="contact-icon"><MailOutlined /></span>
                     <div>
                         <Typography.Text type="secondary" className="contact-label">{t('email')}</Typography.Text>
-                        <Typography.Text strong className="contact-value">{user.email}</Typography.Text>
+                        <Typography.Text strong className="contact-value">{email}</Typography.Text>
                     </div>
                 </Flex>
             </Card>
@@ -74,7 +96,18 @@ export default function Profile() {
                 {t('changePassword')}
             </Button>
 
-            <button className="profile-logout-btn" onClick={() => navigate('/login')}>
+            <Button
+            block
+            size="large"
+            type="primary"
+            className="primary-action"
+            onClick={() => setIsFaceModalOpen(true)}
+            style={{ marginBottom: 16 }}
+            >
+            Update Face
+            </Button>
+
+            <button className="profile-logout-btn" onClick={handleLogout}>
                 {t('logout')}
             </button>
 
@@ -127,6 +160,15 @@ export default function Profile() {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            <FaceRegistrationModal
+                visible={isFaceModalOpen}
+                onSuccess={() => {
+                    setIsFaceModalOpen(false);
+                    void messageApi.success('Face updated successfully');
+                }}
+                onCancel={() => setIsFaceModalOpen(false)}
+            />
         </AppShell>
     );
 }

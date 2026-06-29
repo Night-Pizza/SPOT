@@ -1,11 +1,17 @@
 package com.example.SPOT.service;
 
+import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
+import com.example.SPOT.dto.response.FaceResponseDTO;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
+import com.example.SPOT.kafka.KafkaMessagingService;
+import com.example.SPOT.model.EmbeddingStatus;
+import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.model.UserModel;
+import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -15,10 +21,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final KafkaMessagingService kafka;
+    private final KafkaRepository kafkaRepository;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                       KafkaMessagingService kafka, KafkaRepository kafkaRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.kafka = kafka;
+        this.kafkaRepository = kafkaRepository;
     }
 
     public UserDTO getUser(Long id) {
@@ -58,7 +69,8 @@ public class UserService {
         UserModel newUser = new UserModel(
                 null,
                 userCreateDTO.email(),
-                passwordEncoder.encode(userCreateDTO.password())
+                passwordEncoder.encode(userCreateDTO.password()),
+                null
         );
         return mapToDTO(userRepository.save(newUser));
     }
@@ -93,10 +105,37 @@ public class UserService {
         return mapToDTO(userRepository.save(userEntity));
     }
 
+    public FaceResponseDTO addFace(Long id, AddFaceDTO addFaceDTO) {
+        UserModel userEntity = userRepository.findById(id)
+                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "User id does not exist"));
+
+        KafkaModel kafkaRequest = new KafkaModel(
+                null,
+                id,
+                null,
+                EmbeddingStatus.PENDING_FOR_DB,
+                0,
+                null,
+                java.time.LocalDateTime.now()
+        );
+        kafkaRepository.save(kafkaRequest);
+        kafka.dispatchFace(kafkaRequest.getId(), id, addFaceDTO.image());
+
+        return mapToDTO(kafkaRequest.getId(), EmbeddingStatus.PENDING_FOR_DB);
+    }
+
+    private FaceResponseDTO mapToDTO(Long id, EmbeddingStatus embeddingStatus) {
+        return new FaceResponseDTO(
+                id,
+                embeddingStatus
+        );
+    }
+
     private UserDTO mapToDTO(UserModel userModel) {
         return new UserDTO(
                 userModel.getId(),
-                userModel.getEmail()
+                userModel.getEmail(),
+                userModel.getEmbedding() != null
         );
     }
 

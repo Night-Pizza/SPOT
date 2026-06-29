@@ -6,6 +6,8 @@ import {
     EditOutlined,
     SaveOutlined,
     ReloadOutlined,
+    PlusOutlined,
+    DeleteOutlined,
 } from '@ant-design/icons';
 import {
     Button,
@@ -20,6 +22,7 @@ import {
     message,
     Modal,
     InputNumber,
+    Input,
     Alert,
     Spin,
 } from 'antd';
@@ -33,6 +36,7 @@ import { useApp } from '../contexts/AppContext';
 import type { Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
+import { subscribeToQrToken } from '../api/Qr';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -57,11 +61,15 @@ function getDisplayName(email: string) {
 
 async function readErrorMessage(response: Response, fallback: string) {
     try {
-        const data = await response.json() as { message?: string; error?: string };
-        return data.message || data.error || fallback;
+        const data = await response.json() as { message?: string; error?: string; status?: string };
+        return data.message || data.error || data.status || fallback;
     } catch {
         return fallback;
     }
+}
+
+function isValidEmail(email: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export default function ActiveSessionPage() {
@@ -77,6 +85,10 @@ export default function ActiveSessionPage() {
     const [attendees, setAttendees] = useState<Attendee[]>([]);
     const [attendeesLoading, setAttendeesLoading] = useState(false);
     const [attendeesError, setAttendeesError] = useState('');
+    const [addAttendeeOpen, setAddAttendeeOpen] = useState(false);
+    const [attendeeEmail, setAttendeeEmail] = useState('');
+    const [addingAttendee, setAddingAttendee] = useState(false);
+    const [removingAttendeeEmail, setRemovingAttendeeEmail] = useState<string | null>(null);
     const [endingSession, setEndingSession] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -84,6 +96,8 @@ export default function ActiveSessionPage() {
     const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
     const [mapKey, setMapKey] = useState(0);
     const [isMounted, setIsMounted] = useState(false); //
+    const [qrToken, setQrToken] = useState('');
+    const [qrError, setQrError] = useState('');
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
     const numericSessionId = sessionId && /^\d+$/.test(sessionId) && Number(sessionId) > 0
@@ -115,6 +129,28 @@ export default function ActiveSessionPage() {
             setEditRadius(activeSession.radius);
         }
     }, [activeSession]);
+
+    const isQrSession = activeSession?.mode !== 'CODE';
+
+    useEffect(() => {
+        if (numericSessionId === null || !isQrSession) {
+            setQrToken('');
+            setQrError('');
+            return undefined;
+        }
+
+        return subscribeToQrToken(
+            numericSessionId,
+            (token) => {
+                setQrToken(token);
+                setQrError('');
+            },
+            (errorMessage) => {
+                setQrError(errorMessage);
+                void messageApi.error(errorMessage);
+            },
+        );
+    }, [isQrSession, messageApi, numericSessionId]);
 
     const loadSessionUsers = useCallback(async () => {
         if (numericSessionId === null) {
@@ -162,6 +198,81 @@ export default function ActiveSessionPage() {
         };
     }, [loadSessionUsers]);
 
+    const handleAddAttendee = useCallback(async () => {
+        if (numericSessionId === null) {
+            void messageApi.error('Session ID must be a positive number.');
+            return;
+        }
+
+        const email = attendeeEmail.trim();
+
+        if (!isValidEmail(email)) {
+            void messageApi.error('Enter a valid email address.');
+            return;
+        }
+
+        setAddingAttendee(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/attendance/create/email`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sessionId: numericSessionId,
+                    email,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(await readErrorMessage(response, 'Failed to add attendee.'));
+            }
+
+            void messageApi.success(t('attendeeAdded'));
+            setAddAttendeeOpen(false);
+            setAttendeeEmail('');
+            await loadSessionUsers();
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to add attendee.');
+        } finally {
+            setAddingAttendee(false);
+        }
+    }, [attendeeEmail, loadSessionUsers, messageApi, numericSessionId, t]);
+
+    const handleRemoveAttendee = useCallback(async (email: string) => {
+        if (numericSessionId === null) {
+            void messageApi.error('Session ID must be a positive number.');
+            return;
+        }
+
+        setRemovingAttendeeEmail(email);
+        try {
+            const response = await fetch(`${API_BASE_URL}/attendance/delete`, {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sessionId: numericSessionId,
+                    email,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(await readErrorMessage(response, 'Failed to remove attendee.'));
+            }
+
+            void messageApi.success('Attendee removed.');
+            await loadSessionUsers();
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to remove attendee.');
+        } finally {
+            setRemovingAttendeeEmail(null);
+        }
+    }, [loadSessionUsers, messageApi, numericSessionId]);
+
     const columns = useMemo<ColumnsType<Attendee>>(
         () => [
             {
@@ -185,14 +296,28 @@ export default function ActiveSessionPage() {
                 title: 'Actions',
                 align: 'center',
                 width: 60,
-                render: () => (
+                render: (_, attendee) => (
                     <span className="student-action-cell">
-                        <Typography.Text type="secondary">Unavailable</Typography.Text>
+                        <Popconfirm
+                            title={t('removeAttendee')}
+                            okText={t('remove')}
+                            cancelText={t('cancel')}
+                            onConfirm={() => handleRemoveAttendee(attendee.email)}
+                        >
+                            <Button
+                                type="text"
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                loading={removingAttendeeEmail === attendee.email}
+                                aria-label={`${t('remove')} ${attendee.email}`}
+                            />
+                        </Popconfirm>
                     </span>
                 ),
             },
         ],
-        [],
+        [handleRemoveAttendee, removingAttendeeEmail, t],
     );
 
     const handleEndSession = async () => {
@@ -255,17 +380,13 @@ export default function ActiveSessionPage() {
 
     const displayTitle = activeSession?.title || `Session ${numericSessionId}`;
     const sessionPassword = activeSession?.password || '';
-
-    const qrData = JSON.stringify({
-        sessionId: numericSessionId,
-        code: sessionPassword,
-    });
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-        qrData
-    )}`;
-    const qrFullUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(
-        qrData
-    )}`;
+    const qrPayload = qrToken ? JSON.stringify({ token: qrToken }) : '';
+    const qrUrl = qrPayload
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrPayload)}`
+        : '';
+    const qrFullUrl = qrPayload
+        ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrPayload)}`
+        : '';
 
     const isActive = activeSession?.isActive !== false;
 
@@ -283,6 +404,16 @@ export default function ActiveSessionPage() {
                     icon={<LeftOutlined />}
                     onClick={() => navigate('/sessions')}
                     aria-label={t('back')}
+                    style={{
+                        width: 40,
+                        height: 40,
+                        minWidth: 40,
+                        padding: 0,
+                        borderRadius: '50%',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
                 />
                 <div>
                     <Typography.Title level={1}>{displayTitle}</Typography.Title>
@@ -305,31 +436,51 @@ export default function ActiveSessionPage() {
                     title={t('sessionDetails')}
                     className="active-card qr-card"
                     extra={
-                        <Button
-                            type="text"
-                            icon={<ExpandOutlined />}
-                            onClick={() => setQrModalOpen(true)}
-                            aria-label="Expand QR"
-                        />
+                        isQrSession ? (
+                            <Button
+                                type="text"
+                                icon={<ExpandOutlined />}
+                                onClick={() => setQrModalOpen(true)}
+                                aria-label="Expand QR"
+                                disabled={!qrUrl}
+                            />
+                        ) : null
                     }
                 >
-                    <div
-                        style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            marginBottom: 24,
-                            cursor: 'pointer',
-                        }}
-                        onClick={() => setQrModalOpen(true)}
-                    >
-                        <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
-                    </div>
+                    {isQrSession && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'center',
+                                marginBottom: 24,
+                                cursor: qrUrl ? 'pointer' : 'default',
+                                minHeight: 200,
+                                alignItems: 'center',
+                            }}
+                            onClick={() => {
+                                if (qrUrl) setQrModalOpen(true);
+                            }}
+                        >
+                            {qrUrl ? (
+                                <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
+                            ) : (
+                                <Space direction="vertical" align="center">
+                                    <Spin />
+                                    <Typography.Text type="secondary">
+                                        {qrError || 'Waiting for backend QR token...'}
+                                    </Typography.Text>
+                                </Space>
+                            )}
+                        </div>
+                    )}
 
                     <div className="session-detail-list">
-                        <Flex justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
-                            <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
-                        </Flex>
+                        {!isQrSession && (
+                            <Flex justify="space-between" gap={16}>
+                                <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
+                                <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
+                            </Flex>
+                        )}
 
                         {activeSession?.validationTypes &&
                             activeSession.validationTypes.length > 0 && (
@@ -455,6 +606,14 @@ export default function ActiveSessionPage() {
                                 <Tag color="success">{attendees.length}</Tag>
                                 <Button
                                     size="small"
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={() => setAddAttendeeOpen(true)}
+                                >
+                                    Add attendee
+                                </Button>
+                                <Button
+                                    size="small"
                                     icon={<ReloadOutlined />}
                                     onClick={() => void loadSessionUsers()}
                                     loading={attendeesLoading}
@@ -517,17 +676,39 @@ export default function ActiveSessionPage() {
                 closable
             >
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
-                    <img
-                        src={qrFullUrl}
-                        alt="QR Code Full"
-                        style={{ width: '100%', maxWidth: 500, height: 'auto' }}
-                    />
+                    {qrFullUrl ? (
+                        <img
+                            src={qrFullUrl}
+                            alt="QR Code Full"
+                            style={{ width: '100%', maxWidth: 500, height: 'auto' }}
+                        />
+                    ) : (
+                        <Spin />
+                    )}
                 </div>
-                <div style={{ textAlign: 'center', marginTop: 12 }}>
-                    <Typography.Text strong>
-                        {t('sessionCode')}: {sessionPassword || 'Unavailable'}
-                    </Typography.Text>
-                </div>
+            </Modal>
+
+            <Modal
+                title="Add attendee"
+                open={addAttendeeOpen}
+                okText={t('add')}
+                cancelText={t('cancel')}
+                confirmLoading={addingAttendee}
+                onOk={() => void handleAddAttendee()}
+                onCancel={() => {
+                    setAddAttendeeOpen(false);
+                    setAttendeeEmail('');
+                }}
+                destroyOnHidden
+            >
+                <Input
+                    value={attendeeEmail}
+                    onChange={(event) => setAttendeeEmail(event.target.value)}
+                    onPressEnter={() => void handleAddAttendee()}
+                    placeholder="student@example.com"
+                    type="email"
+                    autoFocus
+                />
             </Modal>
 
             <Modal

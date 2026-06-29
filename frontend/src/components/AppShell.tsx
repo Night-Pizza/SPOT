@@ -33,7 +33,7 @@ export default function AppShell({
 }: AppShellProps) {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, loading } = useAuth();
     const { theme, toggleTheme, language, setLanguage, t } = useTheme();
     const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -57,8 +57,8 @@ export default function AppShell({
     ];
 
     const themeIcon = theme === 'light' ? <SunOutlined /> : <MoonOutlined />;
-    const firstName = user.name.split(' ')[0];
-    const firstLetter = user.name.charAt(0).toUpperCase();
+    const userLabel = user.email || (loading ? 'Loading...' : 'Profile');
+    const firstLetter = user.email.charAt(0).toUpperCase() || '?';
 
     const goToProfile = () => navigate('/profile');
 
@@ -147,7 +147,7 @@ export default function AppShell({
                                 {firstLetter}
                             </div>
                             <span className="user-name" style={{ fontWeight: 700 }}>
-                                {firstName}
+                                {userLabel}
                             </span>
                         </Space>
                     </div>
