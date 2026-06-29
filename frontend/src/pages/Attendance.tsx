@@ -30,6 +30,53 @@ declare global {
     }
 }
 
+const SCAN_ERRORS = {
+    permissionDenied: 'Camera access was denied. Allow camera permission in your browser and try again.',
+    noCamera: 'No camera was found on this device.',
+    insecureContext: 'Camera scanning requires HTTPS or localhost. Open this site through HTTPS or localhost and try again.',
+    unsupportedApi: 'This browser does not support the camera QR scanning APIs required by this app.',
+    initializationFailed: 'Could not start the QR scanner. Close the modal and try again.',
+    readFailed: 'Failed to read QR code from camera.',
+} as const;
+
+function isLocalhost(hostname: string) {
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+function isCameraSecureContext() {
+    return window.isSecureContext || isLocalhost(window.location.hostname);
+}
+
+function getScannerPreflightError() {
+    if (!isCameraSecureContext()) {
+        return SCAN_ERRORS.insecureContext;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.BarcodeDetector) {
+        return SCAN_ERRORS.unsupportedApi;
+    }
+
+    return '';
+}
+
+function getCameraErrorMessage(error: unknown) {
+    if (error instanceof DOMException) {
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            return SCAN_ERRORS.permissionDenied;
+        }
+
+        if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            return SCAN_ERRORS.noCamera;
+        }
+
+        if (error.name === 'SecurityError') {
+            return isCameraSecureContext() ? SCAN_ERRORS.permissionDenied : SCAN_ERRORS.insecureContext;
+        }
+    }
+
+    return SCAN_ERRORS.initializationFailed;
+}
+
 function extractQrToken(rawValue: string) {
     try {
         const parsed = JSON.parse(rawValue) as { token?: unknown };
@@ -80,6 +127,7 @@ export default function Attendance() {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const scanningRef = useRef(false);
+    const scanRunRef = useRef(0);
 
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
@@ -108,8 +156,16 @@ export default function Attendance() {
 
     const stopScanner = useCallback(() => {
         scanningRef.current = false;
+        scanRunRef.current += 1;
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
+
+        if (videoRef.current) {
+            videoRef.current.pause();
+            videoRef.current.srcObject = null;
+            videoRef.current.removeAttribute('src');
+            videoRef.current.load();
+        }
     }, []);
 
     const submitScannedToken = useCallback(async (rawValue: string) => {
@@ -142,15 +198,31 @@ export default function Attendance() {
     const startScanner = useCallback(async () => {
         setScanError('');
 
-        if (!window.BarcodeDetector) {
-            setScanError('QR scanning is not supported by this browser.');
+        const preflightError = getScannerPreflightError();
+        if (preflightError) {
+            setScanError(preflightError);
             return;
         }
+
+        const BarcodeDetector = window.BarcodeDetector;
+        if (!BarcodeDetector) {
+            setScanError(SCAN_ERRORS.unsupportedApi);
+            return;
+        }
+
+        const scanRun = scanRunRef.current + 1;
+        scanRunRef.current = scanRun;
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment' },
             });
+
+            if (scanRun !== scanRunRef.current) {
+                stream.getTracks().forEach((track) => track.stop());
+                return;
+            }
+
             streamRef.current = stream;
 
             if (videoRef.current) {
@@ -158,11 +230,11 @@ export default function Attendance() {
                 await videoRef.current.play();
             }
 
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            const detector = new BarcodeDetector({ formats: ['qr_code'] });
             scanningRef.current = true;
 
             const scanFrame = async () => {
-                if (!scanningRef.current || !videoRef.current) return;
+                if (!scanningRef.current || scanRun !== scanRunRef.current || !videoRef.current) return;
 
                 try {
                     const codes = await detector.detect(videoRef.current);
@@ -172,7 +244,7 @@ export default function Attendance() {
                         return;
                     }
                 } catch {
-                    setScanError('Failed to read QR code from camera.');
+                    setScanError(SCAN_ERRORS.readFailed);
                 }
 
                 window.setTimeout(() => {
@@ -182,9 +254,10 @@ export default function Attendance() {
 
             void scanFrame();
         } catch (error: unknown) {
-            setScanError(error instanceof Error ? error.message : 'Failed to open camera.');
+            setScanError(getCameraErrorMessage(error));
+            stopScanner();
         }
-    }, [submitScannedToken]);
+    }, [stopScanner, submitScannedToken]);
 
     useEffect(() => {
         if (scanOpen) {
