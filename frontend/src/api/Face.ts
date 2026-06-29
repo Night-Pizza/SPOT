@@ -1,5 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
+import { converter } from './Converter';
 export function fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -19,9 +18,8 @@ export async function registerFace(photos: File[]): Promise<{ success: boolean; 
         throw new Error('No photos captured');
     }
     const base64 = await fileToBase64(photos[0]);
-    const response = await fetch(`${API_BASE_URL}/user/face`, {
+    const response = await converter(`/user/face`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -40,9 +38,8 @@ export async function registerFace(photos: File[]): Promise<{ success: boolean; 
 }
 
 export async function checkFaceStatus(requestId: number): Promise<{ status: string; errorMessage?: string }> {
-    const response = await fetch(`${API_BASE_URL}/user/face/status/${requestId}`, {
+    const response = await converter(`/user/face/status/${requestId}`, {
         method: 'GET',
-        credentials: 'include',
     });
     if (!response.ok) {
         throw new Error('Failed to check face status');
@@ -51,9 +48,8 @@ export async function checkFaceStatus(requestId: number): Promise<{ status: stri
 }
 
 export async function checkAttendanceStatus(requestId: number): Promise<{ status: string; errorMessage?: string }> {
-    const response = await fetch(`${API_BASE_URL}/attendance/status/${requestId}`, {
+    const response = await converter(`/attendance/status/${requestId}`, {
         method: 'GET',
-        credentials: 'include',
     });
     if (!response.ok) {
         throw new Error('Failed to check attendance status');

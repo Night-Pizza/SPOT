@@ -1,5 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
+import { converter } from './Converter';
 export type AttendancePayload = {
     password?: string;
     latitude?: number;
@@ -36,9 +35,8 @@ async function handleApiResponse(response: Response, fallback: string) {
 }
 
 export async function createAttendance(sessionId: number, payload: AttendancePayload): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/attendance/create`, {
+    const response = await converter(`/attendance/create`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -53,9 +51,8 @@ export async function createAttendance(sessionId: number, payload: AttendancePay
 }
 
 export async function scanQrAttendance(token: string, payload: AttendancePayload): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/attendance/scan`, {
+    const response = await converter(`/attendance/scan`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },

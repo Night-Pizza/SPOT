@@ -1,6 +1,5 @@
 import type { UserCreateDTO, UserDTO, UserLoginDTO } from '../types/Authentification';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { converter } from './Converter';
 
 function getCookie(name: string): string | null {
     const match = document.cookie
@@ -11,9 +10,8 @@ function getCookie(name: string): string | null {
 }
 
 export async function loginUser(data: UserLoginDTO): Promise<UserDTO> {
-    const response = await fetch(`${API_BASE_URL}/user/login`, {
+    const response = await converter(`/user/login`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -35,9 +33,8 @@ export async function loginUser(data: UserLoginDTO): Promise<UserDTO> {
 }
 
 export async function registerUser(data: UserCreateDTO): Promise<UserDTO> {
-    const response = await fetch(`${API_BASE_URL}/user/register`, {
+    const response = await converter(`/user/register`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -58,14 +55,13 @@ export async function registerUser(data: UserCreateDTO): Promise<UserDTO> {
     return response.json();
 }
 
-export async function fetchXsrfToken(): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/auth/csrf`, {
+export async function converterXsrfToken(): Promise<string> {
+    const response = await converter(`/auth/csrf`, {
         method: 'GET',
-        credentials: 'include',
     });
 
     if (!response.ok) {
-        throw new Error('Failed to fetch XSRF token');
+        throw new Error('Failed to converter XSRF token');
     }
 
     const token = getCookie('XSRF-TOKEN');
