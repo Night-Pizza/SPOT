@@ -72,3 +72,13 @@ export async function converterXsrfToken(): Promise<string> {
 
     return token;
 }
+
+export async function logoutUser(): Promise<void> {
+    const response = await converter(`/user/logout`, {
+        method: 'POST',
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to logout user');
+    }
+}
