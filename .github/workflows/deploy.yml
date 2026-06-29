@@ -97,7 +97,7 @@ jobs:
                 DB_PASSWORD=${{ secrets.DB_PASSWORD }}
                 DB_NAME=${{ secrets.DB_NAME }}
                 KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
-                APP_HOST=${{ secrets.APP_HOST=localhost }}
+                APP_HOST=${{ secrets.APP_HOST}}
                 EOF
 
             - name: Deploy to Server
