@@ -106,7 +106,7 @@ public class UserController {
     }
 
         @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse responseHttp) { // Здесь мы назвали аргумент responseHttp
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse responseHttp) {
         HttpSession existingSession = request.getSession(false);
         if (existingSession != null) {
             existingSession.invalidate();

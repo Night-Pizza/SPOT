@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { MailOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
@@ -10,7 +9,6 @@ import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { logoutUser } from '../api/Authentification';
 
 export default function Profile() {
-    const navigate = useNavigate();
     const { user, loading, error, refreshCurrentUser } = useAuth();
     const { sessions } = useApp();
     const { t } = useTheme();
