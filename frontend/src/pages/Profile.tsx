@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
+import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function Profile() {
     const { sessions } = useApp();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
     const email = user.email || 'Unavailable';
@@ -85,6 +87,17 @@ export default function Profile() {
                 {t('changePassword')}
             </Button>
 
+            <Button
+            block
+            size="large"
+            type="primary"
+            className="primary-action"
+            onClick={() => setIsFaceModalOpen(true)}
+            style={{ marginBottom: 16 }}
+            >
+            Update Face
+            </Button>
+
             <button className="profile-logout-btn" onClick={() => navigate('/login')}>
                 {t('logout')}
             </button>
@@ -138,6 +151,15 @@ export default function Profile() {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            <FaceRegistrationModal
+                visible={isFaceModalOpen}
+                onSuccess={() => {
+                    setIsFaceModalOpen(false);
+                    void messageApi.success('Face updated successfully');
+                }}
+                onCancel={() => setIsFaceModalOpen(false)}
+            />
         </AppShell>
     );
 }

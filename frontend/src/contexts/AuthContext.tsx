@@ -7,6 +7,7 @@ export type User = {
     id: number | null;
     email: string;
     attendedSessions: number;
+    faceRegistered: boolean;
 };
 
 interface AuthContextType {
@@ -24,6 +25,7 @@ const defaultUser: User = {
     id: null,
     email: '',
     attendedSessions: 0,
+    faceRegistered: false,
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -39,6 +41,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             ...prev,
             id: data.id,
             email: data.email,
+            faceRegistered: data.faceRegistered ?? false,
         }));
         setError(null);
     }, []);

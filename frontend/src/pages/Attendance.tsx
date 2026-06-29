@@ -1,4 +1,4 @@
-import { CameraOutlined, NumberOutlined } from '@ant-design/icons';
+import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
@@ -9,12 +9,19 @@ import {
     Space,
     Typography,
     message,
+    Alert,
+    Spin
 } from 'antd';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createAttendance, scanQrAttendance } from '../api/Attendance';
+import { createAttendance, scanQrAttendance, ApiError } from '../api/Attendance';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
+import type { AttendancePayload } from '../api/Attendance';
+import { useAuth } from '../contexts/AuthContext';
+import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
+import FaceCapture from '../components/face/FaceCapture';
+import { fileToBase64, checkAttendanceStatus } from '../api/Face';
 
 type CodeFormValues = {
     sessionId: number;
@@ -142,6 +149,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
+    const { user, loading } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -150,23 +158,47 @@ export default function Attendance() {
     const scannerControlsRef = useRef<IScannerControls | null>(null);
     const scanningRef = useRef(false);
     const scanRunRef = useRef(0);
+    const [registerModalOpen, setRegisterModalOpen] = useState(false);
+
+    // Face Attendance Verification states
+    const [faceModalOpen, setFaceModalOpen] = useState(false);
+    const [pendingAttendance, setPendingAttendance] = useState<{
+        sessionId?: number;
+        token?: string;
+        payload: AttendancePayload;
+    } | null>(null);
+    const [faceLoading, setFaceLoading] = useState(false);
+    const [faceError, setFaceError] = useState<string | null>(null);
+    const [faceStep, setFaceStep] = useState<'capture' | 'verifying' | 'success' | 'failed'>('capture');
 
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
             const location = await getBrowserLocation();
-
-            await createAttendance(values.sessionId, {
+            const payload: AttendancePayload = {
                 password: values.sessionCode,
                 latitude: location.latitude,
                 longitude: location.longitude,
-            });
+            };
+
+            await createAttendance(values.sessionId, payload);
 
             void messageApi.success('Attendance submitted');
             form.resetFields();
         } catch (error: unknown) {
-            // Обрабатываем системную ошибку браузера, если пользователь запретил доступ к GPS
-            if (error instanceof GeolocationPositionError) {
+            if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
+                const location = await getBrowserLocation();
+                setPendingAttendance({
+                    sessionId: values.sessionId,
+                    payload: {
+                        password: values.sessionCode,
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                    }
+                });
+                setFaceStep('capture');
+                setFaceModalOpen(true);
+            } else if (error instanceof GeolocationPositionError) {
                 void messageApi.error('Необходимо разрешить доступ к геоданным в браузере для отметки присутствия.');
             } else {
                 void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
@@ -204,7 +236,7 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
-            let payload = {};
+            let payload: AttendancePayload = {};
             try {
                 payload = await getBrowserLocation();
             } catch {
@@ -215,8 +247,24 @@ export default function Attendance() {
             void messageApi.success('QR attendance submitted');
             setScanOpen(false);
         } catch (error: unknown) {
-            void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
-            setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+            if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
+                setScanOpen(false);
+                let payload: AttendancePayload = {};
+                try {
+                    payload = await getBrowserLocation();
+                } catch {
+                    payload = {};
+                }
+                setPendingAttendance({
+                    token,
+                    payload
+                });
+                setFaceStep('capture');
+                setFaceModalOpen(true);
+            } else {
+                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+            }
         } finally {
             setScanLoading(false);
         }
@@ -302,11 +350,92 @@ export default function Attendance() {
         }
 
         return stopScanner;
-    }, [scanOpen, stopScanner]);
+    }, [scanOpen, startScanner, stopScanner]);
+    const handleFaceCaptureSubmit = async (photos: File[]) => {
+        if (!pendingAttendance) return;
+        setFaceLoading(true);
+        setFaceError(null);
+        setFaceStep('verifying');
+        try {
+            // Convert files to base64
+            const base64Images = await Promise.all(photos.map(p => fileToBase64(p)));
+            
+            const updatedPayload = {
+                ...pendingAttendance.payload,
+                images: base64Images
+            };
+
+            let res;
+            if (pendingAttendance.token) {
+                res = await scanQrAttendance(pendingAttendance.token, updatedPayload);
+            } else if (pendingAttendance.sessionId) {
+                res = await createAttendance(pendingAttendance.sessionId, updatedPayload);
+            }
+
+            if (!res || !res.requestId) {
+                throw new Error('No verification request ID returned from server.');
+            }
+
+            // Start polling status
+            let attempts = 0;
+            const maxAttempts = 30; // 30 seconds max
+            let verified = false;
+            while (attempts < maxAttempts) {
+                const statusRes = await checkAttendanceStatus(res.requestId);
+                if (statusRes.status === 'SUCCESS') {
+                    verified = true;
+                    break;
+                } else if (statusRes.status === 'FAILED') {
+                    throw new Error(statusRes.errorMessage || 'Face verification failed.');
+                }
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (!verified) {
+                throw new Error('Verification request timed out.');
+            }
+
+            setFaceStep('success');
+        } catch (err) {
+            setFaceError(err instanceof Error ? err.message : 'Face validation failed');
+            setFaceStep('failed');
+        } finally {
+            setFaceLoading(false);
+        }
+    };
+
+    const handleFaceContinue = () => {
+        setFaceModalOpen(false);
+        setPendingAttendance(null);
+        form.resetFields();
+        void messageApi.success('Attendance submitted successfully!');
+    };
+
+    const handleFaceRetry = () => {
+        setFaceStep('capture');
+        setFaceError(null);
+    };
 
     return (
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
             {contextHolder}
+            
+            {!loading && !user.faceRegistered && (
+                <Alert
+                    message="Face Registration Required"
+                    description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
+                    type="warning"
+                    showIcon
+                    action={
+                        <Button size="small" type="primary" onClick={() => setRegisterModalOpen(true)}>
+                            Register Face
+                        </Button>
+                    }
+                    style={{ marginBottom: 24 }}
+                />
+            )}
+
             <div className="attendance-actions-grid">
                 <Card className="attendance-action-card scan-card">
                     <Space direction="vertical" align="center" size={18}>
@@ -389,6 +518,7 @@ export default function Attendance() {
                     </Space>
                 </Card>
             </div>
+            
             <Modal
                 title={t('scanQRCode')}
                 open={scanOpen}
@@ -407,6 +537,69 @@ export default function Attendance() {
                     {scanError && <Typography.Text type="danger">{scanError}</Typography.Text>}
                     {scanLoading && <Typography.Text type="secondary">Submitting attendance...</Typography.Text>}
                 </Space>
+            </Modal>
+
+            {/* Face Registration Modal */}
+            <FaceRegistrationModal
+                visible={registerModalOpen}
+                onSuccess={() => {
+                    setRegisterModalOpen(false);
+                    void messageApi.success('Face registered successfully!');
+                }}
+                onCancel={() => setRegisterModalOpen(false)}
+            />
+
+            {/* Face Attendance Verification Modal */}
+            <Modal
+                title="Face Verification Required"
+                open={faceModalOpen}
+                footer={null}
+                closable={faceStep !== 'verifying'}
+                maskClosable={false}
+                width={600}
+                onCancel={() => setFaceModalOpen(false)}
+            >
+                {faceStep === 'capture' && (
+                    <FaceCapture
+                        onCapture={handleFaceCaptureSubmit}
+                        onCancel={() => setFaceModalOpen(false)}
+                        loading={faceLoading}
+                        error={faceError}
+                        mode="triple"
+                    />
+                )}
+                {faceStep === 'verifying' && (
+                    <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                        <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+                        <Typography.Title level={4} style={{ marginTop: 24 }}>Verifying Face...</Typography.Title>
+                        <Typography.Paragraph type="secondary">We are extracting your face embedding and validating attendance. Please wait.</Typography.Paragraph>
+                    </div>
+                )}
+                {faceStep === 'success' && (
+                    <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                        <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
+                        <Typography.Title level={3} style={{ marginTop: 24 }}>Face Verified!</Typography.Title>
+                        <Typography.Paragraph>Your face was successfully matched and attendance registered.</Typography.Paragraph>
+                        <Button type="primary" size="large" onClick={handleFaceContinue} className="primary-action wide-button" style={{ marginTop: 16 }}>
+                            Continue
+                        </Button>
+                    </div>
+                )}
+                {faceStep === 'failed' && (
+                    <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                        <CloseCircleOutlined style={{ fontSize: 64, color: '#f5222d' }} />
+                        <Typography.Title level={3} style={{ marginTop: 24 }}>Verification Failed</Typography.Title>
+                        <Typography.Paragraph type="danger">{faceError || 'Face not recognized.'}</Typography.Paragraph>
+                        <Space style={{ marginTop: 16 }}>
+                            <Button type="primary" size="large" onClick={handleFaceRetry} className="primary-action">
+                                Try Again
+                            </Button>
+                            <Button size="large" onClick={() => setFaceModalOpen(false)}>
+                                Cancel
+                            </Button>
+                        </Space>
+                    </div>
+                )}
             </Modal>
         </AppShell>
     );
