@@ -25,6 +25,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.example.SPOT.dto.request.UserUpdateDTO;
+import jakarta.servlet.http.Cookie;
 
 
 @RestController
@@ -102,6 +103,28 @@ public class UserController {
         securityContextRepository.saveContext(securityContext, request, responseHttp);
 
         return ResponseEntity.ok().body(response);
+    }
+
+        @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse responseHttp) { // Здесь мы назвали аргумент responseHttp
+        HttpSession existingSession = request.getSession(false);
+        if (existingSession != null) {
+            existingSession.invalidate();
+        }
+
+        SecurityContextHolder.clearContext();
+
+        Cookie sessionCookie = new Cookie("JSESSIONID", null);
+        sessionCookie.setMaxAge(0);
+        sessionCookie.setPath("/");
+        responseHttp.addCookie(sessionCookie); 
+
+        Cookie csrfCookie = new Cookie("XSRF-TOKEN", null);
+        csrfCookie.setMaxAge(0);
+        csrfCookie.setPath("/");
+        responseHttp.addCookie(csrfCookie); 
+
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/delete")
