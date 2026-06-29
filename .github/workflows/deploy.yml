@@ -90,6 +90,11 @@ jobs:
             - name: Update docker-compose file on server
               run: cp docker-compose.prod.yml /home/runner/spot/docker-compose.yml
 
+            - name: Update traefik configuration on server
+              run: |
+                mkdir -p /home/runner/spot/traefik
+                cp traefik/traefik.yml traefik/dynamic.yml /home/runner/spot/traefik/
+
             - name: Update .env file on server
               run: |
                 cat << EOF > /home/runner/spot/.env
