@@ -10,8 +10,6 @@ interface FaceCaptureProps {
     error?: string | null;
     mode?: 'single' | 'triple';
 }
-
-// Функция применения фильтра к изображению через Canvas
 function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | 'grayscale'): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image();
