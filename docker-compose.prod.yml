@@ -59,6 +59,7 @@ services:
       - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
       - "traefik.http.routers.backend.middlewares=strip-api"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
+      - "traefik.http.routers.backend.service=backend"
     env_file:
       - .env
     networks:
