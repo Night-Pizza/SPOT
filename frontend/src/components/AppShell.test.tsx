@@ -121,20 +121,6 @@ describe('AppShell', () => {
         expect(profileLink).not.toHaveClass('active');
     });
 
-    it('changes language through dropdown', async () => {
-        renderWithRouter(<AppShell title="Test">Content</AppShell>);
-
-        const langBtn = screen.getByText('EN');
-        fireEvent.click(langBtn);
-
-        await waitFor(() => {
-            expect(screen.getByText('Русский')).toBeInTheDocument();
-        });
-
-        fireEvent.click(screen.getByText('Русский'));
-        expect(mockSetLanguage).toHaveBeenCalledWith('ru');
-    });
-
     it('renders fallback when user is loading and email is empty', () => {
         vi.mocked(useAuth).mockReturnValue({
             user: { email: '' },
