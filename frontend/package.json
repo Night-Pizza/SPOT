@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest",
     "all": "npx concurrently \"cd ../backend && mvnw spring-boot:run\" \"npm run dev\""
   },
   "dependencies": {
@@ -31,7 +32,7 @@
     "@types/jest": "^30.0.0",
     "@types/leaflet": "^1.9.21",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.12.0",
+    "@types/node": "^24.13.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
