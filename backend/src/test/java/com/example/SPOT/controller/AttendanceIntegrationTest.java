@@ -1,44 +1,31 @@
 package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
+import com.example.SPOT.dto.request.SessionCreateDTO;
+import com.example.SPOT.dto.request.UserCreateDTO;
+import com.example.SPOT.dto.request.UserLoginDTO;
 import io.restassured.RestAssured;
+import io.restassured.filter.session.SessionFilter;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Map;
+import java.util.UUID;
+
+import com.example.SPOT.model.ValidationType;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
+)
+@ActiveProfiles("test")
 public class AttendanceIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15");
-
-    @Container
-    static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"));
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        // Настройки БД
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-
-        // Настройки Kafka для интеграционного теста
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-    }
 
     @LocalServerPort
     private int port;
@@ -50,15 +37,79 @@ public class AttendanceIntegrationTest {
 
     @Test
     void shouldAcceptAttendanceRequest() {
-        // Создаем DTO для посещения сессии ID 1
-        var attendance = new AttendanceCreateDTO(1L, Map.of("password", "secret"));
+        SessionFilter sessionFilter = new SessionFilter();
+        String uniqueEmail = "student_" + UUID.randomUUID() + "@innopolis.ru";
+
+        var regDto = new UserCreateDTO(uniqueEmail, "123456Ab!");
+
+        // 1. Registration
+        given()
+                .contentType(ContentType.JSON)
+                .body(regDto)
+                .post("/user/register")
+                .then()
+                .log().body()
+                .statusCode(200);
+
+        // 2. Login
+        given()
+                .filter(sessionFilter)
+                .contentType(ContentType.JSON)
+                .body(new UserLoginDTO(uniqueEmail, "123456Ab!"))
+                .post("/user/login")
+                .then()
+                .log().body()
+                .statusCode(200);
+
+        String csrfToken = given()
+                .filter(sessionFilter)
+                .when()
+                .get("/auth/csrf")
+                .then()
+                .statusCode(204)
+                .extract()
+                .header("XSRF-TOKEN");
+
+        var sessionResponse = given()
+            .filter(sessionFilter)
+            .cookie("XSRF-TOKEN", csrfToken)
+            .header("XSRF-TOKEN", csrfToken)
+            .contentType(ContentType.JSON)
+            .body(new SessionCreateDTO(
+                "Attendance Test Session",
+                null,
+                null,
+                null,
+                "secret",
+                java.util.List.of(ValidationType.PASSWORD)
+            ))
+            .when()
+            .post("/session/create")
+            .then()
+            .statusCode(201)
+            .extract()
+            .body();
+
+        Number sessionIdNumber = sessionResponse.path("id");
+        if (sessionIdNumber == null) {
+            throw new IllegalStateException("Session id was not returned by /session/create");
+        }
+        Long sessionId = sessionIdNumber.longValue();
+
+        // 3. Create Attendance
+        var attendance = new AttendanceCreateDTO(sessionId, Map.of("password", "secret"));
 
         given()
+                .filter(sessionFilter)
+            .cookie("XSRF-TOKEN", csrfToken)
+            .header("XSRF-TOKEN", csrfToken)
                 .contentType(ContentType.JSON)
                 .body(attendance)
                 .when()
                 .post("/attendance/create")
                 .then()
-                .statusCode(202); // 202 Accepted, ожидаемый результат для асинхронной обработки
+                .log().body()
+            .statusCode(202)
+            .body("status", equalTo("SUCCESS"));
     }
 }

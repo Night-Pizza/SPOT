@@ -26,6 +26,12 @@ jobs:
                 chmod +x mvnw
                 ./mvnw test
 
+            - name: Run Backend Integration Tests
+              run: |
+                cd backend
+                chmod +x mvnw
+                ./mvnw "-Dtest=UserIntegrationTest,SessionIntegrationTest,AttendanceIntegrationTest" test
+
             - name: Build Backend Docker Image
               uses: docker/build-push-action@v5
               with:
@@ -65,6 +71,16 @@ jobs:
               run: |
                 cd frontend
                 npm run build
+
+            - name: Install Playwright Browsers
+              run: |
+                cd frontend
+                npx playwright install --with-deps chromium
+
+            - name: Run Frontend E2E Tests
+              run: |
+                cd frontend
+                npm run test:e2e -- tests/core-journey.spec.ts --project=chromium
 
             - name: Build Frontend Docker Image
               uses: docker/build-push-action@v5
