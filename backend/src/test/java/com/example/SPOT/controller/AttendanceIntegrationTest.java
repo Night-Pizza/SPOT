@@ -20,6 +20,7 @@ import com.example.SPOT.model.ValidationType;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
@@ -109,7 +110,7 @@ public class AttendanceIntegrationTest {
                 .post("/attendance/create")
                 .then()
                 .log().body()
-            .statusCode(202)
-            .body("status", equalTo("SUCCESS"));
+             .statusCode(202)
+             .body("payload.attendanceId", notNullValue());
     }
 }

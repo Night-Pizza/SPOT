@@ -1,6 +1,7 @@
 package com.example.SPOT.service;
 
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
+import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.kafka.KafkaMessagingService;
 import com.example.SPOT.model.*;
@@ -90,10 +91,9 @@ class AttendanceServiceTest {
             return model;
         });
 
-        Map<String, Object> result = attendanceService.createAttendance(USER_ID, request);
+        AttendDTO result = attendanceService.createAttendance(USER_ID, request);
 
-        assertEquals("SUCCESS", result.get("status"));
-        assertEquals(999L, result.get("attendanceId")); // Заодно можем проверить, что ID вернулся правильно
+        assertEquals(999L, result.payload().get("attendanceId")); // Заодно можем проверить, что ID вернулся правильно
         verify(attendanceRepository, times(1)).save(any(AttendanceModel.class));
     }
 
@@ -136,9 +136,9 @@ class AttendanceServiceTest {
             return model;
         });
 
-        Map<String, Object> result = attendanceService.createAttendance(USER_ID, request);
+        AttendDTO result = attendanceService.createAttendance(USER_ID, request);
 
-        assertEquals("SUCCESS", result.get("status"));
+        assertEquals(888L, result.payload().get("attendanceId"));
     }
 
     @Test
@@ -176,10 +176,9 @@ class AttendanceServiceTest {
             return model;
         });
 
-        Map<String, Object> result = attendanceService.createAttendance(USER_ID, request);
+        AttendDTO result = attendanceService.createAttendance(USER_ID, request);
 
-        assertEquals("PENDING_FOR_ATTENDANCE", result.get("status"));
-        assertEquals(500L, result.get("requestId")); // Убеждаемся, что ID прокинулся в ответ
+        assertEquals(500L, result.payload().get("requestId")); // Убеждаемся, что ID прокинулся в ответ
 
         verify(kafkaRepository, times(1)).save(any(KafkaModel.class));
         verify(kafka, times(3)).dispatchFace(anyLong(), eq(USER_ID), anyString());

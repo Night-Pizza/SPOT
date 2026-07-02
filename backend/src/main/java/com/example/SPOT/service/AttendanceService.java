@@ -4,6 +4,7 @@ import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
+import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.kafka.KafkaMessagingService;
@@ -44,29 +45,26 @@ public class AttendanceService {
         this.qrTokenService = qrTokenService;
     }
 
-    public Map<String, Object> createAttendance(Long userId, AttendanceCreateDTO request){
+    public AttendDTO createAttendance(Long userId, AttendanceCreateDTO request){
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
-        boolean needsFaceValidation = false;
+        Long requestId = null;
 
         if (session.getValidationTypes() != null) {
             for (ValidationType type : session.getValidationTypes()) {
+                Long id = validateAttendanceRequirements(userId, type, session, request);
                 if (type == ValidationType.FACE) {
-                    needsFaceValidation = true;
-                } else {
-                    validateAttendanceRequirements(userId, type, session, request);
+                    requestId = id;
                 }
             }
         }
 
-        if (needsFaceValidation) {
-            Long requestId = validateFace(userId, session.getId(), request);
-
-            return Map.of("requestId", requestId, "status", "PENDING_FOR_ATTENDANCE");
+        if (requestId != null) {
+            return new AttendDTO (Map.of ("requestId", requestId));
         }
 
         AttendanceModel attendanceModel = new AttendanceModel();
@@ -76,7 +74,7 @@ public class AttendanceService {
 
         attendanceRepository.save(attendanceModel);
 
-        return Map.of("attendanceId", attendanceModel.getId(), "status", "SUCCESS");
+        return new AttendDTO(Map.of("attendanceId", attendanceModel.getId()));
     }
 
 
@@ -142,7 +140,7 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
         );
     }
 
-    private void validateAttendanceRequirements(Long userId, ValidationType type, SessionModel session, AttendanceCreateDTO request) {
+    private Long validateAttendanceRequirements(Long userId, ValidationType type, SessionModel session, AttendanceCreateDTO request) {
         if (type == ValidationType.PASSWORD) {
             if (request.payload() == null || !request.payload().containsKey("password")) {
                 throw new CustomException("MISSING_PASSWORD_DATA", "Password validation requires a password in payload");
@@ -161,12 +159,17 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
             boolean inClass = isInClass(session.getLatitude(), session.getLongitude(), session.getAllowedRadius(), studentLat, studentLong);
             if (!inClass) throw new CustomException("OUT_OF_ATTENDANCE_RADIUS", "User is out of attendance radius");
         }
+        else if (type == ValidationType.FACE) {
+            Long requestId = validateFace(userId, session.getId(), request);
+            return requestId;
+        }
         else if (type == ValidationType.NONE) {
             // Skipped for the reason
         }
         else {
             throw new CustomException("UNSUPPORTED_VALIDATION_TYPE", "Unsupported validation type: " + type);
         }
+        return 0L;
     }
 
     private boolean isInClass(Double originalLat, Double originalLong, Double allowedRadius, Double studentLat, Double studentLong) {
