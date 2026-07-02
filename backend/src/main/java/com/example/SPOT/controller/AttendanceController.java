@@ -5,7 +5,9 @@ import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.request.QrScanRequestDTO;
+import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
+import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
@@ -37,13 +39,13 @@ public class AttendanceController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<Map<String, Object>> createAttendance(@Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+    public ResponseEntity<AttendDTO> createAttendance(@Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
     }
 
     @PostMapping("/scan")
-    public ResponseEntity<Map<String, Object>> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr){
+    public ResponseEntity<AttendDTO> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr){
         Long userId = Long.valueOf(userIdStr);
         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
 
@@ -83,17 +85,17 @@ public class AttendanceController {
     }
 
     @GetMapping("/status/{requestId}")
-    public ResponseEntity<Map<String, Object>> checkStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
-        KafkaModel request = (KafkaModel) kafkaRepository.findById(requestId)
+    public ResponseEntity<PollingStatusDTO> checkStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
+        KafkaModel request = kafkaRepository.findById(requestId)
                 .orElseThrow(() -> new CustomException("NOT_FOUND", "Request not found"));
 
         if (!request.getUserId().equals(Long.valueOf(userIdStr))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        return ResponseEntity.ok(Map.of(
-                "status", request.getStatus().name(),
-                "errorMessage", request.getErrorMessage() != null ? request.getErrorMessage() : ""
+        return ResponseEntity.ok(new PollingStatusDTO(
+                request.getStatus().name(),
+                request.getErrorMessage() != null ? request.getErrorMessage() : ""
         ));
     }
 }

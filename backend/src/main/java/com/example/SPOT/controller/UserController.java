@@ -5,6 +5,7 @@ import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
 import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.FaceResponseDTO;
+import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
@@ -146,7 +147,7 @@ public class UserController {
     }
 
     @GetMapping("/face/status/{requestId}")
-    public ResponseEntity<Map<String, Object>> checkFaceStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
+    public ResponseEntity<PollingStatusDTO> checkFaceStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
         KafkaModel request = (KafkaModel) kafkaRepository.findById(requestId)
                 .orElseThrow(() -> new RuntimeException("Request not found"));
 
@@ -154,9 +155,9 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        return ResponseEntity.ok(Map.of(
-                "status", request.getStatus().name(),
-                "errorMessage", request.getErrorMessage() != null ? request.getErrorMessage() : ""
+        return ResponseEntity.ok(new PollingStatusDTO(
+                request.getStatus().name(),
+                request.getErrorMessage() != null ? request.getErrorMessage() : ""
         ));
     }
 

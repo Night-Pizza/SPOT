@@ -47,7 +47,8 @@ export async function createAttendance(sessionId: number, payload: AttendancePay
     });
 
     await handleApiResponse(response, 'Failed to submit attendance.');
-    return response.json();
+    const data = await response.json();
+    return data && typeof data === 'object' && 'payload' in data ? data.payload : data;
 }
 
 export async function scanQrAttendance(token: string, payload: AttendancePayload): Promise<any> {
@@ -63,5 +64,6 @@ export async function scanQrAttendance(token: string, payload: AttendancePayload
     });
 
     await handleApiResponse(response, 'Failed to submit QR attendance.');
-    return response.json();
+    const data = await response.json();
+    return data && typeof data === 'object' && 'payload' in data ? data.payload : data;
 }

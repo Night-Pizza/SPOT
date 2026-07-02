@@ -372,7 +372,9 @@ export default function Attendance() {
                 res = await createAttendance(pendingAttendance.sessionId, updatedPayload);
             }
 
-            if (!res || !res.requestId) {
+            const requestId = res?.payload?.requestId ?? res?.requestId;
+
+            if (!requestId) {
                 throw new Error('No verification request ID returned from server.');
             }
 
@@ -381,7 +383,7 @@ export default function Attendance() {
             const maxAttempts = 30; // 30 seconds max
             let verified = false;
             while (attempts < maxAttempts) {
-                const statusRes = await checkAttendanceStatus(res.requestId);
+                const statusRes = await checkAttendanceStatus(requestId);
                 if (statusRes.status === 'SUCCESS') {
                     verified = true;
                     break;
