@@ -21,8 +21,6 @@ vi.mock('@mediapipe/tasks-vision', () => {
         detectForVideo: vi.fn(() => ({
             faceBlendshapes: [{
                 categories: [
-                    { categoryName: 'eyeBlinkLeft', score: 0.1 },
-                    { categoryName: 'eyeBlinkRight', score: 0.1 },
                     { categoryName: 'jawOpen', score: 0.1 }
                 ]
             }]
@@ -81,8 +79,8 @@ describe('FaceCapture', () => {
             expect(screen.queryByText(/Loading liveness detection model.../i)).not.toBeInTheDocument();
         });
         
-        // It should display one of the initial phase instructions
-        const instructionElement = await screen.findByText(/(Please look at the camera with eyes open|Please look at the camera with mouth closed)/i);
+        // It should display the initial phase mouth instruction
+        const instructionElement = await screen.findByText(/Please look at the camera with mouth closed/i);
         expect(instructionElement).toBeInTheDocument();
     });
 

@@ -47,10 +47,9 @@ function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | '
     });
 }
 
-type LivenessAction = 'blink' | 'mouth';
+type LivenessAction = 'mouth';
 
 const LIVENESS_ACTIONS: { type: LivenessAction; label: string }[] = [
-    { type: 'blink', label: 'Please blink your eyes' },
     { type: 'mouth', label: 'Please open your mouth' }
 ];
 
@@ -85,7 +84,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
     const [photos, setPhotos] = useState<File[]>([]);
     const [modelLoading, setModelLoading] = useState(!sharedLandmarker);
     const [livenessStatus, setLivenessStatus] = useState<'loading' | 'active' | 'success' | 'failed'>('loading');
-    const [currentAction, setCurrentAction] = useState<LivenessAction>('blink');
+    const [currentAction, setCurrentAction] = useState<LivenessAction>('mouth');
     const [challengePhase, setChallengePhase] = useState<'initial' | 'action'>('initial');
     const challengePhaseRef = useRef<'initial' | 'action'>('initial');
     const [timeLeft, setTimeLeft] = useState<number>(10);
@@ -207,22 +206,10 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                     const results = landmarker.detectForVideo(video, performance.now());
                     if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
                         const blendshapes = results.faceBlendshapes[0].categories;
-                        const blinkLeft = blendshapes.find(c => c.categoryName === 'eyeBlinkLeft')?.score || 0;
-                        const blinkRight = blendshapes.find(c => c.categoryName === 'eyeBlinkRight')?.score || 0;
                         const jawOpen = blendshapes.find(c => c.categoryName === 'jawOpen')?.score || 0;
 
                         let success = false;
-                        if (currentAction === 'blink') {
-                            if (challengePhaseRef.current === 'initial') {
-                                if (blinkLeft < 0.2 && blinkRight < 0.2) {
-                                    updatePhase('action');
-                                }
-                            } else if (challengePhaseRef.current === 'action') {
-                                if (blinkLeft > 0.65 && blinkRight > 0.65) {
-                                    success = true;
-                                }
-                            }
-                        } else if (currentAction === 'mouth') {
+                        if (currentAction === 'mouth') {
                             if (challengePhaseRef.current === 'initial') {
                                 if (jawOpen < 0.1) {
                                     updatePhase('action');
@@ -298,15 +285,9 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
     }, [livenessStatus, startLivenessCheck]);
 
     const getInstructionLabel = () => {
-        if (currentAction === 'blink') {
-            return challengePhase === 'initial'
-                ? 'Please look at the camera with eyes open'
-                : 'Now blink your eyes!';
-        } else {
-            return challengePhase === 'initial'
-                ? 'Please look at the camera with mouth closed'
-                : 'Now open your mouth!';
-        }
+        return challengePhase === 'initial'
+            ? 'Please look at the camera with mouth closed'
+            : 'Now open your mouth!';
     };
 
     return (
