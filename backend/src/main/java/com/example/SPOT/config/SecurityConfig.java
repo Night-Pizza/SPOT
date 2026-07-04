@@ -81,7 +81,8 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "https://localhost",
                 "http://localhost:5173",
-                "https://10.93.27.37"
+                "https://10.93.27.37",
+                "https://innospot.duckdns.org"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         
