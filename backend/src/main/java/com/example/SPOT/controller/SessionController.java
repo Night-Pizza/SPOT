@@ -3,6 +3,7 @@ package com.example.SPOT.controller;
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.UserRepository;
@@ -38,6 +39,19 @@ public class SessionController {
         sessionService.deleteSession(id);
         return ResponseEntity.noContent().build();
 
+    }
+
+    @GetMapping()
+    public ResponseEntity<List<UserAttendanceDTO>> getOwnedSessions(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(sessionService.getOwnedSessions(userId));
+
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> getOwnedSessionsCount(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(sessionService.getOwnedSessionsCount(userId));
     }
 
     @PatchMapping("/{id}")

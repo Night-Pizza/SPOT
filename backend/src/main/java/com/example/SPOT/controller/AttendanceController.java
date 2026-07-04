@@ -9,6 +9,7 @@ import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
@@ -56,6 +57,12 @@ public class AttendanceController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, createDTO));
     }
 
+    @GetMapping("/count")
+    public ResponseEntity<Long> getAttendedSessionsCount(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(attendanceService.getAttendedSessionsCount(userId));
+    }
+
     @PostMapping("/create/email")
     public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO) {
         return ResponseEntity.status(HttpStatus.CREATED).body(attendanceService.createAttendanceByEmail(emailAttendanceCreateDTO));
@@ -77,6 +84,11 @@ public class AttendanceController {
     public ResponseEntity<List<UserAttendanceDTO>> getAllUserAttendance(@AuthenticationPrincipal String userIdStr){
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok().body(attendanceService.getAllUserAttendance(userId));
+    }
+
+    @GetMapping("/session/{id}")
+    public ResponseEntity<List<UsersForSessionDTO>> getAllAttendanceBySession(@PathVariable Long id){
+        return ResponseEntity.ok().body(attendanceService.getAllAttendanceBySession(id));
     }
 
     @GetMapping("/all")

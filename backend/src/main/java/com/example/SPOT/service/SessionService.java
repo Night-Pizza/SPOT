@@ -62,6 +62,19 @@ public class SessionService {
         return mapToDTO(sessionRepository.save(sessionModel));
     }
 
+    public List<UserAttendanceDTO> getOwnedSessions(Long ownerId){
+        return sessionRepository.findAllByOwnerId(ownerId).stream().map(sessionModel -> new UserAttendanceDTO(
+                        sessionModel.getId(),
+                        sessionModel.getTitle(),
+                        sessionModel.getOwner().getEmail(),
+                        sessionModel.getCreateAt()))
+                .collect(Collectors.toList());
+    }
+
+    public Long getOwnedSessionsCount(Long ownerId){
+        return sessionRepository.countByOwnerId(ownerId);
+    }
+
     @GetMapping("/{id}")
     public List<UsersForSessionDTO> getAllEmailsForThisSession(Long id){
         return attendanceRepository.findAllBySessionId(id).stream().map(model ->
