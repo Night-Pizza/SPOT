@@ -6,6 +6,7 @@ import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.kafka.KafkaMessagingService;
 import com.example.SPOT.model.AttendanceModel;
 import com.example.SPOT.model.EmbeddingStatus;
@@ -128,11 +129,21 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
                 .collect(Collectors.toList());
     }
 
+    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id){
+        return attendanceRepository.findAllBySessionId(id).stream().map(attendanceModel -> new UsersForSessionDTO(
+                        attendanceModel.getUser().getEmail()))
+                .collect(Collectors.toList());
+    }
+
     public List<AttendanceResponseDTO> getAllAttendance(){
         return attendanceRepository.findAll().stream().map(attendanceModel -> new AttendanceResponseDTO(
                         attendanceModel.getId(),
                         attendanceModel.getTimestamp()))
                 .collect(Collectors.toList());
+    }
+
+    public Long getAttendedSessionsCount(Long id){
+        return attendanceRepository.countByUserId(id);
     }
 
     private AttendanceResponseDTO mapToDTO(AttendanceModel attendanceModel) {
