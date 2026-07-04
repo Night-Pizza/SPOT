@@ -12,6 +12,7 @@ public interface AttendanceRepository extends JpaRepository<AttendanceModel, Lon
     boolean existsByUserIdAndSessionId(Long userId, Long sessionId);
     List<AttendanceModel> findAllByUserId(Long id);
     List<AttendanceModel> findAllBySessionId(Long id);
+    AttendanceModel findByUserIdAndSessionId(Long userId, Long sessionId);
 
     @Modifying
     @Query("DELETE FROM AttendanceModel a WHERE a.user.id = :id")

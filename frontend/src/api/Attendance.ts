@@ -1,9 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
+import { converter } from './Converter';
 export type AttendancePayload = {
     password?: string;
     latitude?: number;
     longitude?: number;
+    images?: string[];
 };
 
 export type AttendanceResponse = {
@@ -11,19 +11,32 @@ export type AttendanceResponse = {
     timestamp: string;
 };
 
-async function readErrorMessage(response: Response, fallback: string) {
-    try {
-        const data = await response.json() as { message?: string; error?: string; status?: string };
-        return data.message || data.error || data.status || fallback;
-    } catch {
-        return fallback;
+export class ApiError extends Error {
+    status: string;
+    constructor(status: string, message: string) {
+        super(message);
+        this.status = status;
     }
 }
 
-export async function createAttendance(sessionId: number, payload: AttendancePayload): Promise<AttendanceResponse> {
-    const response = await fetch(`${API_BASE_URL}/attendance/create`, {
+async function handleApiResponse(response: Response, fallback: string) {
+    if (!response.ok) {
+        let status = 'UNEXPECTED_ERROR';
+        let message = fallback;
+        try {
+            const data = await response.json() as { status?: string; message?: string; error?: string };
+            status = data.status || 'UNEXPECTED_ERROR';
+            message = data.message || data.error || data.status || fallback;
+        } catch {
+            // ignore
+        }
+        throw new ApiError(status, message);
+    }
+}
+
+export async function createAttendance(sessionId: number, payload: AttendancePayload): Promise<any> {
+    const response = await converter(`/attendance/create`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -33,17 +46,14 @@ export async function createAttendance(sessionId: number, payload: AttendancePay
         }),
     });
 
-    if (!response.ok) {
-        throw new Error(await readErrorMessage(response, 'Failed to submit attendance.'));
-    }
-
-    return response.json();
+    await handleApiResponse(response, 'Failed to submit attendance.');
+    const data = await response.json();
+    return data && typeof data === 'object' && 'payload' in data ? data.payload : data;
 }
 
-export async function scanQrAttendance(token: string, payload: AttendancePayload): Promise<AttendanceResponse> {
-    const response = await fetch(`${API_BASE_URL}/attendance/scan`, {
+export async function scanQrAttendance(token: string, payload: AttendancePayload): Promise<any> {
+    const response = await converter(`/attendance/scan`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -53,9 +63,7 @@ export async function scanQrAttendance(token: string, payload: AttendancePayload
         }),
     });
 
-    if (!response.ok) {
-        throw new Error(await readErrorMessage(response, 'Failed to submit QR attendance.'));
-    }
-
-    return response.json();
+    await handleApiResponse(response, 'Failed to submit QR attendance.');
+    const data = await response.json();
+    return data && typeof data === 'object' && 'payload' in data ? data.payload : data;
 }

@@ -1,6 +1,5 @@
 import type { UserDTO } from '../types/Authentification';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { converter } from './Converter';
 
 async function readErrorMessage(response: Response, fallback: string) {
     try {
@@ -12,9 +11,8 @@ async function readErrorMessage(response: Response, fallback: string) {
 }
 
 export async function getCurrentUser(): Promise<UserDTO> {
-    const response = await fetch(`${API_BASE_URL}/user/me`, {
+    const response = await converter(`/user/me`, {
         method: 'GET',
-        credentials: 'include',
     });
 
     if (!response.ok) {

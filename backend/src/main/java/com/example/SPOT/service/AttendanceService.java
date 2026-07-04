@@ -1,6 +1,10 @@
 package com.example.SPOT.service;
 
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
+import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
+import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
+import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.kafka.KafkaMessagingService;
@@ -8,6 +12,7 @@ import com.example.SPOT.model.AttendanceModel;
 import com.example.SPOT.model.EmbeddingStatus;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.model.SessionModel;
+import com.example.SPOT.model.UserModel;
 import com.example.SPOT.model.ValidationType;
 import com.example.SPOT.repository.AttendanceRepository;
 import com.example.SPOT.repository.KafkaRepository;
@@ -18,6 +23,7 @@ import com.example.SPOT.repository.SessionRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,28 +33,62 @@ public class AttendanceService {
     private final AttendanceRepository attendanceRepository;
     private final KafkaMessagingService kafka;
     private final KafkaRepository kafkaRepository;
+    private final QRTokenService qrTokenService;
 
     public AttendanceService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository,
-                             KafkaMessagingService kafka, KafkaRepository kafkaRepository) {
+                             KafkaMessagingService kafka, KafkaRepository kafkaRepository, QRTokenService qrTokenService) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
         this.kafka = kafka;
         this.kafkaRepository = kafkaRepository;
+        this.qrTokenService = qrTokenService;
     }
 
-    public AttendanceResponseDTO createAttendance(Long userId, AttendanceCreateDTO request){
+    public AttendDTO createAttendance(Long userId, AttendanceCreateDTO request){
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
+        Long requestId = null;
+
         if (session.getValidationTypes() != null) {
             for (ValidationType type : session.getValidationTypes()) {
-                validateAttendanceRequirements(userId, type, session, request);
+                Long id = validateAttendanceRequirements(userId, type, session, request);
+                if (type == ValidationType.FACE) {
+                    requestId = id;
+                }
             }
         }
+
+        if (requestId != null) {
+            return new AttendDTO (Map.of ("requestId", requestId));
+        }
+
+        AttendanceModel attendanceModel = new AttendanceModel();
+        attendanceModel.setUser(userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist")));
+        attendanceModel.setSession(session);
+        attendanceModel.setTimestamp(LocalDateTime.now());
+
+        attendanceRepository.save(attendanceModel);
+
+        return new AttendDTO(Map.of("attendanceId", attendanceModel.getId()));
+    }
+
+
+public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request){
+        if (!(userRepository.existsByEmail(request.email())))
+            throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
+
+        UserModel user = userRepository.findByEmail(request.email());
+        Long userId = user.getId();
+        if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
+            throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
+
+        SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
+        if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
         AttendanceModel attendanceModel = new AttendanceModel();
         attendanceModel.setUser(userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist")));
@@ -58,9 +98,20 @@ public class AttendanceService {
         return mapToDTO(attendanceRepository.save(attendanceModel));
     }
 
+    public void deleteAttendance(DeleteAttendanceRequestDTO request){
+        if (!(userRepository.existsByEmail(request.email())))
+            throw new CustomException("EMAIL_NOT_EXIST","Email does not exist");
+        if (!(sessionRepository.existsById(request.sessionId())))
+            throw new CustomException("SESSION_DOES_NOT_EXISTS", "Session with this id does not exists");
+        UserModel user = userRepository.findByEmail(request.email());
+        Long userId = user.getId();
+        if (!(attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId())))
+            throw new CustomException("USER_HAS_NOT_ATTENDED_SESSION", "User with this this id has NOT attended session with this id");
 
+        attendanceRepository.deleteById(attendanceRepository.findByUserIdAndSessionId(userId, request.sessionId()).getId());
+    }
 
-    public void deleteAttendance(Long id){
+    public void deleteMyAttendance(Long id){
         if (!(attendanceRepository.existsById(id)))
             throw new CustomException("ID_NOT_EXIST","Attendance id does not exist");
         attendanceRepository.deleteById(id);
@@ -89,7 +140,7 @@ public class AttendanceService {
         );
     }
 
-    private void validateAttendanceRequirements(Long userId, ValidationType type, SessionModel session, AttendanceCreateDTO request) {
+    private Long validateAttendanceRequirements(Long userId, ValidationType type, SessionModel session, AttendanceCreateDTO request) {
         if (type == ValidationType.PASSWORD) {
             if (request.payload() == null || !request.payload().containsKey("password")) {
                 throw new CustomException("MISSING_PASSWORD_DATA", "Password validation requires a password in payload");
@@ -109,21 +160,8 @@ public class AttendanceService {
             if (!inClass) throw new CustomException("OUT_OF_ATTENDANCE_RADIUS", "User is out of attendance radius");
         }
         else if (type == ValidationType.FACE) {
-            if (request.payload() == null || !request.payload().containsKey("images")) {
-                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
-            }
-
-            Object imagesObj = request.payload().get("images");
-            if (!(imagesObj instanceof List)) {
-                throw new CustomException("INVALID_image_DATA", "images must be a list");
-            }
-
-            List<String> images = (List<String>) imagesObj;
-            if (images.size() != 3) {
-                throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
-            }
-
-            validateFace(userId, (List<String>) images);
+            Long requestId = validateFace(userId, session.getId(), request);
+            return requestId;
         }
         else if (type == ValidationType.NONE) {
             // Skipped for the reason
@@ -131,6 +169,7 @@ public class AttendanceService {
         else {
             throw new CustomException("UNSUPPORTED_VALIDATION_TYPE", "Unsupported validation type: " + type);
         }
+        return 0L;
     }
 
     private boolean isInClass(Double originalLat, Double originalLong, Double allowedRadius, Double studentLat, Double studentLong) {
@@ -148,12 +187,29 @@ public class AttendanceService {
         return distance <= allowedRadius;
     }
 
-    private void validateFace(Long userId, List<String> images) {
+    private Long validateFace(Long userId, Long sessionId, AttendanceCreateDTO request) {
+        if (request.payload() == null || !request.payload().containsKey("images")) {
+            throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
+        }
+
+        Object imagesObj = request.payload().get("images");
+        if (!(imagesObj instanceof List)) {
+            throw new CustomException("INVALID_image_DATA", "images must be a list");
+        }
+
+        List<String> images = (List<String>) imagesObj;
+        if (images.size() != 3) {
+            throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");
+        }
+
         KafkaModel kafkaRequest = new KafkaModel(
                 null,
                 userId,
+                sessionId,
                 EmbeddingStatus.PENDING_FOR_ATTENDANCE,
-                null
+                0,
+                null,
+                java.time.LocalDateTime.now()
         );
         kafkaRepository.save(kafkaRequest);
 
@@ -161,8 +217,10 @@ public class AttendanceService {
             if (image == null || image.isEmpty()) {
                 throw new CustomException("INVALID_image_DATA", "Each image must be a non-empty string");
             }
-            kafka.dispatchFace(userId, image);
+            kafka.dispatchFace(kafkaRequest.getId(), userId, image);
         }
+
+        return kafkaRequest.getId();
     }
 
 }

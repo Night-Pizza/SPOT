@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal } from 'antd';
 import FaceCapture from './FaceCapture';
 import FaceVerificationResult from './VerificationResult';
-import { registerFace } from '../../api/Face';
+import { registerFace, checkFaceStatus } from '../../api/Face';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface FaceRegistrationModalProps {
@@ -23,11 +23,34 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
         setLoading(true);
         setError(null);
         try {
-            await registerFace(user.id, photos);
+            const registerRes = await registerFace(photos);
+            if (!registerRes.requestId) {
+                throw new Error('No request ID returned from backend.');
+            }
+
+            // Poll status
+            let attempts = 0;
+            const maxAttempts = 30; // 30 seconds max
+            let registered = false;
+            while (attempts < maxAttempts) {
+                const statusRes = await checkFaceStatus(registerRes.requestId);
+                if (statusRes.status === 'SUCCESS') {
+                    registered = true;
+                    break;
+                } else if (statusRes.status === 'FAILED') {
+                    throw new Error(statusRes.errorMessage || 'Face registration failed.');
+                }
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (!registered) {
+                throw new Error('Face registration timed out.');
+            }
+
             setVerified(true);
             setStep('result');
             updateUser({ faceRegistered: true });
-            onSuccess();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Face registration failed');
             setVerified(false);
@@ -61,6 +84,7 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
                     onCancel={onCancel}
                     loading={loading}
                     error={error}
+                    mode="single"
                 />
             ) : (
                 <FaceVerificationResult

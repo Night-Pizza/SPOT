@@ -1,22 +1,40 @@
 import { BarChartOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
-import { Card, Typography } from 'antd';
+import { Card, Typography, Alert, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useState } from 'react';
+import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
     const { sessions } = useApp();
     const { user, loading } = useAuth();
     const { t } = useTheme();
+    const [registerModalOpen, setRegisterModalOpen] = useState(false);
 
     return (
         <AppShell title={t('dashboard')} showPageTitle={false} pageClassName="dashboard-page">
             <Typography.Title level={1} className="dashboard-greeting">
                 {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
             </Typography.Title>
+
+            {!loading && !user.faceRegistered && (
+                <Alert
+                    message="Face Registration Required"
+                    description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
+                    type="warning"
+                    showIcon
+                    action={
+                        <Button size="small" type="primary" onClick={() => setRegisterModalOpen(true)}>
+                            Register Face
+                        </Button>
+                    }
+                    style={{ marginBottom: 24 }}
+                />
+            )}
 
             <Typography.Title level={2} className="section-kicker">
                 {t('quickActions')}
@@ -70,6 +88,12 @@ export default function Dashboard() {
                     <Typography.Title level={2} style={{ margin: 0 }}>{user.attendedSessions}</Typography.Title>
                 </Card>
             </div>
+
+            <FaceRegistrationModal
+                visible={registerModalOpen}
+                onSuccess={() => setRegisterModalOpen(false)}
+                onCancel={() => setRegisterModalOpen(false)}
+            />
         </AppShell>
     );
 }

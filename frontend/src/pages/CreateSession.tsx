@@ -1,4 +1,4 @@
-import { EnvironmentOutlined, KeyOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { EnvironmentOutlined, KeyOutlined, QrcodeOutlined, CameraOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
@@ -24,6 +24,7 @@ type CreateSessionFormValues = {
     title: string;
     sessionMode?: 'QR' | 'CODE';
     geolocationEnabled?: boolean;
+    faceRecognitionEnabled?: boolean;
     radius?: number;
     sessionCode?: string;
 };
@@ -33,6 +34,7 @@ export default function CreateSessionPage() {
     const navigate = useNavigate();
     const { t } = useTheme();
     const geolocationEnabled = Form.useWatch('geolocationEnabled', form);
+    const faceRecognitionEnabled = Form.useWatch('faceRecognitionEnabled', form);
     const sessionMode = Form.useWatch('sessionMode', form);
 
     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
@@ -52,6 +54,7 @@ export default function CreateSessionPage() {
         const validationTypes: string[] = [];
         if (values.geolocationEnabled) validationTypes.push('GPS');
         if (values.sessionMode === 'CODE') validationTypes.push('PASSWORD');
+        if (values.faceRecognitionEnabled) validationTypes.push('FACE');
         if (validationTypes.length === 0) validationTypes.push('NONE');
 
         const sessionData = {
@@ -82,6 +85,7 @@ export default function CreateSessionPage() {
                 password: values.sessionMode === 'CODE' ? values.sessionCode?.trim() || '' : '',
                 mode: values.sessionMode,
                 geolocationEnabled: values.geolocationEnabled || false,
+                faceRecognitionEnabled: values.faceRecognitionEnabled || false,
                 radius: values.geolocationEnabled ? values.radius : undefined,
                 lat: coords?.lat,
                 lng: coords?.long,
@@ -110,7 +114,7 @@ export default function CreateSessionPage() {
                 <Form
                     form={form}
                     layout="vertical"
-                    initialValues={{ geolocationEnabled: true, radius: 100 }}
+                    initialValues={{ geolocationEnabled: true, faceRecognitionEnabled: false, radius: 100 }}
                     onFinish={handleSubmit}
                     requiredMark={false}
                 >
@@ -214,6 +218,23 @@ export default function CreateSessionPage() {
                         </>
                     )}
 
+                    <div className="session-switch-row" style={{ marginBottom: 16 }}>
+                        <Space size={16} align="center">
+                            <span className="field-icon field-icon-blue">
+                                <CameraOutlined />
+                            </span>
+                            <div>
+                                <Typography.Text strong>Require Face Recognition</Typography.Text>
+                                <Typography.Paragraph className="field-helper" style={{ margin: 0 }}>
+                                    Students must scan their face to mark attendance
+                                </Typography.Paragraph>
+                            </div>
+                        </Space>
+                        <Form.Item name="faceRecognitionEnabled" valuePropName="checked" noStyle>
+                            <Switch />
+                        </Form.Item>
+                    </div>
+
                     {sessionMode === 'CODE' && (
                         <Form.Item
                             label={
@@ -234,11 +255,11 @@ export default function CreateSessionPage() {
 
                     <Form.Item label={t('validationMethods') || 'Validation Methods'}>
                         <Typography.Text type="secondary">
-                            {geolocationEnabled && 'GPS'}
-                            {geolocationEnabled && sessionMode === 'CODE' && ', '}
-                            {sessionMode === 'CODE' && 'Password'}
-                            {sessionMode === 'QR' && !geolocationEnabled && 'None'}
-                            {!sessionMode && 'Choose a session mode'}
+                            {[
+                                geolocationEnabled && 'GPS',
+                                sessionMode === 'CODE' && 'Password',
+                                faceRecognitionEnabled && 'Face Recognition'
+                            ].filter(Boolean).join(', ') || 'None'}
                         </Typography.Text>
                     </Form.Item>
 

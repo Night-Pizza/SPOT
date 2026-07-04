@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { MailOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
@@ -7,9 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
+import { logoutUser } from '../api/Authentification';
 
 export default function Profile() {
-    const navigate = useNavigate();
     const { user, loading, error, refreshCurrentUser } = useAuth();
     const { sessions } = useApp();
     const { t } = useTheme();
@@ -19,6 +18,16 @@ export default function Profile() {
     const [messageApi, contextHolder] = message.useMessage();
     const email = user.email || 'Unavailable';
     const avatarText = user.email.charAt(0).toUpperCase() || '?';
+
+    const handleLogout = async () => {
+    try {
+            await logoutUser();
+        } catch (error) {
+            console.error("Error while logout:", error);
+        } finally {
+            window.location.href = '/login';
+        }
+    };
 
     const handleChangePassword = async (values: { oldPassword: string; newPassword: string; confirmPassword: string }) => {
         if (values.newPassword !== values.confirmPassword) {
@@ -98,7 +107,7 @@ export default function Profile() {
             Update Face
             </Button>
 
-            <button className="profile-logout-btn" onClick={() => navigate('/login')}>
+            <button className="profile-logout-btn" onClick={handleLogout}>
                 {t('logout')}
             </button>
 

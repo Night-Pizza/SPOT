@@ -90,6 +90,21 @@ jobs:
             - name: Update docker-compose file on server
               run: cp docker-compose.prod.yml /home/runner/spot/docker-compose.yml
 
+            - name: Update traefik configuration on server
+              run: |
+                mkdir -p /home/runner/spot/traefik
+                cp traefik/traefik.yml traefik/dynamic.yml /home/runner/spot/traefik/
+
+            - name: Update .env file on server
+              run: |
+                cat << EOF > /home/runner/spot/.env
+                DB_USER=${{ secrets.DB_USER }}
+                DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+                DB_NAME=${{ secrets.DB_NAME }}
+                KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
+                APP_HOST=${{ secrets.APP_HOST}}
+                EOF
+
             - name: Deploy to Server
               run: |
                 cd /home/runner/spot
