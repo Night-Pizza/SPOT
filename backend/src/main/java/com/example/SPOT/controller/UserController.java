@@ -7,17 +7,21 @@ import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.FaceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserDTO;
+import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.UserService;
+import com.example.SPOT.service.RateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.Collections;
 import java.util.Map;
+import java.time.Duration;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -35,11 +39,23 @@ public class UserController {
     private final UserService userService;
     private final SecurityContextRepository securityContextRepository;
     private final KafkaRepository kafkaRepository;
+    private final RateLimitService rateLimitService;
 
-    public UserController(UserService userService, KafkaRepository kafkaRepository, SecurityContextRepository securityContextRepository) {
+    public UserController(UserService userService, KafkaRepository kafkaRepository, SecurityContextRepository securityContextRepository, RateLimitService rateLimitService) {
         this.userService = userService;
         this.kafkaRepository = kafkaRepository;
         this.securityContextRepository = securityContextRepository;
+        this.rateLimitService = rateLimitService;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        return request.getRemoteAddr();
     }
 
     @GetMapping()
@@ -57,6 +73,16 @@ public class UserController {
 
     @PostMapping("/login")
     public ResponseEntity<UserDTO> signIn(@RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+
+        String ip = getClientIp(request);
+        String email = loginDTO.email() != null ? loginDTO.email().toLowerCase() : "unknown";
+
+        String key = "login:" + ip + ":" + email;
+
+        if (!rateLimitService.tryConsume(key, 5, Duration.ofMinutes(1))) {
+            throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many login attempts");
+        }
+
         UserDTO response = userService.loginUser(loginDTO);
 
         HttpSession existingSession = request.getSession(false);
@@ -106,7 +132,7 @@ public class UserController {
         return ResponseEntity.ok().body(response);
     }
 
-        @PostMapping("/logout")
+    @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse responseHttp) {
         HttpSession existingSession = request.getSession(false);
         if (existingSession != null) {

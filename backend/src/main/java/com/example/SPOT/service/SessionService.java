@@ -34,6 +34,17 @@ public class SessionService {
         this.attendanceRepository = attendanceRepository;
     }
 
+    public SessionModel getSessionOwnedByUser(Long sessionId, Long userId) {
+        SessionModel session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "Session id does not exist"));
+
+        if (!session.getOwner().getId().equals(userId)) {
+            throw new CustomException("FORBIDDEN", "You do not have access to this session");
+        }
+
+        return session;
+    }
+
 
     public SessionModel initializeSessionModel(String title, Long ownerId){
         SessionModel sessionModel = new SessionModel();
@@ -63,7 +74,8 @@ public class SessionService {
     }
 
     @GetMapping("/{id}")
-    public List<UsersForSessionDTO> getAllEmailsForThisSession(Long id){
+    public List<UsersForSessionDTO> getAllEmailsForThisSession(Long id, Long userId){
+        getSessionOwnedByUser(id, userId);
         return attendanceRepository.findAllBySessionId(id).stream().map(model ->
                         new UsersForSessionDTO(
                                 model.getUser().getEmail()))
@@ -71,9 +83,8 @@ public class SessionService {
     }
 
     @Transactional
-    public void deleteSession(Long id){
-        if (!(sessionRepository.existsById(id)))
-            throw new CustomException("ID_NOT_EXIST","Session id does not exist");
+    public void deleteSession(Long id, Long userId){
+        getSessionOwnedByUser(id, userId);
 
         attendanceRepository.deleteBySessionId(id);
 
@@ -81,16 +92,14 @@ public class SessionService {
     }
 
     @Transactional
-    public void updateSessionName(Long id, SessionUpdateDTO request){
-        SessionModel sessionModel = sessionRepository.findById(id).orElseThrow(() ->
-                new CustomException("ID_NOT_EXIST","Session id does not exist"));
+    public void updateSessionName(Long id, Long userId, SessionUpdateDTO request){
+        SessionModel sessionModel = getSessionOwnedByUser(id, userId);
         sessionModel.setTitle(request.title());
     }
 
     @Transactional
-    public void closeSession(Long id){
-        SessionModel sessionModel = sessionRepository.findById(id).orElseThrow(() ->
-                new CustomException("ID_NOT_EXIST","Session id does not exist"));
+    public void closeSession(Long id, Long userId){
+        SessionModel sessionModel = getSessionOwnedByUser(id, userId);
         if (!(sessionModel.isActive())) throw new CustomException("SESSION_ALREADY_CLOSE", "This session is already closed");
         sessionModel.setActive(false);
     }
