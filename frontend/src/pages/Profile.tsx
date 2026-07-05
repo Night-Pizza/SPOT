@@ -52,6 +52,9 @@ export default function Profile() {
         try {
             const { optionsJson } = await getRegistrationOptions();
             const parsedOptions = JSON.parse(optionsJson);
+            if (parsedOptions.extensions) {
+                delete parsedOptions.extensions.appidExclude;
+            }
 
             const attestationResponse = await startRegistration({
                 ...parsedOptions,
@@ -135,15 +138,13 @@ export default function Profile() {
             <Button
                 block
                 size="large"
-                type="dashed"
-                className="device-registration-btn"
+                className="change-password-btn"
                 onClick={handleRegisterDevice}
                 loading={registeringDevice}
-                disabled={user.webauthRegistered}
                 icon={<SafetyCertificateOutlined />}
                 style={{ marginBottom: 16 }}
             >
-                {user.webauthRegistered ? 'Biometric Device Key Registered' : 'Register Biometric Device'}
+                {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
             </Button>
 
             <button className="profile-logout-btn" onClick={handleLogout}>

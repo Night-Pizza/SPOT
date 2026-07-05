@@ -14,6 +14,7 @@ import com.yubico.webauthn.data.*;
 import com.yubico.webauthn.exception.AssertionFailedException;
 import com.yubico.webauthn.exception.RegistrationFailedException;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,7 +35,7 @@ public class WebAuthService implements CredentialRepository {
 
     public WebAuthService(UserRepository userRepository,
                            RelyingParty relyingParty,
-                           @Qualifier("webauthnChallengeCache") Cache<String, String> challengeCache,
+                           @Qualifier("webauthChallengeCache") Cache<String, String> challengeCache,
                            ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.relyingParty = relyingParty;
@@ -42,12 +43,14 @@ public class WebAuthService implements CredentialRepository {
         this.objectMapper = objectMapper;
     }
 
-    public WebAuthRegistrationOptionsDTO generateRegisterOptions(Long userId) {
+    public WebAuthRegistrationOptionsDTO // Changed from empty line/annotation to this
+    generateRegisterOptions(Long userId) {
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        if (user.getWebauthCredentialId() != null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Device already registered. Only one device allowed.");
+        if (user.getWebauthLastModified() != null && 
+            user.getWebauthLastModified().isAfter(java.time.LocalDateTime.now().minusDays(1))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can only modify your biometric device once a day.");
         }
 
         UserIdentity userIdentity = UserIdentity.builder()
@@ -96,6 +99,7 @@ public class WebAuthService implements CredentialRepository {
             user.setWebauthCredentialId(result.getKeyId().getId().getBytes());
             user.setWebauthPublicKey(result.getPublicKeyCose().getBytes());
             user.setWebauthSignatureCount(result.getSignatureCount());
+            user.setWebauthLastModified(java.time.LocalDateTime.now());
             userRepository.save(user);
 
         } catch (IOException e) {

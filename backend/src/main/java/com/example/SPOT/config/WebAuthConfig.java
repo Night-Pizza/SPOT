@@ -6,6 +6,7 @@ import com.yubico.webauthn.data.RelyingPartyIdentity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 @Configuration
 public class WebAuthConfig {
@@ -17,7 +18,7 @@ public class WebAuthConfig {
     private String rpName;
 
     @Bean
-    public RelyingParty relyingParty(WebAuthService webAuthService) {
+    public RelyingParty relyingParty(@Lazy WebAuthService webAuthService) {
         RelyingPartyIdentity rpIdentity = RelyingPartyIdentity.builder()
                 .id(rpId)
                 .name(rpName)

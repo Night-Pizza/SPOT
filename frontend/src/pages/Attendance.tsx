@@ -15,7 +15,6 @@ import {
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { createAttendance, scanQrAttendance, ApiError } from '../api/Attendance';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 import type { AttendancePayload } from '../api/Attendance';
@@ -23,8 +22,8 @@ import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import FaceCapture from '../components/face/FaceCapture';
 import { fileToBase64, checkAttendanceStatus } from '../api/Face';
-import { startAuthentication } from '@simplewebauthn/browser';
-import { getAssertionOptions, verifyAssertion } from '../api/WebAuth';
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import { getAssertionOptions, verifyAssertion, getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 
 type CodeFormValues = {
     sessionId: number;
@@ -152,8 +151,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading } = useAuth();
-    const navigate = useNavigate();
+    const { user, loading, refreshCurrentUser } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -164,8 +162,10 @@ export default function Attendance() {
     const scanRunRef = useRef(0);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
 
+    // WebAuth Verification & Registration state
     const [verifyingDevice, setVerifyingDevice] = useState(false);
     const [isDeviceVerified, setIsDeviceVerified] = useState(false);
+    const [registeringDevice, setRegisteringDevice] = useState(false);
 
     // Face Attendance Verification states
     const [faceModalOpen, setFaceModalOpen] = useState(false);
@@ -178,11 +178,38 @@ export default function Attendance() {
     const [faceError, setFaceError] = useState<string | null>(null);
     const [faceStep, setFaceStep] = useState<'capture' | 'verifying' | 'success' | 'failed'>('capture');
 
+    const handleRegisterDevice = async () => {
+        setRegisteringDevice(true);
+        try {
+            const { optionsJson } = await getRegistrationOptions();
+            const parsedOptions = JSON.parse(optionsJson);
+            if (parsedOptions.extensions) {
+                delete parsedOptions.extensions.appidExclude;
+            }
+
+            const attestationResponse = await startRegistration({
+                ...parsedOptions,
+            });
+
+            await verifyRegistration(JSON.stringify(attestationResponse));
+            void messageApi.success('Biometric device registered successfully!');
+            await refreshCurrentUser();
+        } catch (err: any) {
+            console.error('Device registration failed:', err);
+            void messageApi.error(err.message || 'Biometric device registration failed.');
+        } finally {
+            setRegisteringDevice(false);
+        }
+    };
+
     const handleDeviceAuthentication = async () => {
         setVerifyingDevice(true);
         try {
             const { optionsJson } = await getAssertionOptions();
             const parsedOptions = JSON.parse(optionsJson);
+            if (parsedOptions.extensions) {
+                delete parsedOptions.extensions.appidExclude;
+            }
 
             const assertionResponse = await startAuthentication({
                 ...parsedOptions,
@@ -450,7 +477,8 @@ export default function Attendance() {
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
             {contextHolder}
             
-            {!loading && !user.faceRegistered && (
+            {/* Show Face Registration Warning only AFTER device key is set up */}
+            {!loading && user.webauthRegistered && !user.faceRegistered && (
                 <Alert
                     message="Face Registration Required"
                     description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
@@ -468,17 +496,22 @@ export default function Attendance() {
             {!loading && !user.webauthRegistered ? (
                 <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center' }}>
                     <Card style={{ borderRadius: 16 }}>
-                        <Space direction="vertical" size={24}>
+                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
                             <SafetyCertificateOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
                             <div>
                                 <Typography.Title level={3}>Biometric Device Required</Typography.Title>
                                 <Typography.Paragraph type="secondary">
-                                    You have not registered a biometric key for this device yet. 
-                                    Please go to your Profile page to register your device before you can mark attendance.
+                                    You must register this device with your biometrics before you can mark attendance.
                                 </Typography.Paragraph>
                             </div>
-                            <Button type="primary" size="large" onClick={() => navigate('/profile')} className="primary-action">
-                                Go to Profile
+                            <Button
+                                type="primary"
+                                size="large"
+                                onClick={handleRegisterDevice}
+                                loading={registeringDevice}
+                                className="primary-action wide-button"
+                            >
+                                Register Device
                             </Button>
                         </Space>
                     </Card>

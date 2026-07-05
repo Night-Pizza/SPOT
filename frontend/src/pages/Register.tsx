@@ -2,6 +2,9 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../api/Authentification';
 import { useAuth } from '../contexts/AuthContext';
+import { startRegistration } from '@simplewebauthn/browser';
+import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+import { message } from 'antd';
 
 function validateEmail(email: string): string | null {
     if (!email) return 'Email cannot be empty';
@@ -60,6 +63,24 @@ export default function RegisterPage() {
         try {
             const user = await registerUser({ email, password });
             setAuthenticatedUser(user);
+
+            // Trigger biometric device registration pop up immediately
+            try {
+                const { optionsJson } = await getRegistrationOptions();
+                const parsedOptions = JSON.parse(optionsJson);
+                if (parsedOptions.extensions) {
+                    delete parsedOptions.extensions.appidExclude;
+                }
+                const attestationResponse = await startRegistration({
+                    ...parsedOptions,
+                });
+                await verifyRegistration(JSON.stringify(attestationResponse));
+                void message.success('Biometric device registered successfully!');
+            } catch (webauthErr: any) {
+                console.warn('Biometric registration was skipped or failed:', webauthErr);
+                void message.warning('Account created. You can register your biometric device later in your Profile.');
+            }
+
             navigate('/dashboard');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : 'Registration failed');
