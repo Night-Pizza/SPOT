@@ -1,0 +1,252 @@
+package com.example.SPOT.service;
+
+import com.example.SPOT.dto.request.WebAuthRegistrationVerifyDTO;
+import com.example.SPOT.dto.request.WebAuthAssertionVerifyDTO;
+import com.example.SPOT.dto.response.WebAuthRegistrationOptionsDTO;
+import com.example.SPOT.dto.response.WebAuthAssertionOptionsDTO;
+import com.example.SPOT.model.UserModel;
+import com.example.SPOT.repository.UserRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.yubico.webauthn.*;
+import com.yubico.webauthn.data.*;
+import com.yubico.webauthn.exception.AssertionFailedException;
+import com.yubico.webauthn.exception.RegistrationFailedException;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
+
+@Service
+public class WebAuthService implements CredentialRepository {
+
+    private final UserRepository userRepository;
+    private final RelyingParty relyingParty;
+    private final Cache<String, String> challengeCache;
+    private final ObjectMapper objectMapper;
+
+    public WebAuthService(UserRepository userRepository,
+                           RelyingParty relyingParty,
+                           @Qualifier("webauthnChallengeCache") Cache<String, String> challengeCache,
+                           ObjectMapper objectMapper) {
+        this.userRepository = userRepository;
+        this.relyingParty = relyingParty;
+        this.challengeCache = challengeCache;
+        this.objectMapper = objectMapper;
+    }
+
+    public WebAuthRegistrationOptionsDTO generateRegisterOptions(Long userId) {
+        UserModel user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getWebauthCredentialId() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Device already registered. Only one device allowed.");
+        }
+
+        UserIdentity userIdentity = UserIdentity.builder()
+                .name(user.getEmail())
+                .displayName(user.getEmail())
+                .id(new ByteArray(longToBytes(user.getId())))
+                .build();
+
+        PublicKeyCredentialCreationOptions options = relyingParty.startRegistration(
+                StartRegistrationOptions.builder()
+                        .user(userIdentity)
+                        .build()
+        );
+
+        try {
+            String optionsJson = objectMapper.writeValueAsString(options);
+            challengeCache.put("reg:" + user.getEmail(), optionsJson);
+            return new WebAuthRegistrationOptionsDTO(optionsJson);
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to serialize registration options", e);
+        }
+    }
+
+    public void verifyRegisterResponse(Long userId, WebAuthRegistrationVerifyDTO requestDto) {
+        UserModel user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String cachedOptionsJson = challengeCache.getIfPresent("reg:" + user.getEmail());
+        if (cachedOptionsJson == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Registration challenge expired or not found");
+        }
+        challengeCache.invalidate("reg:" + user.getEmail());
+
+        try {
+            PublicKeyCredentialCreationOptions options = objectMapper.readValue(cachedOptionsJson, PublicKeyCredentialCreationOptions.class);
+            PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> pkc =
+                    PublicKeyCredential.parseRegistrationResponseJson(requestDto.responseJson());
+
+            RegistrationResult result = relyingParty.finishRegistration(
+                    FinishRegistrationOptions.builder()
+                            .request(options)
+                            .response(pkc)
+                            .build()
+            );
+
+            user.setWebauthCredentialId(result.getKeyId().getId().getBytes());
+            user.setWebauthPublicKey(result.getPublicKeyCose().getBytes());
+            user.setWebauthSignatureCount(result.getSignatureCount());
+            userRepository.save(user);
+
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid JSON structure or parsing failure in client response", e);
+        } catch (RegistrationFailedException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "WebAuthn registration validation failed", e);
+        }
+    }
+
+    public WebAuthAssertionOptionsDTO generateAttendanceOptions(Long userId) {
+        UserModel user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getWebauthCredentialId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please register your device first.");
+        }
+
+        AssertionRequest request = relyingParty.startAssertion(
+                StartAssertionOptions.builder()
+                        .username(Optional.of(user.getEmail()))
+                        .build()
+        );
+
+        try {
+            String requestJson = objectMapper.writeValueAsString(request);
+            challengeCache.put("auth:" + user.getEmail(), requestJson);
+            return new WebAuthAssertionOptionsDTO(requestJson);
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to serialize assertion request", e);
+        }
+    }
+
+    public void verifyAttendanceResponse(Long userId, WebAuthAssertionVerifyDTO requestDto) {
+        UserModel user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String cachedRequestJson = challengeCache.getIfPresent("auth:" + user.getEmail());
+        if (cachedRequestJson == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Challenge expired. You must sign within 10 seconds.");
+        }
+        challengeCache.invalidate("auth:" + user.getEmail());
+
+        try {
+            AssertionRequest request = objectMapper.readValue(cachedRequestJson, AssertionRequest.class);
+            PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> pkc =
+                    PublicKeyCredential.parseAssertionResponseJson(requestDto.responseJson());
+
+            AssertionResult result = relyingParty.finishAssertion(
+                    FinishAssertionOptions.builder()
+                            .request(request)
+                            .response(pkc)
+                            .build()
+            );
+
+            if (result.isSuccess()) {
+                if (result.getSignatureCount() <= user.getWebauthSignatureCount()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cloned authenticator detected!");
+                }
+
+                user.setWebauthSignatureCount(result.getSignatureCount());
+                userRepository.save(user);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Biometric signature verification failed");
+            }
+
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid JSON structure or parsing failure in assertion response", e);
+        } catch (AssertionFailedException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "WebAuthn authentication validation failed", e);
+        }
+    }
+
+    @Override
+    public Set<PublicKeyCredentialDescriptor> getCredentialIdsForUsername(String username) {
+        UserModel user = userRepository.findByEmail(username);
+        if (user == null || user.getWebauthCredentialId() == null) {
+            return Collections.emptySet();
+        }
+        return Collections.singleton(
+                PublicKeyCredentialDescriptor.builder()
+                        .id(new ByteArray(user.getWebauthCredentialId()))
+                        .build()
+        );
+    }
+
+    @Override
+    public Optional<ByteArray> getUserHandleForUsername(String username) {
+        UserModel user = userRepository.findByEmail(username);
+        if (user == null) {
+            return Optional.empty();
+        }
+        byte[] userHandleBytes = longToBytes(user.getId());
+        return Optional.of(new ByteArray(userHandleBytes));
+    }
+
+    @Override
+    public Optional<String> getUsernameForUserHandle(ByteArray userHandle) {
+        try {
+            long userId = bytesToLong(userHandle.getBytes());
+            Optional<UserModel> user = userRepository.findById(userId);
+            return user.map(UserModel::getEmail);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<RegisteredCredential> lookup(ByteArray credentialId, ByteArray userHandle) {
+        Optional<UserModel> userOpt = userRepository.findByWebauthCredentialId(credentialId.getBytes());
+        if (userOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        UserModel user = userOpt.get();
+        return Optional.of(
+                RegisteredCredential.builder()
+                        .credentialId(credentialId)
+                        .userHandle(userHandle)
+                        .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
+                        .signatureCount(user.getWebauthSignatureCount())
+                        .build()
+        );
+    }
+
+    @Override
+    public Set<RegisteredCredential> lookupAll(ByteArray credentialId) {
+        Optional<UserModel> userOpt = userRepository.findByWebauthCredentialId(credentialId.getBytes());
+        if (userOpt.isEmpty()) {
+            return Collections.emptySet();
+        }
+        UserModel user = userOpt.get();
+        byte[] userHandle = longToBytes(user.getId());
+        return Collections.singleton(
+                RegisteredCredential.builder()
+                        .credentialId(credentialId)
+                        .userHandle(new ByteArray(userHandle))
+                        .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
+                        .signatureCount(user.getWebauthSignatureCount())
+                        .build()
+        );
+    }
+
+    private byte[] longToBytes(long x) {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.putLong(x);
+        return buffer.array();
+    }
+
+    private long bytesToLong(byte[] bytes) {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.put(bytes);
+        buffer.flip();
+        return buffer.getLong();
+    }
+}

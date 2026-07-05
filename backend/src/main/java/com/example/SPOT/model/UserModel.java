@@ -27,4 +27,11 @@ public class UserModel {
     @Convert(converter = DoubleArrayConverter.class)
     private Double[] embedding;
 
+    @Column(columnDefinition = "BYTEA")
+    private byte[] webauthCredentialId;
+
+    @Column(columnDefinition = "BYTEA")
+    private byte[] webauthPublicKey;
+
+    private Long webauthSignatureCount;
 }

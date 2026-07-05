@@ -70,6 +70,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      WEBAUTHN_RP_ID: ${WEBAUTH_RP_ID}
+      WEBAUTHN_RP_NAME: ${WEBAUTH_RP_NAME}
   
   frontend:
     image: ghcr.io/night-pizza/spot/spot-frontend:latest
