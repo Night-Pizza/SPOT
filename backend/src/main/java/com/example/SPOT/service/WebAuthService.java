@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -68,11 +69,30 @@ public class WebAuthService implements CredentialRepository {
                         .user(userIdentity)
                         .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
                                 .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
-                                .residentKey(ResidentKeyRequirement.REQUIRED)
+                                .residentKey(ResidentKeyRequirement.PREFERRED)
                                 .userVerification(UserVerificationRequirement.REQUIRED)
                                 .build())
                         .build()
         );
+
+        // Populate excludeCredentials with ALL other users' credentials so the browser
+        // refuses to register the same physical device for a different account.
+        // (getCredentialIdsForUsername only returns the current user's credential,
+        //  which is correct for assertion but insufficient for this registration check.)
+        List<PublicKeyCredentialDescriptor> otherCredentials = userRepository.findAll().stream()
+                .filter(u -> u.getWebauthCredentialId() != null && !u.getId().equals(user.getId()))
+                .map(u -> PublicKeyCredentialDescriptor.builder()
+                        .id(new ByteArray(u.getWebauthCredentialId()))
+                        .type(PublicKeyCredentialType.PUBLIC_KEY)
+                        .transports(Set.of(AuthenticatorTransport.INTERNAL))
+                        .build())
+                .collect(Collectors.toList());
+
+        if (!otherCredentials.isEmpty()) {
+            options = options.toBuilder()
+                    .excludeCredentials(otherCredentials)
+                    .build();
+        }
 
         try {
             String optionsJson = options.toJson();
@@ -172,9 +192,17 @@ public class WebAuthService implements CredentialRepository {
                             .build()
             );
 
-            if (user.getWebauthCredentialId() == null || 
+            // Verify the credential belongs to THIS user
+            if (user.getWebauthCredentialId() == null ||
                 !java.util.Arrays.equals(user.getWebauthCredentialId(), pkc.getId().getBytes())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The biometric key used does not belong to your account.");
+            }
+
+            // Verify the same physical credential is not registered to a different account
+            // (catches cases where the same device was registered to multiple accounts before the excludeCredentials fix)
+            Optional<UserModel> otherOwner = userRepository.findByWebauthCredentialId(pkc.getId().getBytes());
+            if (otherOwner.isPresent() && !otherOwner.get().getId().equals(user.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already registered to a different account.");
             }
 
             if (result.isSuccess()) {
