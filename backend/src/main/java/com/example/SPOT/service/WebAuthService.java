@@ -66,6 +66,11 @@ public class WebAuthService implements CredentialRepository {
         PublicKeyCredentialCreationOptions options = relyingParty.startRegistration(
                 StartRegistrationOptions.builder()
                         .user(userIdentity)
+                        .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
+                                .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
+                                .residentKey(ResidentKeyRequirement.REQUIRED)
+                                .userVerification(UserVerificationRequirement.REQUIRED)
+                                .build())
                         .build()
         );
 
@@ -131,6 +136,7 @@ public class WebAuthService implements CredentialRepository {
         AssertionRequest request = relyingParty.startAssertion(
                 StartAssertionOptions.builder()
                         .username(Optional.of(user.getEmail()))
+                        .userVerification(UserVerificationRequirement.REQUIRED)
                         .build()
         );
 

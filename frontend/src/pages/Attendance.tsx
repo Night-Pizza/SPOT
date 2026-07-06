@@ -188,8 +188,7 @@ export default function Attendance() {
                 delete regOptions.extensions.appid;
             }
 
-            // Instruct browser to prioritize built-in platform authenticators
-            regOptions.hints = ["client-device"];
+            regOptions.hints = ['client-device'];
 
             const attestationResponse = await startRegistration({
                 optionsJSON: regOptions,
@@ -221,8 +220,11 @@ export default function Attendance() {
                 delete authOptions.extensions.appid;
             }
 
+            authOptions.hints = ['client-device'];
+
             const assertionResponse = await startAuthentication({
                 optionsJSON: authOptions,
+                useBrowserAutofill: false,
             });
 
             await verifyAssertion(JSON.stringify(assertionResponse));
