@@ -1,26 +1,58 @@
 import AppShell from '../components/AppShell';
-import { MailOutlined } from '@ant-design/icons';
+import { MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { logoutUser } from '../api/Authentification';
+import { startRegistration } from '@simplewebauthn/browser';
+import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+import { getCreatedSessionsCount } from '../api/Session';
+import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Profile() {
     const { user, loading, error, refreshCurrentUser } = useAuth();
-    const { sessions } = useApp();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
+    const [registeringDevice, setRegisteringDevice] = useState(false);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
+
+    const [stats, setStats] = useState({ created: 0, attended: 0 });
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadStats() {
+            setStatsLoading(true);
+            try {
+                const [created, attended] = await Promise.all([
+                    getCreatedSessionsCount(),
+                    getAttendedSessionsCount(),
+                ]);
+                if (!cancelled) {
+                    setStats({ created, attended });
+                }
+            } catch (err) {
+                console.error('Failed to load profile statistics:', err);
+            } finally {
+                if (!cancelled) {
+                    setStatsLoading(false);
+                }
+            }
+        }
+        void loadStats();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
     const email = user.email || 'Unavailable';
     const avatarText = user.email.charAt(0).toUpperCase() || '?';
 
     const handleLogout = async () => {
-    try {
+        try {
             await logoutUser();
         } catch (error) {
             console.error("Error while logout:", error);
@@ -41,6 +73,49 @@ export default function Profile() {
             form.resetFields();
         } catch {
             void messageApi.error('Failed to change password');
+        }
+    };
+
+    const handleRegisterDevice = async () => {
+        setRegisteringDevice(true);
+        try {
+            const { optionsJson } = await getRegistrationOptions();
+            const parsedOptions = JSON.parse(optionsJson);
+            const regOptions = parsedOptions.publicKeyCredentialCreationOptions || parsedOptions.publicKey || parsedOptions;
+
+            if (regOptions.extensions) {
+                delete regOptions.extensions.appidExclude;
+                delete regOptions.extensions.appid;
+            }
+
+            regOptions.hints = ['client-device'];
+
+            const attestationResponse = await startRegistration({
+                optionsJSON: regOptions,
+            });
+
+            await verifyRegistration(JSON.stringify(attestationResponse));
+            void messageApi.success('WebAuth device key registered successfully!');
+            void refreshCurrentUser();
+            if (user && !user.faceRegistered) {
+                setIsFaceModalOpen(true);
+            }
+        } catch (err: any) {
+            console.error('Device registration failed:', err);
+            let userFriendlyMsg = err.message || 'WebAuth device key registration failed.';
+            if (
+                err.name === 'InvalidStateError' || 
+                userFriendlyMsg.includes('previously registered') || 
+                userFriendlyMsg.includes('InvalidState') || 
+                userFriendlyMsg.includes('exclude') ||
+                userFriendlyMsg.toLowerCase().includes('credential manager') ||
+                userFriendlyMsg.toLowerCase().includes('unknown error')
+            ) {
+                userFriendlyMsg = 'The device is already in use by someone else';
+            }
+            void messageApi.error(userFriendlyMsg);
+        } finally {
+            setRegisteringDevice(false);
         }
     };
 
@@ -68,11 +143,15 @@ export default function Profile() {
 
             <Flex gap={16} className="profile-stats-row" wrap="wrap">
                 <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">{sessions.length}</Typography.Title>
+                    <Typography.Title level={2} className="profile-stat-number">
+                        {statsLoading ? <Spin size="small" /> : stats.created}
+                    </Typography.Title>
                     <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
                 </Card>
                 <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">{user.attendedSessions}</Typography.Title>
+                    <Typography.Title level={2} className="profile-stat-number">
+                        {statsLoading ? <Spin size="small" /> : stats.attended}
+                    </Typography.Title>
                     <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
                 </Card>
             </Flex>
@@ -92,19 +171,32 @@ export default function Profile() {
                 size="large"
                 className="change-password-btn"
                 onClick={() => setIsPasswordModalOpen(true)}
+                style={{ marginBottom: 16 }}
             >
                 {t('changePassword')}
             </Button>
 
             <Button
-            block
-            size="large"
-            type="primary"
-            className="primary-action"
-            onClick={() => setIsFaceModalOpen(true)}
-            style={{ marginBottom: 16 }}
+                block
+                size="large"
+                type="primary"
+                className="primary-action"
+                onClick={() => setIsFaceModalOpen(true)}
+                style={{ marginBottom: 16 }}
             >
-            Update Face
+                Update Face
+            </Button>
+
+            <Button
+                block
+                size="large"
+                className="change-password-btn"
+                onClick={handleRegisterDevice}
+                loading={registeringDevice}
+                icon={<SafetyCertificateOutlined />}
+                style={{ marginBottom: 16 }}
+            >
+                {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
             </Button>
 
             <button className="profile-logout-btn" onClick={handleLogout}>

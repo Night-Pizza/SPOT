@@ -27,16 +27,16 @@ import {
     Spin,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import L from 'leaflet';
 
 import AppShell from '../components/AppShell';
-import { useApp } from '../contexts/AppContext';
-import type { Session } from '../contexts/AppContext';
+import { useApp, type Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
+import { closeSession, getActiveSessionIds } from '../api/Session';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -78,6 +78,7 @@ export default function ActiveSessionPage() {
     const { sessionId } = useParams<{ sessionId: string }>();
     const {
         getSessionById,
+        endSession,
         updateSession,
     } = useApp();
     const { t } = useTheme();
@@ -89,7 +90,9 @@ export default function ActiveSessionPage() {
     const [attendeeEmail, setAttendeeEmail] = useState('');
     const [addingAttendee, setAddingAttendee] = useState(false);
     const [removingAttendeeEmail, setRemovingAttendeeEmail] = useState<string | null>(null);
+    const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
     const [endingSession, setEndingSession] = useState(false);
+    const [sessionEnded, setSessionEnded] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
     const [isEditingRadius, setIsEditingRadius] = useState(false);
@@ -98,6 +101,9 @@ export default function ActiveSessionPage() {
     const [isMounted, setIsMounted] = useState(false); //
     const [qrToken, setQrToken] = useState('');
     const [qrError, setQrError] = useState('');
+    const [backendSessionActive, setBackendSessionActive] = useState<boolean | null>(null);
+    const [fetchedSession, setFetchedSession] = useState<Session | null>(null);
+    const attendeesRequestInFlightRef = useRef(false);
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
     const numericSessionId = sessionId && /^\d+$/.test(sessionId) && Number(sessionId) > 0
@@ -107,7 +113,71 @@ export default function ActiveSessionPage() {
     // Безопасно достаем данные сессии
     const state = location.state as  { session?: Session } | null;
     const sessionFromState = state?.session;
-    const activeSession = sessionFromUrl || sessionFromState;
+    const activeSession = fetchedSession || sessionFromUrl || sessionFromState;
+    const isActive = !sessionEnded && (backendSessionActive ?? activeSession?.isActive !== false);
+
+    const loadSessionDetails = useCallback(async () => {
+        if (numericSessionId === null) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}/details`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const hasPassword = data.validationTypes?.includes('PASSWORD');
+                const sessionMode = hasPassword ? 'CODE' : 'QR';
+                setFetchedSession({
+                    id: String(data.id),
+                    title: data.title,
+                    mode: sessionMode,
+                    password: data.password || '',
+                    geolocationEnabled: data.validationTypes?.includes('GPS') || false,
+                    radius: data.allowedRadius,
+                    lat: data.latitude,
+                    lng: data.longitude,
+                    createdAt: data.createdAt,
+                    isActive: data.isActive,
+                    validationTypes: data.validationTypes,
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load session details:', error);
+        }
+    }, [numericSessionId]);
+
+    useEffect(() => {
+        void loadSessionDetails();
+    }, [loadSessionDetails]);
+
+    useEffect(() => {
+        if (numericSessionId === null) {
+            setBackendSessionActive(false);
+            return;
+        }
+
+        let cancelled = false;
+        const currentSessionId = numericSessionId;
+
+        async function loadActiveStatus() {
+            try {
+                const activeIds = await getActiveSessionIds();
+                if (!cancelled) {
+                    setBackendSessionActive(activeIds.includes(currentSessionId));
+                }
+            } catch {
+                if (!cancelled) {
+                    setBackendSessionActive(null);
+                }
+            }
+        }
+
+        void loadActiveStatus();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [numericSessionId]);
 
     // Настройка иконок Leaflet + isMounted (как в первом файле)
     useEffect(() => {
@@ -131,9 +201,10 @@ export default function ActiveSessionPage() {
     }, [activeSession]);
 
     const isQrSession = activeSession?.mode !== 'CODE';
+    const shouldSubscribeQr = isActive && isQrSession;
 
     useEffect(() => {
-        if (numericSessionId === null || !isQrSession) {
+        if (numericSessionId === null || !shouldSubscribeQr) {
             setQrToken('');
             setQrError('');
             return undefined;
@@ -147,12 +218,11 @@ export default function ActiveSessionPage() {
             },
             (errorMessage) => {
                 setQrError(errorMessage);
-                void messageApi.error(errorMessage);
             },
         );
-    }, [isQrSession, messageApi, numericSessionId]);
+    }, [messageApi, numericSessionId, shouldSubscribeQr]);
 
-    const loadSessionUsers = useCallback(async () => {
+    const loadSessionUsers = useCallback(async (options?: { skipIfLoading?: boolean }) => {
         if (numericSessionId === null) {
             setAttendees([]);
             setAttendeesError('Session ID must be a positive number.');
@@ -160,6 +230,14 @@ export default function ActiveSessionPage() {
             return;
         }
 
+        if (attendeesRequestInFlightRef.current) {
+            if (!options?.skipIfLoading) {
+                setAttendeesLoading(true);
+            }
+            return;
+        }
+
+        attendeesRequestInFlightRef.current = true;
         setAttendeesLoading(true);
 
         try {
@@ -184,6 +262,7 @@ export default function ActiveSessionPage() {
         } catch (error: unknown) {
             setAttendeesError(error instanceof Error ? error.message : 'Failed to load checked-in users.');
         } finally {
+            attendeesRequestInFlightRef.current = false;
             setAttendeesLoading(false);
         }
     }, [numericSessionId]);
@@ -197,6 +276,20 @@ export default function ActiveSessionPage() {
             window.clearTimeout(timerId);
         };
     }, [loadSessionUsers]);
+
+    useEffect(() => {
+        if (numericSessionId === null || !isActive) {
+            return undefined;
+        }
+
+        const intervalId = window.setInterval(() => {
+            void loadSessionUsers({ skipIfLoading: true });
+        }, 10000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [isActive, loadSessionUsers, numericSessionId]);
 
     const handleAddAttendee = useCallback(async () => {
         if (numericSessionId === null) {
@@ -328,16 +421,19 @@ export default function ActiveSessionPage() {
 
         setEndingSession(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/session/close/${numericSessionId}`, {
-                method: 'PATCH',
-                credentials: 'include',
-            });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to end session.'));
+            await closeSession(numericSessionId);
+            setSessionEnded(true);
+            setBackendSessionActive(false);
+            setEndSessionModalOpen(false);
+            setQrModalOpen(false);
+            setMapModalOpen(false);
+            setAddAttendeeOpen(false);
+            if (activeSession) {
+                endSession(activeSession.id);
             }
-
-            void messageApi.success('Session ended');
+            setQrToken('');
+            setQrError('');
+            void messageApi.success('Session ended.');
             navigate('/sessions');
         } catch (error: unknown) {
             void messageApi.error(error instanceof Error ? error.message : 'Failed to end session.');
@@ -387,8 +483,6 @@ export default function ActiveSessionPage() {
     const qrFullUrl = qrPayload
         ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrPayload)}`
         : '';
-
-    const isActive = activeSession?.isActive !== false;
 
     return (
         <AppShell
@@ -473,6 +567,8 @@ export default function ActiveSessionPage() {
                             )}
                         </div>
                     )}
+
+
 
                     <div className="session-detail-list">
                         {!isQrSession && (
@@ -600,9 +696,9 @@ export default function ActiveSessionPage() {
 
                 <Card
                     title={
-                        <Flex justify="space-between" align="center">
+                        <Flex justify="space-between" align="center" gap={12} wrap="wrap">
                             <span>{t('scannedStudents')}</span>
-                            <Space>
+                            <Space wrap>
                                 <Tag color="success">{attendees.length}</Tag>
                                 <Button
                                     size="small"
@@ -621,16 +717,18 @@ export default function ActiveSessionPage() {
                                     Refresh
                                 </Button>
                                 {isActive && (
-                                    <Popconfirm
-                                        title="Are you sure you want to end this session?"
-                                        okText="Yes"
-                                        cancelText="No"
-                                        onConfirm={handleEndSession}
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        danger
+                                        icon={<StopOutlined />}
+                                        className="end-session-btn"
+                                        loading={endingSession}
+                                        disabled={endingSession}
+                                        onClick={() => setEndSessionModalOpen(true)}
                                     >
-                                        <Button danger size="small" icon={<StopOutlined />} loading={endingSession}>
-                                            End Session
-                                        </Button>
-                                    </Popconfirm>
+                                        End Session
+                                    </Button>
                                 )}
                             </Space>
                         </Flex>
@@ -709,6 +807,28 @@ export default function ActiveSessionPage() {
                     type="email"
                     autoFocus
                 />
+            </Modal>
+
+            <Modal
+                title="End session?"
+                open={endSessionModalOpen}
+                okText="End Session"
+                cancelText="Cancel"
+                confirmLoading={endingSession}
+                okButtonProps={{ disabled: endingSession }}
+                cancelButtonProps={{ disabled: endingSession }}
+                onOk={() => void handleEndSession()}
+                onCancel={() => {
+                    if (!endingSession) {
+                        setEndSessionModalOpen(false);
+                    }
+                }}
+                centered
+                destroyOnHidden
+            >
+                <Typography.Paragraph style={{ marginBottom: 0 }}>
+                    QR/code attendance will stop after ending the session. Participants will no longer be able to check in using this session.
+                </Typography.Paragraph>
             </Modal>
 
             <Modal

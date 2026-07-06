@@ -129,7 +129,7 @@ describe('AppShell', () => {
 
         renderWithRouter(<AppShell title="Test">Content</AppShell>);
 
-        expect(screen.getByText('Loading...')).toBeInTheDocument();
+        expect(screen.getByText('translated_loading', { selector: '.user-name' })).toBeInTheDocument();
         expect(screen.getByText('?')).toBeInTheDocument();
     });
 
@@ -141,7 +141,7 @@ describe('AppShell', () => {
 
         renderWithRouter(<AppShell title="Test">Content</AppShell>);
 
-        expect(screen.getByText('Profile')).toBeInTheDocument();
+        expect(screen.getByText('translated_profile', { selector: '.user-name' })).toBeInTheDocument();
         expect(screen.getByText('?')).toBeInTheDocument();
     });
 });

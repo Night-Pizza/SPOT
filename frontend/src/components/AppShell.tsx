@@ -8,10 +8,9 @@ import {
     UserOutlined,
     MoonOutlined,
 } from '@ant-design/icons';
-import { Button, Dropdown, Space, Typography } from 'antd';
+import { Button, Dropdown, Space, Typography, type MenuProps } from 'antd';
 import { type ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { MenuProps } from 'antd';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -57,7 +56,7 @@ export default function AppShell({
     ];
 
     const themeIcon = theme === 'light' ? <SunOutlined /> : <MoonOutlined />;
-    const userLabel = user.email || (loading ? 'Loading...' : 'Profile');
+    const userLabel = user.email || (loading ? t('loading') : t('profile'));
     const firstLetter = user.email.charAt(0).toUpperCase() || '?';
 
     const goToProfile = () => navigate('/profile');

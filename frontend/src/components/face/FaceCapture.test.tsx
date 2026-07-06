@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent} from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import '@testing-library/jest-dom';
 import FaceCapture from './FaceCapture';
@@ -12,6 +12,27 @@ vi.mock('react-webcam', () => {
             }));
             return <div data-testid="webcam" />;
         })
+    };
+});
+
+// Mock Google MediaPipe tasks-vision
+vi.mock('@mediapipe/tasks-vision', () => {
+    const mockLandmarker = {
+        detectForVideo: vi.fn(() => ({
+            faceBlendshapes: [{
+                categories: [
+                    { categoryName: 'jawOpen', score: 0.1 }
+                ]
+            }]
+        }))
+    };
+    return {
+        FilesetResolver: {
+            forVisionTasks: vi.fn(async () => ({})),
+        },
+        FaceLandmarker: {
+            createFromOptions: vi.fn(async () => mockLandmarker),
+        }
     };
 });
 
@@ -43,17 +64,24 @@ describe('FaceCapture', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.useFakeTimers();
     });
 
     afterAll(() => {
-        vi.useRealTimers();
         vi.unstubAllGlobals();
     });
 
-    it('renders single mode correctly', () => {
+    it('renders loading state and then challenge instructions', async () => {
         render(<FaceCapture onCapture={vi.fn()} mode="single" />);
-        expect(screen.getByRole('button', { name: /Capture Photo/i })).toBeInTheDocument();
+        expect(screen.getByText(/Loading liveness detection model.../i)).toBeInTheDocument();
+        
+        // Wait for the instruction label to appear
+        await waitFor(() => {
+            expect(screen.queryByText(/Loading liveness detection model.../i)).not.toBeInTheDocument();
+        });
+        
+        // It should display the initial phase mouth instruction
+        const instructionElement = await screen.findByText(/Please look at the camera with mouth closed/i);
+        expect(instructionElement).toBeInTheDocument();
     });
 
     it('calls onCancel when cancel button is clicked', () => {

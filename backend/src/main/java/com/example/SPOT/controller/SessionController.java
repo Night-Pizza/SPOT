@@ -2,7 +2,9 @@ package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
+import com.example.SPOT.dto.response.SessionDetailsDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.UserRepository;
@@ -34,21 +36,37 @@ public class SessionController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSession(@PathVariable Long id) {
-        sessionService.deleteSession(id);
+    public ResponseEntity<Void> deleteSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.deleteSession(id, userId);
         return ResponseEntity.noContent().build();
 
     }
 
+    @GetMapping()
+    public ResponseEntity<List<UserAttendanceDTO>> getOwnedSessions(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(sessionService.getOwnedSessions(userId));
+
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> getOwnedSessionsCount(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(sessionService.getOwnedSessionsCount(userId));
+    }
+
     @PatchMapping("/{id}")
-    public ResponseEntity<Void> updateSession(@PathVariable Long id,@Valid @RequestBody SessionUpdateDTO sessionUpdateDTO) {
-        sessionService.updateSessionName(id, sessionUpdateDTO);
+    public ResponseEntity<Void> updateSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr, @Valid @RequestBody SessionUpdateDTO sessionUpdateDTO) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.updateSessionName(id, userId, sessionUpdateDTO);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/close/{id}")
-    public ResponseEntity<Void> closeSession(@PathVariable Long id) {
-        sessionService.closeSession(id);
+    public ResponseEntity<Void> closeSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.closeSession(id, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -58,8 +76,14 @@ public class SessionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id){
-        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id));
+    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
+        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
+    }
+
+    @GetMapping("/{id}/details")
+    public ResponseEntity<SessionDetailsDTO> getSessionDetails(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(sessionService.getSessionDetails(id, userId));
     }
 
 

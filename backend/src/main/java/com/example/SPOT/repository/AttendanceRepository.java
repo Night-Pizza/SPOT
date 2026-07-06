@@ -21,4 +21,6 @@ public interface AttendanceRepository extends JpaRepository<AttendanceModel, Lon
     @Modifying
     @Query("DELETE FROM AttendanceModel a WHERE a.session.id = :id")
     void deleteBySessionId(Long id);
+
+    long countByUserId(Long id);
 }

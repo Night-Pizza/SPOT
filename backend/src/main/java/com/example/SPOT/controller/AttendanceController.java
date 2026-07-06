@@ -4,16 +4,17 @@ import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
-import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.AttendanceService;
 import com.example.SPOT.service.QRTokenService;
+import com.example.SPOT.service.RateLimitService;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -31,11 +33,13 @@ public class AttendanceController {
     private final AttendanceService attendanceService;
     private final KafkaRepository kafkaRepository;
     private final QRTokenService qrTokenService;
+    private final RateLimitService rateLimitService;
 
-    public AttendanceController(AttendanceService attendanceService, KafkaRepository kafkaRepository,  QRTokenService qrTokenService) {
+    public AttendanceController(AttendanceService attendanceService, KafkaRepository kafkaRepository,  QRTokenService qrTokenService, RateLimitService rateLimitService) {
         this.attendanceService = attendanceService;
         this.kafkaRepository = kafkaRepository;
         this.qrTokenService = qrTokenService;
+        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping("/create")
@@ -48,6 +52,11 @@ public class AttendanceController {
     public ResponseEntity<AttendDTO> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr){
         Long userId = Long.valueOf(userIdStr);
         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
+        String key = "attendance-scan:" + userId + ":" + sessionId;
+
+        if (!rateLimitService.tryConsume(key, 10, Duration.ofMinutes(1))) {
+            throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many scan attempts");
+        }
 
         AttendanceCreateDTO createDTO = new AttendanceCreateDTO(
                 sessionId,
@@ -56,14 +65,27 @@ public class AttendanceController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, createDTO));
     }
 
+    @GetMapping("/count")
+    public ResponseEntity<Long> getAttendedSessionsCount(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(attendanceService.getAttendedSessionsCount(userId));
+    }
+
     @PostMapping("/create/email")
-    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(attendanceService.createAttendanceByEmail(emailAttendanceCreateDTO));
+    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+
+        String key = "attendance-email:" + userId + ":" + emailAttendanceCreateDTO.sessionId();
+        if (!rateLimitService.tryConsume(key, 5, Duration.ofMinutes(1))) {
+            throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many email attendance requests");
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(attendanceService.createAttendanceByEmail(emailAttendanceCreateDTO, userId));
     }
 
     @DeleteMapping("/delete")
-    public ResponseEntity<Void> deleteAttendance(@Valid @RequestBody DeleteAttendanceRequestDTO deleteAttendanceCreateDTO) {
-        attendanceService.deleteAttendance(deleteAttendanceCreateDTO);
+    public ResponseEntity<Void> deleteAttendance(@Valid @RequestBody DeleteAttendanceRequestDTO deleteAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        attendanceService.deleteAttendance(deleteAttendanceCreateDTO, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -77,6 +99,11 @@ public class AttendanceController {
     public ResponseEntity<List<UserAttendanceDTO>> getAllUserAttendance(@AuthenticationPrincipal String userIdStr){
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok().body(attendanceService.getAllUserAttendance(userId));
+    }
+
+    @GetMapping("/session/{id}")
+    public ResponseEntity<List<UsersForSessionDTO>> getAllAttendanceBySession(@PathVariable Long id){
+        return ResponseEntity.ok().body(attendanceService.getAllAttendanceBySession(id));
     }
 
     @GetMapping("/all")
