@@ -219,7 +219,6 @@ export default function ActiveSessionPage() {
             },
             (errorMessage) => {
                 setQrError(errorMessage);
-                void messageApi.error(errorMessage);
             },
         );
     }, [messageApi, numericSessionId, shouldSubscribeQr]);
