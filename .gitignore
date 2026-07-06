@@ -2,4 +2,5 @@
 /.vscode
 .env
 /traefik/certs
+/traefik/acme
 frontend/design-reference/
