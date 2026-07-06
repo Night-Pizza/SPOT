@@ -69,7 +69,7 @@ public class WebAuthService implements CredentialRepository {
                         .user(userIdentity)
                         .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
                                 .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
-                                .residentKey(ResidentKeyRequirement.PREFERRED)
+                                .residentKey(ResidentKeyRequirement.DISCOURAGED)
                                 .userVerification(UserVerificationRequirement.REQUIRED)
                                 .build())
                         .build()
@@ -125,6 +125,12 @@ public class WebAuthService implements CredentialRepository {
                             .response(pkc)
                             .build()
             );
+
+            if (result.isBackupEligible()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                    "Cloud-synced passkeys (like Google Password Manager) are not permitted. " + 
+                    "You must use a hardware-bound passkey (like your device's built-in secure enclave).");
+            }
 
             byte[] newCredentialId = result.getKeyId().getId().getBytes();
             Optional<UserModel> existingUser = userRepository.findByWebauthCredentialId(newCredentialId);
