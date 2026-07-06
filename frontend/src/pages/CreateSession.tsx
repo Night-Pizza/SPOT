@@ -114,7 +114,7 @@ export default function CreateSessionPage() {
                 <Form
                     form={form}
                     layout="vertical"
-                    initialValues={{ geolocationEnabled: true, faceRecognitionEnabled: false, radius: 100 }}
+                    initialValues={{ geolocationEnabled: false, faceRecognitionEnabled: false, radius: 100 }}
                     onFinish={handleSubmit}
                     requiredMark={false}
                 >
@@ -253,7 +253,7 @@ export default function CreateSessionPage() {
                         </Form.Item>
                     )}
 
-                    <Form.Item label={t('validationMethods') || 'Validation Methods'}>
+                    <Form.Item label="Validation Methods">
                         <Typography.Text type="secondary">
                             {[
                                 geolocationEnabled && 'GPS',

@@ -15,9 +15,9 @@ import {
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createAttendance, scanQrAttendance, ApiError } from '../api/Attendance';
+import { createAttendance, scanQrAttendance, ApiError, getAttendedSessions } from '../api/Attendance';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
-import type { AttendancePayload } from '../api/Attendance';
+import type { AttendancePayload, AttendedSessionHistoryItem } from '../api/Attendance';
 import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import FaceCapture from '../components/face/FaceCapture';
@@ -27,6 +27,16 @@ type CodeFormValues = {
     sessionId: number;
     sessionCode: string;
 };
+
+function formatAttendanceDate(timestamp: string) {
+    return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(timestamp));
+}
 
 const SCAN_ERRORS = {
     permissionDenied: 'Camera access was denied. Allow camera permission in your browser and try again.',
@@ -170,6 +180,27 @@ export default function Attendance() {
     const [faceLoading, setFaceLoading] = useState(false);
     const [faceError, setFaceError] = useState<string | null>(null);
     const [faceStep, setFaceStep] = useState<'capture' | 'verifying' | 'success' | 'failed'>('capture');
+    const [history, setHistory] = useState<AttendedSessionHistoryItem[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(true);
+    const [historyError, setHistoryError] = useState('');
+
+    const loadHistory = useCallback(async () => {
+        setHistoryLoading(true);
+        setHistoryError('');
+
+        try {
+            const attendedSessions = await getAttendedSessions();
+            setHistory(attendedSessions);
+        } catch (error) {
+            setHistoryError(error instanceof Error ? error.message : 'Failed to load attendance history');
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadHistory();
+    }, [loadHistory]);
 
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
@@ -185,6 +216,7 @@ export default function Attendance() {
 
             void messageApi.success('Attendance submitted');
             form.resetFields();
+            void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 const location = await getBrowserLocation();
@@ -246,6 +278,7 @@ export default function Attendance() {
             await scanQrAttendance(token, payload);
             void messageApi.success('QR attendance submitted');
             setScanOpen(false);
+            void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 setScanOpen(false);
@@ -268,7 +301,7 @@ export default function Attendance() {
         } finally {
             setScanLoading(false);
         }
-    }, [messageApi]);
+    }, [loadHistory, messageApi]);
 
     const startScanner = useCallback(async () => {
         setScanError('');
@@ -372,7 +405,7 @@ export default function Attendance() {
                 res = await createAttendance(pendingAttendance.sessionId, updatedPayload);
             }
 
-            const requestId = res?.payload?.requestId ?? res?.requestId;
+            const requestId = res?.requestId;
 
             if (!requestId) {
                 throw new Error('No verification request ID returned from server.');
@@ -412,6 +445,7 @@ export default function Attendance() {
         setPendingAttendance(null);
         form.resetFields();
         void messageApi.success('Attendance submitted successfully!');
+        void loadHistory();
     };
 
     const handleFaceRetry = () => {
@@ -520,6 +554,58 @@ export default function Attendance() {
                     </Space>
                 </Card>
             </div>
+
+            <section className="attendance-history-section">
+                <Typography.Title level={2} className="section-kicker">
+                    {t('attendanceHistory')}
+                </Typography.Title>
+
+                {historyLoading ? (
+                    <Card className="attendance-history-card">
+                        <Space>
+                            <Spin />
+                            <Typography.Text type="secondary">Loading attendance history...</Typography.Text>
+                        </Space>
+                    </Card>
+                ) : historyError ? (
+                    <Alert
+                        message={historyError}
+                        type="error"
+                        showIcon
+                        style={{ maxWidth: 1380, margin: '0 auto' }}
+                    />
+                ) : history.length === 0 ? (
+                    <Card className="attendance-history-card">
+                        <Typography.Title level={4} style={{ marginTop: 0 }}>No attended sessions yet</Typography.Title>
+                        <Typography.Text type="secondary">
+                            You have not attended any sessions yet.
+                        </Typography.Text>
+                    </Card>
+                ) : (
+                    <div className="attendance-history-grid">
+                        {history.map((session) => (
+                            <Card key={session.id} className="session-grid-card">
+                                <div>
+                                    <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
+                                        {session.title}
+                                    </Typography.Title>
+                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                        Owner: {session.ownerEmail}
+                                    </Typography.Text>
+                                </div>
+                                <div style={{ marginTop: 18 }}>
+                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                        Attended
+                                    </Typography.Text>
+                                    <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
+                                        {formatAttendanceDate(session.timestamp)}
+                                    </Typography.Paragraph>
+                                </div>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </section>
             
             <Modal
                 title={t('scanQRCode')}

@@ -2,18 +2,55 @@ import { BarChartOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icon
 import { Card, Typography, Alert, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
-import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
+import { getCreatedSessionsCount } from '../api/Session';
+import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { sessions } = useApp();
     const { user, loading } = useAuth();
     const { t } = useTheme();
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
+    const [stats, setStats] = useState({ created: 0, attended: 0 });
+    const [statsLoading, setStatsLoading] = useState(true);
+    const [statsError, setStatsError] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadStats() {
+            setStatsLoading(true);
+            setStatsError('');
+
+            try {
+                const [created, attended] = await Promise.all([
+                    getCreatedSessionsCount(),
+                    getAttendedSessionsCount(),
+                ]);
+
+                if (!cancelled) {
+                    setStats({ created, attended });
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setStatsError(error instanceof Error ? error.message : 'Failed to load dashboard statistics');
+                }
+            } finally {
+                if (!cancelled) {
+                    setStatsLoading(false);
+                }
+            }
+        }
+
+        void loadStats();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     return (
         <AppShell title={t('dashboard')} showPageTitle={false} pageClassName="dashboard-page">
@@ -81,13 +118,25 @@ export default function Dashboard() {
             <div style={{ marginTop: 48, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                 <Card style={{ flex: 1, minWidth: 200 }}>
                     <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
-                    <Typography.Title level={2} style={{ margin: 0 }}>{sessions.length}</Typography.Title>
+                    <Typography.Title level={2} style={{ margin: 0 }}>
+                        {statsLoading ? 'Loading...' : stats.created}
+                    </Typography.Title>
                 </Card>
                 <Card style={{ flex: 1, minWidth: 200 }}>
                     <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
-                    <Typography.Title level={2} style={{ margin: 0 }}>{user.attendedSessions}</Typography.Title>
+                    <Typography.Title level={2} style={{ margin: 0 }}>
+                        {statsLoading ? 'Loading...' : stats.attended}
+                    </Typography.Title>
                 </Card>
             </div>
+            {statsError && (
+                <Alert
+                    message={statsError}
+                    type="error"
+                    showIcon
+                    style={{ maxWidth: 1380, margin: '16px auto 0' }}
+                />
+            )}
 
             <FaceRegistrationModal
                 visible={registerModalOpen}
