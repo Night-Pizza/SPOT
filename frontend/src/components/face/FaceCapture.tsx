@@ -3,6 +3,7 @@ import Webcam from 'react-webcam';
 import { Space, Typography, Alert, Spin, Button } from 'antd';
 import { LoadingOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface FaceCaptureProps {
     onCapture: (photos: File[]) => void;
@@ -53,6 +54,8 @@ const LIVENESS_ACTIONS: { type: LivenessAction; label: string }[] = [
     { type: 'mouth', label: 'Please open your mouth' }
 ];
 
+const TRIPLE_CAPTURE_INTERVAL_MS = 3000;
+
 let sharedLandmarker: FaceLandmarker | null = null;
 let loadingPromise: Promise<FaceLandmarker> | null = null;
 
@@ -80,6 +83,7 @@ async function getFaceLandmarker(): Promise<FaceLandmarker> {
 }
 
 const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading, error, mode = 'triple' }) => {
+    const { t } = useTheme();
     const webcamRef = useRef<Webcam>(null);
     const [photos, setPhotos] = useState<File[]>([]);
     const [modelLoading, setModelLoading] = useState(!sharedLandmarker);
@@ -133,7 +137,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
             .catch((err) => {
                 console.error("Error loading FaceLandmarker:", err);
                 if (isMounted) {
-                    setLivenessError('Failed to load liveness detection model.');
+                    setLivenessError(t('livenessModelFailed'));
                     setModelLoading(false);
                 }
             });
@@ -149,7 +153,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
 
         try {
             if (mode === 'single') {
-                setCaptureProgress('Capturing photo...');
+                setCaptureProgress(t('capturingPhoto'));
                 const imageSrc = webcamRef.current.getScreenshot();
                 if (imageSrc) {
                     const response = await fetch(imageSrc);
@@ -160,10 +164,15 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
             } else {
                 const filters: ('original' | 'brightness' | 'grayscale')[] = ['original', 'brightness', 'grayscale'];
                 for (let i = 0; i < 3; i++) {
-                    setCaptureProgress(`Capturing photo ${i + 1} of 3...`);
                     if (i > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 300));
+                        setCaptureProgress(t('nextPhotoInSeconds')
+                            .replace('{current}', String(i + 1))
+                            .replace('{total}', '3'));
+                        await new Promise(resolve => setTimeout(resolve, TRIPLE_CAPTURE_INTERVAL_MS));
                     }
+                    setCaptureProgress(t('capturingPhotoOf')
+                        .replace('{current}', String(i + 1))
+                        .replace('{total}', '3'));
                     const imageSrc = webcamRef.current.getScreenshot();
                     if (imageSrc) {
                         const filteredSrc = await applyFilter(imageSrc, filters[i]);
@@ -176,17 +185,17 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
             }
 
             setPhotos(newPhotos);
-            setCaptureProgress('Submitting to server...');
+            setCaptureProgress(t('submittingToServer'));
             onCapture(newPhotos);
         } catch (err) {
             console.error("Auto capture error:", err);
-            setLivenessError("Failed to capture photos.");
+            setLivenessError(t('failedCapturePhotos'));
             setLivenessStatus('failed');
             setRetryTimeLeft(3);
         } finally {
             setCapturing(false);
         }
-    }, [mode, onCapture]);
+    }, [mode, onCapture, t]);
 
     // Active Liveness Detection Frame Loop
     useEffect(() => {
@@ -286,8 +295,8 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
 
     const getInstructionLabel = () => {
         return challengePhase === 'initial'
-            ? 'Please look at the camera with mouth closed'
-            : 'Now open your mouth!';
+            ? t('lookAtCameraMouthClosed')
+            : t('openYourMouth');
     };
 
     return (
@@ -305,7 +314,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                 <div style={{ padding: '40px 0' }}>
                     <Spin size="large" indicator={<LoadingOutlined style={{ fontSize: 36 }} spin />} />
                     <Typography.Paragraph style={{ marginTop: 16 }}>
-                        Loading liveness detection model...
+                        {t('loadingLivenessModel')}
                     </Typography.Paragraph>
                 </div>
             ) : (
@@ -363,10 +372,10 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                             }}>
                                 <CheckCircleOutlined style={{ fontSize: 48, marginBottom: 8 }} />
                                 <Typography.Title level={4} style={{ color: 'white', margin: 0 }}>
-                                    Liveness Verified!
+                                    {t('livenessVerified')}
                                 </Typography.Title>
                                 <Typography.Paragraph style={{ color: 'white', margin: '8px 0 0 0' }}>
-                                    {capturing ? captureProgress : 'Capturing photos...'}
+                                    {capturing ? captureProgress : t('capturingPhotos')}
                                 </Typography.Paragraph>
                             </div>
                         )}
@@ -387,10 +396,10 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                             }}>
                                 <ExclamationCircleOutlined style={{ fontSize: 48, marginBottom: 8 }} />
                                 <Typography.Title level={4} style={{ color: 'white', margin: 0 }}>
-                                    Liveness Verification Failed
+                                    {t('livenessFailed')}
                                 </Typography.Title>
                                 <Typography.Paragraph style={{ color: 'white', margin: '8px 0 0 0' }}>
-                                    Please try again. Retrying in {retryTimeLeft} seconds...
+                                    {t('retryingInSeconds').replace('{seconds}', String(retryTimeLeft))}
                                 </Typography.Paragraph>
                             </div>
                         )}
@@ -410,7 +419,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                                 ))}
                             </div>
                             <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                                {loading ? 'Sending verification request...' : 'Processing...'}
+                                {loading ? t('sendingVerificationRequest') : t('processing')}
                             </Typography.Text>
                         </div>
                     )}                </>
@@ -423,7 +432,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                             onClick={onCancel}
                             disabled={loading || capturing}
                         >
-                            Cancel
+                            {t('cancel')}
                         </Button>
                     </Space>
                 </div>

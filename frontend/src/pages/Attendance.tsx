@@ -214,7 +214,7 @@ export default function Attendance() {
 
             await createAttendance(values.sessionId, payload);
 
-            void messageApi.success('Attendance submitted');
+            void messageApi.success(t('attendanceSubmitted'));
             form.resetFields();
             void loadHistory();
         } catch (error: unknown) {
@@ -231,7 +231,7 @@ export default function Attendance() {
                 setFaceStep('capture');
                 setFaceModalOpen(true);
             } else if (error instanceof GeolocationPositionError) {
-                void messageApi.error('Необходимо разрешить доступ к геоданным в браузере для отметки присутствия.');
+                void messageApi.error(t('locationPermissionError'));
             } else {
                 void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
             }
@@ -262,7 +262,7 @@ export default function Attendance() {
     const submitScannedToken = useCallback(async (rawValue: string) => {
         const token = extractQrToken(rawValue);
         if (!token) {
-            setScanError('QR code did not contain a token.');
+            setScanError(t('qrNoToken'));
             return;
         }
 
@@ -276,7 +276,7 @@ export default function Attendance() {
             }
 
             await scanQrAttendance(token, payload);
-            void messageApi.success('QR attendance submitted');
+            void messageApi.success(t('qrAttendanceSubmitted'));
             setScanOpen(false);
             void loadHistory();
         } catch (error: unknown) {
@@ -421,7 +421,7 @@ export default function Attendance() {
                     verified = true;
                     break;
                 } else if (statusRes.status === 'FAILED') {
-                    throw new Error(statusRes.errorMessage || 'Face verification failed.');
+                    throw new Error(statusRes.errorMessage || t('faceVerificationFailed'));
                 }
                 attempts++;
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -459,13 +459,13 @@ export default function Attendance() {
             
             {!loading && !user.faceRegistered && (
                 <Alert
-                    message="Face Registration Required"
-                    description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
+                    message={t('faceRegistrationRequired')}
+                    description={t('faceRegistrationRequiredDescription')}
                     type="warning"
                     showIcon
                     action={
                         <Button size="small" type="primary" onClick={() => setRegisterModalOpen(true)}>
-                            Register Face
+                            {t('registerFace')}
                         </Button>
                     }
                     style={{ marginBottom: 24 }}
@@ -513,13 +513,13 @@ export default function Attendance() {
                         <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false}>
                             <Form.Item
                                 name="sessionId"
-                                label="Session ID"
+                                label={t('sessionId')}
                                 rules={[
-                                    { required: true, message: 'Please enter a session ID.' },
+                                    { required: true, message: t('sessionIdRequired') },
                                     {
                                         type: 'integer',
                                         min: 1,
-                                        message: 'Session ID must be a positive integer.',
+                                        message: t('sessionIdPositive'),
                                     },
                                 ]}
                             >
@@ -533,12 +533,12 @@ export default function Attendance() {
                             </Form.Item>
                             <Form.Item
                                 name="sessionCode"
-                                label="Session Code"
+                                label={t('sessionCode')}
                                 rules={[
-                                    { required: true, whitespace: true, message: 'Please enter a session code.' },
+                                    { required: true, whitespace: true, message: t('sessionCodeRequired') },
                                 ]}
                             >
-                                <Input.Password size="large" placeholder="Session password" />
+                                <Input.Password size="large" placeholder={t('sessionPasswordPlaceholder')} />
                             </Form.Item>
                             <Button
                                 type="primary"
@@ -623,7 +623,7 @@ export default function Attendance() {
                         style={{ width: '100%', borderRadius: 16, background: '#000' }}
                     />
                     {scanError && <Typography.Text type="danger">{scanError}</Typography.Text>}
-                    {scanLoading && <Typography.Text type="secondary">Submitting attendance...</Typography.Text>}
+                    {scanLoading && <Typography.Text type="secondary">{t('submittingAttendance')}</Typography.Text>}
                 </Space>
             </Modal>
 
@@ -632,14 +632,14 @@ export default function Attendance() {
                 visible={registerModalOpen}
                 onSuccess={() => {
                     setRegisterModalOpen(false);
-                    void messageApi.success('Face registered successfully!');
+                    void messageApi.success(t('faceRegisteredSuccess'));
                 }}
                 onCancel={() => setRegisterModalOpen(false)}
             />
 
             {/* Face Attendance Verification Modal */}
             <Modal
-                title="Face Verification Required"
+                title={t('faceVerificationRequired')}
                 open={faceModalOpen}
                 footer={null}
                 closable={faceStep !== 'verifying'}
@@ -659,31 +659,31 @@ export default function Attendance() {
                 {faceStep === 'verifying' && (
                     <div style={{ textAlign: 'center', padding: '32px 0' }}>
                         <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
-                        <Typography.Title level={4} style={{ marginTop: 24 }}>Verifying Face...</Typography.Title>
-                        <Typography.Paragraph type="secondary">We are extracting your face embedding and validating attendance. Please wait.</Typography.Paragraph>
+                        <Typography.Title level={4} style={{ marginTop: 24 }}>{t('verifyingFace')}</Typography.Title>
+                        <Typography.Paragraph type="secondary">{t('verifyingFaceDescription')}</Typography.Paragraph>
                     </div>
                 )}
                 {faceStep === 'success' && (
                     <div style={{ textAlign: 'center', padding: '32px 0' }}>
                         <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
-                        <Typography.Title level={3} style={{ marginTop: 24 }}>Face Verified!</Typography.Title>
-                        <Typography.Paragraph>Your face was successfully matched and attendance registered.</Typography.Paragraph>
+                        <Typography.Title level={3} style={{ marginTop: 24 }}>{t('faceVerified')}</Typography.Title>
+                        <Typography.Paragraph>{t('faceAttendanceSuccess')}</Typography.Paragraph>
                         <Button type="primary" size="large" onClick={handleFaceContinue} className="primary-action wide-button" style={{ marginTop: 16 }}>
-                            Continue
+                            {t('continue')}
                         </Button>
                     </div>
                 )}
                 {faceStep === 'failed' && (
                     <div style={{ textAlign: 'center', padding: '32px 0' }}>
                         <CloseCircleOutlined style={{ fontSize: 64, color: '#f5222d' }} />
-                        <Typography.Title level={3} style={{ marginTop: 24 }}>Verification Failed</Typography.Title>
-                        <Typography.Paragraph type="danger">{faceError || 'Face not recognized.'}</Typography.Paragraph>
+                        <Typography.Title level={3} style={{ marginTop: 24 }}>{t('faceVerificationFailed')}</Typography.Title>
+                        <Typography.Paragraph type="danger">{faceError || t('faceNotRecognized')}</Typography.Paragraph>
                         <Space style={{ marginTop: 16 }}>
                             <Button type="primary" size="large" onClick={handleFaceRetry} className="primary-action">
-                                Try Again
+                                {t('tryAgain')}
                             </Button>
                             <Button size="large" onClick={() => setFaceModalOpen(false)}>
-                                Cancel
+                                {t('cancel')}
                             </Button>
                         </Space>
                     </div>

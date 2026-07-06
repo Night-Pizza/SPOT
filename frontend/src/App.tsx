@@ -21,7 +21,6 @@ function App() {
         <FaceRegistrationModal
             visible={modalVisible}
             onSuccess={() => setModalVisible(false)}
-            onCancel={() => setModalVisible(false)} // для тестов
         />
       </>
   );
