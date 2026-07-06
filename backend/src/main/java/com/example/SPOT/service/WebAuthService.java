@@ -79,14 +79,14 @@ public class WebAuthService implements CredentialRepository {
         // refuses to register the same physical device for a different account.
         // (getCredentialIdsForUsername only returns the current user's credential,
         //  which is correct for assertion but insufficient for this registration check.)
-        List<PublicKeyCredentialDescriptor> otherCredentials = userRepository.findAll().stream()
+        Set<PublicKeyCredentialDescriptor> otherCredentials = userRepository.findAll().stream()
                 .filter(u -> u.getWebauthCredentialId() != null && !u.getId().equals(user.getId()))
                 .map(u -> PublicKeyCredentialDescriptor.builder()
                         .id(new ByteArray(u.getWebauthCredentialId()))
                         .type(PublicKeyCredentialType.PUBLIC_KEY)
                         .transports(Set.of(AuthenticatorTransport.INTERNAL))
                         .build())
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
         if (!otherCredentials.isEmpty()) {
             options = options.toBuilder()
