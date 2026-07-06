@@ -162,9 +162,7 @@ export default function Attendance() {
     const scanRunRef = useRef(0);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
 
-    // WebAuth Verification & Registration state
-    const [verifyingDevice, setVerifyingDevice] = useState(false);
-    const [isDeviceVerified, setIsDeviceVerified] = useState(false);
+    // WebAuth Registration state
     const [registeringDevice, setRegisteringDevice] = useState(false);
 
     // Face Attendance Verification states
@@ -185,6 +183,7 @@ export default function Attendance() {
             const parsedOptions = JSON.parse(optionsJson);
             if (parsedOptions.extensions) {
                 delete parsedOptions.extensions.appidExclude;
+                delete parsedOptions.extensions.appid;
             }
 
             const attestationResponse = await startRegistration({
@@ -196,39 +195,48 @@ export default function Attendance() {
             await refreshCurrentUser();
         } catch (err: any) {
             console.error('Device registration failed:', err);
-            void messageApi.error(err.message || 'Biometric device registration failed.');
+            let userFriendlyMsg = err.message || 'Biometric device registration failed.';
+            if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
+                userFriendlyMsg = 'The device is already in use by someone else';
+            }
+            void messageApi.error(userFriendlyMsg);
         } finally {
             setRegisteringDevice(false);
         }
     };
 
-    const handleDeviceAuthentication = async () => {
-        setVerifyingDevice(true);
+    const handleDeviceAuthentication = async (): Promise<boolean> => {
         try {
             const { optionsJson } = await getAssertionOptions();
             const parsedOptions = JSON.parse(optionsJson);
-            if (parsedOptions.extensions) {
-                delete parsedOptions.extensions.appidExclude;
+            const authOptions = parsedOptions.publicKeyCredentialRequestOptions || parsedOptions.publicKey || parsedOptions;
+
+            if (authOptions && authOptions.extensions) {
+                delete authOptions.extensions.appidExclude;
+                delete authOptions.extensions.appid;
             }
 
-            const assertionResponse = await startAuthentication({
-                ...parsedOptions,
-            });
+            const assertionResponse = await startAuthentication(authOptions);
 
             await verifyAssertion(JSON.stringify(assertionResponse));
-            setIsDeviceVerified(true);
-            void messageApi.success('Device verified! You can now check in.');
+            return true;
         } catch (err: any) {
             console.error('Device biometric check failed:', err);
             void messageApi.error(err.message || 'Device biometric verification failed.');
-        } finally {
-            setVerifyingDevice(false);
+            return false;
         }
     };
 
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
+            // Trigger biometrics check automatically before submitting session code
+            const biometricsOk = await handleDeviceAuthentication();
+            if (!biometricsOk) {
+                setSubmitting(false);
+                return;
+            }
+
             const location = await getBrowserLocation();
             const payload: AttendancePayload = {
                 password: values.sessionCode,
@@ -291,6 +299,13 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
+            // Trigger biometrics check automatically after successful QR scan
+            const biometricsOk = await handleDeviceAuthentication();
+            if (!biometricsOk) {
+                setScanLoading(false);
+                return;
+            }
+
             let payload: AttendancePayload = {};
             try {
                 payload = await getBrowserLocation();
@@ -512,29 +527,6 @@ export default function Attendance() {
                                 className="primary-action wide-button"
                             >
                                 Register Device
-                            </Button>
-                        </Space>
-                    </Card>
-                </div>
-            ) : !loading && !isDeviceVerified ? (
-                <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center' }}>
-                    <Card style={{ borderRadius: 16 }}>
-                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
-                            <SafetyCertificateOutlined style={{ fontSize: 64, color: '#1890ff' }} />
-                            <div>
-                                <Typography.Title level={3}>Device Verification Required</Typography.Title>
-                                <Typography.Paragraph type="secondary">
-                                    Please verify your biometrics to unlock the attendance check-in options.
-                                </Typography.Paragraph>
-                            </div>
-                            <Button
-                                type="primary"
-                                size="large"
-                                onClick={handleDeviceAuthentication}
-                                loading={verifyingDevice}
-                                className="primary-action wide-button"
-                            >
-                                Verify Device
                             </Button>
                         </Space>
                     </Card>

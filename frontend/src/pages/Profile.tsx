@@ -54,6 +54,7 @@ export default function Profile() {
             const parsedOptions = JSON.parse(optionsJson);
             if (parsedOptions.extensions) {
                 delete parsedOptions.extensions.appidExclude;
+                delete parsedOptions.extensions.appid;
             }
 
             const attestationResponse = await startRegistration({
@@ -63,9 +64,16 @@ export default function Profile() {
             await verifyRegistration(JSON.stringify(attestationResponse));
             void messageApi.success('WebAuth device key registered successfully!');
             void refreshCurrentUser();
+            if (user && !user.faceRegistered) {
+                setIsFaceModalOpen(true);
+            }
         } catch (err: any) {
             console.error('Device registration failed:', err);
-            void messageApi.error(err.message || 'WebAuth device key registration failed.');
+            let userFriendlyMsg = err.message || 'WebAuth device key registration failed.';
+            if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
+                userFriendlyMsg = 'The device is already in use by someone else';
+            }
+            void messageApi.error(userFriendlyMsg);
         } finally {
             setRegisteringDevice(false);
         }

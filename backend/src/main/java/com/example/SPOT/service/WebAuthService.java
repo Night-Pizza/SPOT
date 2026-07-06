@@ -14,7 +14,6 @@ import com.yubico.webauthn.data.*;
 import com.yubico.webauthn.exception.AssertionFailedException;
 import com.yubico.webauthn.exception.RegistrationFailedException;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class WebAuthService implements CredentialRepository {
@@ -43,8 +43,7 @@ public class WebAuthService implements CredentialRepository {
         this.objectMapper = objectMapper;
     }
 
-    public WebAuthRegistrationOptionsDTO // Changed from empty line/annotation to this
-    generateRegisterOptions(Long userId) {
+    public WebAuthRegistrationOptionsDTO generateRegisterOptions(Long userId) {
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
@@ -155,7 +154,7 @@ public class WebAuthService implements CredentialRepository {
             );
 
             if (result.isSuccess()) {
-                if (result.getSignatureCount() <= user.getWebauthSignatureCount()) {
+                if (result.getSignatureCount() > 0 && result.getSignatureCount() <= user.getWebauthSignatureCount()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cloned authenticator detected!");
                 }
 
@@ -174,15 +173,20 @@ public class WebAuthService implements CredentialRepository {
 
     @Override
     public Set<PublicKeyCredentialDescriptor> getCredentialIdsForUsername(String username) {
-        UserModel user = userRepository.findByEmail(username);
-        if (user == null || user.getWebauthCredentialId() == null) {
+        UserModel currentUser = userRepository.findByEmail(username);
+        if (currentUser == null) {
             return Collections.emptySet();
         }
-        return Collections.singleton(
-                PublicKeyCredentialDescriptor.builder()
-                        .id(new ByteArray(user.getWebauthCredentialId()))
-                        .build()
-        );
+
+        // Return the credential IDs of ALL OTHER registered users in the system.
+        // This causes Yubico's startRegistration to populate excludeCredentials with all other keys,
+        // natively blocking the browser from registering the same physical device/authenticator to different accounts.
+        return userRepository.findAll().stream()
+                .filter(u -> u.getWebauthCredentialId() != null && !u.getId().equals(currentUser.getId()))
+                .map(u -> PublicKeyCredentialDescriptor.builder()
+                        .id(new ByteArray(u.getWebauthCredentialId()))
+                        .build())
+                .collect(Collectors.toSet());
     }
 
     @Override

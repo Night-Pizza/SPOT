@@ -34,7 +34,7 @@ public class CacheConfig {
     @Bean(name = "webauthChallengeCache")
     public Cache<String, String> webauthChallengeCache() {
         return Caffeine.newBuilder()
-                .expireAfterWrite(10, TimeUnit.SECONDS)
+                .expireAfterWrite(120, TimeUnit.SECONDS)
                 .maximumSize(5_000)
                 .build();
     }

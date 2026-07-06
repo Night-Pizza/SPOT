@@ -1,25 +1,108 @@
 import { BarChartOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
-import { Card, Typography, Alert, Button } from 'antd';
+import { Card, Typography, Alert, Button, message, Modal } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
+import { startRegistration } from '@simplewebauthn/browser';
+import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 
 export default function Dashboard() {
     const navigate = useNavigate();
     const { sessions } = useApp();
-    const { user, loading } = useAuth();
+    const { user, loading, refreshCurrentUser } = useAuth();
     const { t } = useTheme();
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
+
+    const showRegistrationRetryModal = (errorMsg: string) => {
+        Modal.confirm({
+            title: 'Biometric Registration Failed',
+            content: `${errorMsg}. Would you like to try registering your device again or register it later?`,
+            okText: 'Try Again',
+            cancelText: 'Register Later',
+            okButtonProps: { className: 'primary-action' },
+            onOk() {
+                void handleRegisterDevice();
+            },
+            onCancel() {
+                // If they choose to register device later, trigger face registration popup
+                if (!user.faceRegistered) {
+                    setRegisterModalOpen(true);
+                }
+            }
+        });
+    };
+
+    const handleRegisterDevice = async () => {
+        try {
+            const { optionsJson } = await getRegistrationOptions();
+            const parsedOptions = JSON.parse(optionsJson);
+            if (parsedOptions.extensions) {
+                delete parsedOptions.extensions.appidExclude;
+                delete parsedOptions.extensions.appid;
+            }
+
+            const attestationResponse = await startRegistration({
+                ...parsedOptions,
+            });
+
+            await verifyRegistration(JSON.stringify(attestationResponse));
+            void message.success('Biometric device registered successfully!');
+            await refreshCurrentUser();
+            
+            // Auto trigger face registration after successful device registration
+            if (!user.faceRegistered) {
+                setRegisterModalOpen(true);
+            }
+        } catch (err: any) {
+            console.error('Device registration failed:', err);
+            let userFriendlyMsg = err.message || 'Biometric device registration failed.';
+            if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
+                userFriendlyMsg = 'The device is already in use by someone else';
+            }
+            showRegistrationRetryModal(userFriendlyMsg);
+        }
+    };
+
+    useEffect(() => {
+        if (!loading && user) {
+            const triggerDevice = localStorage.getItem('trigger_device_registration');
+            if (triggerDevice === 'true') {
+                localStorage.removeItem('trigger_device_registration');
+                void handleRegisterDevice();
+            } else {
+                const triggerFace = localStorage.getItem('trigger_face_registration');
+                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered) {
+                    localStorage.removeItem('trigger_face_registration');
+                    setRegisterModalOpen(true);
+                }
+            }
+        }
+    }, [loading, user]);
 
     return (
         <AppShell title={t('dashboard')} showPageTitle={false} pageClassName="dashboard-page">
             <Typography.Title level={1} className="dashboard-greeting">
                 {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
             </Typography.Title>
+
+            {!loading && !user.webauthRegistered && (
+                <Alert
+                    message="Biometric Device Required"
+                    description="You have not registered your biometric device yet. Please register your device to enable biometric verification."
+                    type="warning"
+                    showIcon
+                    action={
+                        <Button size="small" type="primary" className="primary-action" onClick={() => navigate('/profile')} style={{ width: 140 }}>
+                            Register Device
+                        </Button>
+                    }
+                    style={{ marginBottom: 24 }}
+                />
+            )}
 
             {!loading && !user.faceRegistered && (
                 <Alert
@@ -28,7 +111,7 @@ export default function Dashboard() {
                     type="warning"
                     showIcon
                     action={
-                        <Button size="small" type="primary" onClick={() => setRegisterModalOpen(true)}>
+                        <Button size="small" type="primary" className="primary-action" onClick={() => setRegisterModalOpen(true)} style={{ width: 140 }}>
                             Register Face
                         </Button>
                     }

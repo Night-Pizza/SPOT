@@ -28,8 +28,9 @@ public class WebAuthController {
     }
 
     @PostMapping("/register/verify")
-    public ResponseEntity<Void> verifyRegister(@AuthenticationPrincipal String userIdStr, 
-                                               @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto) {
+    public ResponseEntity<Void> verifyRegister(
+            @AuthenticationPrincipal String userIdStr,
+            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto) {
         Long userId = Long.valueOf(userIdStr);
         webAuthService.verifyRegisterResponse(userId, requestDto);
         return ResponseEntity.ok().build();
@@ -43,8 +44,9 @@ public class WebAuthController {
     }
 
     @PostMapping("/attendance/verify")
-    public ResponseEntity<Void> verifyAttendance(@AuthenticationPrincipal String userIdStr,
-                                                 @Valid @RequestBody WebAuthAssertionVerifyDTO requestDto) {
+    public ResponseEntity<Void> verifyAttendance(
+            @AuthenticationPrincipal String userIdStr,
+            @Valid @RequestBody WebAuthAssertionVerifyDTO requestDto) {
         Long userId = Long.valueOf(userIdStr);
         webAuthService.verifyAttendanceResponse(userId, requestDto);
         return ResponseEntity.ok().build();
