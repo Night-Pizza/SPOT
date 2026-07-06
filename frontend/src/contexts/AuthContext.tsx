@@ -8,6 +8,7 @@ export type User = {
     email: string;
     attendedSessions: number;
     faceRegistered: boolean;
+    webauthRegistered: boolean;
 };
 
 interface AuthContextType {
@@ -26,6 +27,7 @@ const defaultUser: User = {
     email: '',
     attendedSessions: 0,
     faceRegistered: false,
+    webauthRegistered: false,
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -42,6 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             id: data.id,
             email: data.email,
             faceRegistered: data.faceRegistered ?? false,
+            webauthRegistered: data.webauthRegistered ?? false,
         }));
         setError(null);
     }, []);

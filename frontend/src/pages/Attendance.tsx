@@ -1,4 +1,4 @@
-import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
@@ -22,6 +22,8 @@ import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import FaceCapture from '../components/face/FaceCapture';
 import { fileToBase64, checkAttendanceStatus } from '../api/Face';
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import { getAssertionOptions, verifyAssertion, getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 
 type CodeFormValues = {
     sessionId: number;
@@ -159,7 +161,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading } = useAuth();
+    const { user, loading, refreshCurrentUser } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -169,6 +171,9 @@ export default function Attendance() {
     const scanningRef = useRef(false);
     const scanRunRef = useRef(0);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
+
+    // WebAuth Registration state
+    const [registeringDevice, setRegisteringDevice] = useState(false);
 
     // Face Attendance Verification states
     const [faceModalOpen, setFaceModalOpen] = useState(false);
@@ -180,6 +185,70 @@ export default function Attendance() {
     const [faceLoading, setFaceLoading] = useState(false);
     const [faceError, setFaceError] = useState<string | null>(null);
     const [faceStep, setFaceStep] = useState<'capture' | 'verifying' | 'success' | 'failed'>('capture');
+
+    const handleRegisterDevice = async () => {
+        setRegisteringDevice(true);
+        try {
+            const { optionsJson } = await getRegistrationOptions();
+            const parsedOptions = JSON.parse(optionsJson);
+            const regOptions = parsedOptions.publicKeyCredentialCreationOptions || parsedOptions.publicKey || parsedOptions;
+
+            if (regOptions.extensions) {
+                delete regOptions.extensions.appidExclude;
+                delete regOptions.extensions.appid;
+            }
+
+            // Instruct browser to prioritize built-in platform authenticators
+            regOptions.hints = ["client-device"];
+
+            const attestationResponse = await startRegistration({
+                optionsJSON: regOptions,
+            });
+
+            await verifyRegistration(JSON.stringify(attestationResponse));
+            void messageApi.success('Biometric device registered successfully!');
+            await refreshCurrentUser();
+        } catch (err: any) {
+            console.error('Device registration failed:', err);
+            let userFriendlyMsg = err.message || 'Biometric device registration failed.';
+            if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
+                userFriendlyMsg = 'The device is already in use by someone else';
+            }
+            void messageApi.error(userFriendlyMsg);
+        } finally {
+            setRegisteringDevice(false);
+        }
+    };
+
+    const handleDeviceAuthentication = async (): Promise<boolean> => {
+        try {
+            const { optionsJson } = await getAssertionOptions();
+            const parsedOptions = JSON.parse(optionsJson);
+            const authOptions = parsedOptions.publicKeyCredentialRequestOptions || parsedOptions.publicKey || parsedOptions;
+
+            if (authOptions && authOptions.extensions) {
+                delete authOptions.extensions.appidExclude;
+                delete authOptions.extensions.appid;
+            }
+
+            const assertionResponse = await startAuthentication({
+                optionsJSON: authOptions,
+            });
+
+            await verifyAssertion(JSON.stringify(assertionResponse));
+            return true;
+        } catch (err: any) {
+            console.error('Device biometric check failed:', err);
+            let errorMsg = err.message || 'Device biometric verification failed.';
+            
+            if (errorMsg.toLowerCase().includes('no credential') || errorMsg.toLowerCase().includes('not allowed')) {
+                errorMsg = 'Passkey not found on this device. Please use the exact device you originally registered with.';
+            }
+            
+            void messageApi.error(errorMsg);
+            return false;
+        }
+    };
     const [history, setHistory] = useState<AttendedSessionHistoryItem[]>([]);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [historyError, setHistoryError] = useState('');
@@ -205,11 +274,24 @@ export default function Attendance() {
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
-            const location = await getBrowserLocation();
+            // Trigger biometrics check automatically before submitting session code
+            const biometricsOk = await handleDeviceAuthentication();
+            if (!biometricsOk) {
+                setSubmitting(false);
+                return;
+            }
+
+            let locationData: { latitude?: number, longitude?: number } = {};
+            try {
+                const loc = await getBrowserLocation();
+                locationData = { latitude: loc.latitude, longitude: loc.longitude };
+            } catch (err) {
+                console.warn('Geolocation skipped or denied:', err);
+            }
+
             const payload: AttendancePayload = {
                 password: values.sessionCode,
-                latitude: location.latitude,
-                longitude: location.longitude,
+                ...locationData,
             };
 
             await createAttendance(values.sessionId, payload);
@@ -219,13 +301,18 @@ export default function Attendance() {
             void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
-                const location = await getBrowserLocation();
+                let locData: { latitude?: number, longitude?: number } = {};
+                try {
+                    const loc = await getBrowserLocation();
+                    locData = { latitude: loc.latitude, longitude: loc.longitude };
+                } catch (err) {
+                    // Ignore
+                }
                 setPendingAttendance({
                     sessionId: values.sessionId,
                     payload: {
                         password: values.sessionCode,
-                        latitude: location.latitude,
-                        longitude: location.longitude,
+                        ...locData,
                     }
                 });
                 setFaceStep('capture');
@@ -268,6 +355,13 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
+            // Trigger biometrics check automatically after successful QR scan
+            const biometricsOk = await handleDeviceAuthentication();
+            if (!biometricsOk) {
+                setScanLoading(false);
+                return;
+            }
+
             let payload: AttendancePayload = {};
             try {
                 payload = await getBrowserLocation();
@@ -384,13 +478,13 @@ export default function Attendance() {
 
         return stopScanner;
     }, [scanOpen, startScanner, stopScanner]);
+
     const handleFaceCaptureSubmit = async (photos: File[]) => {
         if (!pendingAttendance) return;
         setFaceLoading(true);
         setFaceError(null);
         setFaceStep('verifying');
         try {
-            // Convert files to base64
             const base64Images = await Promise.all(photos.map(p => fileToBase64(p)));
             
             const updatedPayload = {
@@ -411,9 +505,8 @@ export default function Attendance() {
                 throw new Error('No verification request ID returned from server.');
             }
 
-            // Start polling status
             let attempts = 0;
-            const maxAttempts = 30; // 30 seconds max
+            const maxAttempts = 30;
             let verified = false;
             while (attempts < maxAttempts) {
                 const statusRes = await checkAttendanceStatus(requestId);
@@ -457,7 +550,8 @@ export default function Attendance() {
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
             {contextHolder}
             
-            {!loading && !user.faceRegistered && (
+            {/* Show Face Registration Warning only AFTER device key is set up */}
+            {!loading && user.webauthRegistered && !user.faceRegistered && (
                 <Alert
                     message={t('faceRegistrationRequired')}
                     description={t('faceRegistrationRequiredDescription')}
@@ -472,140 +566,113 @@ export default function Attendance() {
                 />
             )}
 
-            <div className="attendance-actions-grid">
-                <Card className="attendance-action-card scan-card">
-                    <Space direction="vertical" align="center" size={18}>
-                        <span className="large-action-icon green-icon">
-                            <CameraOutlined />
-                        </span>
-                        <div className="centered-copy">
-                            <Typography.Title level={2}>{t('scanQRCode')}</Typography.Title>
-                            <Typography.Paragraph>
-                                {t('scanQRDesc')}
-                            </Typography.Paragraph>
-                        </div>
-                        <Button
-                            type="primary"
-                            size="large"
-                            className="primary-action wide-button"
-                            onClick={() => setScanOpen(true)}
-                            loading={scanLoading}
-                        >
-                            {t('openCamera')}
-                        </Button>
-                    </Space>
-                </Card>
-
-                <Card className="attendance-action-card code-card">
-                    <Space direction="vertical" size={24} className="full-width-space">
-                        <Space size={18} align="start">
-                            <span className="large-action-icon blue-icon">
-                                <NumberOutlined />
-                            </span>
+            {!loading && !user.webauthRegistered ? (
+                <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center' }}>
+                    <Card style={{ borderRadius: 16 }}>
+                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
+                            <SafetyCertificateOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
                             <div>
-                                <Typography.Title level={2}>{t('enterSessionCode')}</Typography.Title>
-                                <Typography.Paragraph>
-                                    {t('enterCodeDesc')}
+                                <Typography.Title level={3}>Biometric Device Required</Typography.Title>
+                                <Typography.Paragraph type="secondary">
+                                    You must register this device with your biometrics before you can mark attendance.
                                 </Typography.Paragraph>
                             </div>
-                        </Space>
-
-                        <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false}>
-                            <Form.Item
-                                name="sessionId"
-                                label={t('sessionId')}
-                                rules={[
-                                    { required: true, message: t('sessionIdRequired') },
-                                    {
-                                        type: 'integer',
-                                        min: 1,
-                                        message: t('sessionIdPositive'),
-                                    },
-                                ]}
-                            >
-                                <InputNumber
-                                    size="large"
-                                    placeholder="123"
-                                    min={1}
-                                    precision={0}
-                                    className="full-width-space"
-                                />
-                            </Form.Item>
-                            <Form.Item
-                                name="sessionCode"
-                                label={t('sessionCode')}
-                                rules={[
-                                    { required: true, whitespace: true, message: t('sessionCodeRequired') },
-                                ]}
-                            >
-                                <Input.Password size="large" placeholder={t('sessionPasswordPlaceholder')} />
-                            </Form.Item>
                             <Button
                                 type="primary"
-                                htmlType="submit"
                                 size="large"
+                                onClick={handleRegisterDevice}
+                                loading={registeringDevice}
                                 className="primary-action wide-button"
-                                loading={submitting}
-                                disabled={!sessionId || !sessionCode?.trim()}
                             >
-                                {t('submitCode')}
+                                Register Device
                             </Button>
-                        </Form>
-                    </Space>
-                </Card>
-            </div>
-
-            <section className="attendance-history-section">
-                <Typography.Title level={2} className="section-kicker">
-                    {t('attendanceHistory')}
-                </Typography.Title>
-
-                {historyLoading ? (
-                    <Card className="attendance-history-card">
-                        <Space>
-                            <Spin />
-                            <Typography.Text type="secondary">Loading attendance history...</Typography.Text>
                         </Space>
                     </Card>
-                ) : historyError ? (
-                    <Alert
-                        message={historyError}
-                        type="error"
-                        showIcon
-                        style={{ maxWidth: 1380, margin: '0 auto' }}
-                    />
-                ) : history.length === 0 ? (
-                    <Card className="attendance-history-card">
-                        <Typography.Title level={4} style={{ marginTop: 0 }}>No attended sessions yet</Typography.Title>
-                        <Typography.Text type="secondary">
-                            You have not attended any sessions yet.
-                        </Typography.Text>
+                </div>
+            ) : (
+                <div className="attendance-actions-grid">
+                    <Card className="attendance-action-card scan-card">
+                        <Space direction="vertical" align="center" size={18}>
+                            <span className="large-action-icon green-icon">
+                                <CameraOutlined />
+                            </span>
+                            <div className="centered-copy">
+                                <Typography.Title level={2}>{t('scanQRCode')}</Typography.Title>
+                                <Typography.Paragraph>
+                                    {t('scanQRDesc')}
+                                </Typography.Paragraph>
+                            </div>
+                            <Button
+                                type="primary"
+                                size="large"
+                                className="primary-action wide-button"
+                                onClick={() => setScanOpen(true)}
+                                loading={scanLoading}
+                            >
+                                {t('openCamera')}
+                            </Button>
+                        </Space>
                     </Card>
-                ) : (
-                    <div className="attendance-history-grid">
-                        {history.map((session) => (
-                            <Card key={session.id} className="session-grid-card">
+
+                    <Card className="attendance-action-card code-card">
+                        <Space direction="vertical" size={24} className="full-width-space">
+                            <Space size={18} align="start">
+                                <span className="large-action-icon blue-icon">
+                                    <NumberOutlined />
+                                </span>
                                 <div>
-                                    <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
-                                        {session.title}
-                                    </Typography.Title>
-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Owner: {session.ownerEmail}
-                                    </Typography.Text>
-                                </div>
-                                <div style={{ marginTop: 18 }}>
-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Attended
-                                    </Typography.Text>
-                                    <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
-                                        {formatAttendanceDate(session.timestamp)}
+                                    <Typography.Title level={2}>{t('enterSessionCode')}</Typography.Title>
+                                    <Typography.Paragraph>
+                                        {t('enterCodeDesc')}
                                     </Typography.Paragraph>
                                 </div>
-                            </Card>
-                        ))}
-                    </div>
-                )}
-            </section>
+                            </Space>
+
+                            <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false}>
+                                <Form.Item
+                                    name="sessionId"
+                                    label="Session ID"
+                                    rules={[
+                                        { required: true, message: 'Please enter a session ID.' },
+                                        {
+                                            type: 'integer',
+                                            min: 1,
+                                            message: 'Session ID must be a positive integer.',
+                                        },
+                                    ]}
+                                >
+                                    <InputNumber
+                                        size="large"
+                                        placeholder="123"
+                                        min={1}
+                                        precision={0}
+                                        className="full-width-space"
+                                    />
+                                </Form.Item>
+                                <Form.Item
+                                    name="sessionCode"
+                                    label="Session Code"
+                                    rules={[
+                                        { required: true, whitespace: true, message: 'Please enter a session code.' },
+                                    ]}
+                                >
+                                    <Input.Password size="large" placeholder="Session password" />
+                                </Form.Item>
+                                <Button
+                                    type="primary"
+                                    htmlType="submit"
+                                    size="large"
+                                    className="primary-action wide-button"
+                                    loading={submitting}
+                                    disabled={!sessionId || !sessionCode?.trim()}
+                                >
+                                    {t('submitCode')}
+                                </Button>
+                            </Form>
+                        </Space>
+                    </Card>
+                </div>
+            )}
             
             <Modal
                 title={t('scanQRCode')}

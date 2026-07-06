@@ -1,6 +1,7 @@
 package com.example.SPOT.config;
 
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -28,5 +29,13 @@ public class CacheConfig {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(QR_TOKEN_CACHE);
         cacheManager.setCaffeine(caffeine);
         return cacheManager;
+    }
+
+    @Bean(name = "webauthChallengeCache")
+    public Cache<String, String> webauthChallengeCache() {
+        return Caffeine.newBuilder()
+                .expireAfterWrite(120, TimeUnit.SECONDS)
+                .maximumSize(5_000)
+                .build();
     }
 }
