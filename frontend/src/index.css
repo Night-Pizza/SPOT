@@ -804,6 +804,25 @@ body {
   align-items: stretch;
 }
 
+.attendance-history-section {
+  max-width: 1380px;
+  margin: 42px auto 0;
+}
+
+.attendance-history-section .section-kicker.ant-typography {
+  margin-bottom: 20px;
+}
+
+.attendance-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.attendance-history-card {
+  border-radius: 16px;
+}
+
 @media (max-width: 1180px) {
   .app-layout {
     margin-left: 0;
@@ -2030,12 +2049,7 @@ h4.ant-typography,
 }
 
 .end-session-btn {
-  color: #ff4d4f;
-  border-color: #ff4d4f;
-}
-.end-session-btn:hover {
-  color: #ff7875;
-  border-color: #ff7875;
+  font-weight: 700;
 }
 
 .map-modal .ant-modal-body {
