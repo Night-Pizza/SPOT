@@ -101,7 +101,13 @@ public class WebAuthService implements CredentialRepository {
                             .build()
             );
 
-            user.setWebauthCredentialId(result.getKeyId().getId().getBytes());
+            byte[] newCredentialId = result.getKeyId().getId().getBytes();
+            Optional<UserModel> existingUser = userRepository.findByWebauthCredentialId(newCredentialId);
+            if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already in use by someone else");
+            }
+
+            user.setWebauthCredentialId(newCredentialId);
             user.setWebauthPublicKey(result.getPublicKeyCose().getBytes());
             user.setWebauthSignatureCount(result.getSignatureCount());
             user.setWebauthLastModified(java.time.LocalDateTime.now());
@@ -186,19 +192,16 @@ public class WebAuthService implements CredentialRepository {
     @Override
     public Set<PublicKeyCredentialDescriptor> getCredentialIdsForUsername(String username) {
         UserModel currentUser = userRepository.findByEmail(username);
-        if (currentUser == null) {
+        if (currentUser == null || currentUser.getWebauthCredentialId() == null) {
             return Collections.emptySet();
         }
 
-        // Return the credential IDs of ALL OTHER registered users in the system.
-        // This causes Yubico's startRegistration to populate excludeCredentials with all other keys,
-        // natively blocking the browser from registering the same physical device/authenticator to different accounts.
-        return userRepository.findAll().stream()
-                .filter(u -> u.getWebauthCredentialId() != null && !u.getId().equals(currentUser.getId()))
-                .map(u -> PublicKeyCredentialDescriptor.builder()
-                        .id(new ByteArray(u.getWebauthCredentialId()))
-                        .build())
-                .collect(Collectors.toSet());
+        return Collections.singleton(
+                PublicKeyCredentialDescriptor.builder()
+                        .id(new ByteArray(currentUser.getWebauthCredentialId()))
+                        .type(PublicKeyCredentialType.PUBLIC_KEY)
+                        .build()
+        );
     }
 
     @Override
