@@ -63,14 +63,9 @@ public class WebAuthService implements CredentialRepository {
                 .id(new ByteArray(longToBytes(user.getId())))
                 .build();
 
-        AuthenticatorSelectionCriteria selectionCriteria = AuthenticatorSelectionCriteria.builder()
-                .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
-                .build();
-
         PublicKeyCredentialCreationOptions options = relyingParty.startRegistration(
                 StartRegistrationOptions.builder()
                         .user(userIdentity)
-                        .authenticatorSelection(selectionCriteria)
                         .build()
         );
 
