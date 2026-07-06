@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useEffect, useState } from 'react';
-import { getCreatedSessions, getSessionAttendees } from '../api/Session';
-import type { CreatedSessionHistoryItem } from '../api/Session';
+import { getCreatedSessions, getSessionAttendees, type CreatedSessionHistoryItem } from '../api/Session';
 
 type ParticipantCountState = {
     count: number;

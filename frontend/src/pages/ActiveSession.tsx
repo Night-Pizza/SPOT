@@ -32,8 +32,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import L from 'leaflet';
 
 import AppShell from '../components/AppShell';
-import { useApp } from '../contexts/AppContext';
-import type { Session } from '../contexts/AppContext';
+import { useApp, type Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
