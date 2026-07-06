@@ -181,13 +181,18 @@ export default function Attendance() {
         try {
             const { optionsJson } = await getRegistrationOptions();
             const parsedOptions = JSON.parse(optionsJson);
-            if (parsedOptions.extensions) {
-                delete parsedOptions.extensions.appidExclude;
-                delete parsedOptions.extensions.appid;
+            const regOptions = parsedOptions.publicKeyCredentialCreationOptions || parsedOptions.publicKey || parsedOptions;
+
+            if (regOptions.extensions) {
+                delete regOptions.extensions.appidExclude;
+                delete regOptions.extensions.appid;
             }
 
+            // Instruct browser to prioritize built-in platform authenticators
+            regOptions.hints = ["client-device"];
+
             const attestationResponse = await startRegistration({
-                ...parsedOptions,
+                optionsJSON: regOptions,
             });
 
             await verifyRegistration(JSON.stringify(attestationResponse));

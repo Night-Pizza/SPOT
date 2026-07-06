@@ -59,6 +59,9 @@ export default function Profile() {
                 delete regOptions.extensions.appid;
             }
 
+            // Instruct browser to prioritize built-in platform authenticators
+            regOptions.hints = ["client-device"];
+
             const attestationResponse = await startRegistration({
                 optionsJSON: regOptions,
             });
