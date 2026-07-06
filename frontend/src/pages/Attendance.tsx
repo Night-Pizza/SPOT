@@ -224,7 +224,13 @@ export default function Attendance() {
             return true;
         } catch (err: any) {
             console.error('Device biometric check failed:', err);
-            void messageApi.error(err.message || 'Device biometric verification failed.');
+            let errorMsg = err.message || 'Device biometric verification failed.';
+            
+            if (errorMsg.toLowerCase().includes('no credential') || errorMsg.toLowerCase().includes('not allowed')) {
+                errorMsg = 'Passkey not found on this device. Please use the exact device you originally registered with.';
+            }
+            
+            void messageApi.error(errorMsg);
             return false;
         }
     };
@@ -239,11 +245,17 @@ export default function Attendance() {
                 return;
             }
 
-            const location = await getBrowserLocation();
+            let locationData: { latitude?: number, longitude?: number } = {};
+            try {
+                const loc = await getBrowserLocation();
+                locationData = { latitude: loc.latitude, longitude: loc.longitude };
+            } catch (err) {
+                console.warn('Geolocation skipped or denied:', err);
+            }
+
             const payload: AttendancePayload = {
                 password: values.sessionCode,
-                latitude: location.latitude,
-                longitude: location.longitude,
+                ...locationData,
             };
 
             await createAttendance(values.sessionId, payload);
@@ -252,13 +264,18 @@ export default function Attendance() {
             form.resetFields();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
-                const location = await getBrowserLocation();
+                let locData: { latitude?: number, longitude?: number } = {};
+                try {
+                    const loc = await getBrowserLocation();
+                    locData = { latitude: loc.latitude, longitude: loc.longitude };
+                } catch (err) {
+                    // Ignore
+                }
                 setPendingAttendance({
                     sessionId: values.sessionId,
                     payload: {
                         password: values.sessionCode,
-                        latitude: location.latitude,
-                        longitude: location.longitude,
+                        ...locData,
                     }
                 });
                 setFaceStep('capture');
