@@ -200,6 +200,7 @@ public class WebAuthService implements CredentialRepository {
                 PublicKeyCredentialDescriptor.builder()
                         .id(new ByteArray(currentUser.getWebauthCredentialId()))
                         .type(PublicKeyCredentialType.PUBLIC_KEY)
+                        .transports(Set.of(AuthenticatorTransport.INTERNAL))
                         .build()
         );
     }
