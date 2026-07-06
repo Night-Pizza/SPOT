@@ -2,6 +2,7 @@ package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
+import com.example.SPOT.dto.response.SessionDetailsDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
@@ -77,6 +78,12 @@ public class SessionController {
     @GetMapping("/{id}")
     public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
         return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
+    }
+
+    @GetMapping("/{id}/details")
+    public ResponseEntity<SessionDetailsDTO> getSessionDetails(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(sessionService.getSessionDetails(id, userId));
     }
 
 

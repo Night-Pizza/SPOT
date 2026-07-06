@@ -103,6 +103,7 @@ export default function ActiveSessionPage() {
     const [qrToken, setQrToken] = useState('');
     const [qrError, setQrError] = useState('');
     const [backendSessionActive, setBackendSessionActive] = useState<boolean | null>(null);
+    const [fetchedSession, setFetchedSession] = useState<Session | null>(null);
     const attendeesRequestInFlightRef = useRef(false);
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
@@ -113,8 +114,42 @@ export default function ActiveSessionPage() {
     // Безопасно достаем данные сессии
     const state = location.state as  { session?: Session } | null;
     const sessionFromState = state?.session;
-    const activeSession = sessionFromUrl || sessionFromState;
+    const activeSession = fetchedSession || sessionFromUrl || sessionFromState;
     const isActive = !sessionEnded && (backendSessionActive ?? activeSession?.isActive !== false);
+
+    const loadSessionDetails = useCallback(async () => {
+        if (numericSessionId === null) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}/details`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const hasPassword = data.validationTypes?.includes('PASSWORD');
+                const sessionMode = hasPassword ? 'CODE' : 'QR';
+                setFetchedSession({
+                    id: String(data.id),
+                    title: data.title,
+                    mode: sessionMode,
+                    password: data.password || '',
+                    geolocationEnabled: data.validationTypes?.includes('GPS') || false,
+                    radius: data.allowedRadius,
+                    lat: data.latitude,
+                    lng: data.longitude,
+                    createdAt: data.createdAt,
+                    isActive: data.isActive,
+                    validationTypes: data.validationTypes,
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load session details:', error);
+        }
+    }, [numericSessionId]);
+
+    useEffect(() => {
+        void loadSessionDetails();
+    }, [loadSessionDetails]);
 
     useEffect(() => {
         if (numericSessionId === null) {
@@ -532,6 +567,30 @@ export default function ActiveSessionPage() {
                                     </Typography.Text>
                                 </Space>
                             )}
+                        </div>
+                    )}
+
+                    {!isQrSession && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                marginBottom: 24,
+                                minHeight: 200,
+                                padding: '20px 0',
+                                border: '1px dashed #d9d9d9',
+                                borderRadius: '8px',
+                                background: '#fafafa',
+                            }}
+                        >
+                            <Typography.Text type="secondary" style={{ fontSize: 16, marginBottom: 8 }}>
+                                {t('sessionCode')}
+                            </Typography.Text>
+                            <Typography.Title level={2} copyable style={{ margin: 0, fontWeight: 700, letterSpacing: 1.5 }}>
+                                {sessionPassword || 'Unavailable'}
+                            </Typography.Title>
                         </div>
                     )}
 

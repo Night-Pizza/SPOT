@@ -54,7 +54,7 @@ const LIVENESS_ACTIONS: { type: LivenessAction; label: string }[] = [
     { type: 'mouth', label: 'Please open your mouth' }
 ];
 
-const TRIPLE_CAPTURE_INTERVAL_MS = 3000;
+const TRIPLE_CAPTURE_INTERVAL_MS = 300;
 
 let sharedLandmarker: FaceLandmarker | null = null;
 let loadingPromise: Promise<FaceLandmarker> | null = null;
@@ -95,6 +95,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
     const [retryTimeLeft, setRetryTimeLeft] = useState<number>(3);
     const [capturing, setCapturing] = useState(false);
     const [captureProgress, setCaptureProgress] = useState<string>('');
+    const [currentCaptureIndex, setCurrentCaptureIndex] = useState<number>(0);
     const [livenessError, setLivenessError] = useState<string | null>(null);
 
     const requestRef = useRef<number | null>(null);
@@ -150,10 +151,12 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
         if (!webcamRef.current) return;
         setCapturing(true);
         const newPhotos: File[] = [];
+        setCurrentCaptureIndex(0);
 
         try {
             if (mode === 'single') {
                 setCaptureProgress(t('capturingPhoto'));
+                setCurrentCaptureIndex(1);
                 const imageSrc = webcamRef.current.getScreenshot();
                 if (imageSrc) {
                     const response = await fetch(imageSrc);
@@ -164,12 +167,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
             } else {
                 const filters: ('original' | 'brightness' | 'grayscale')[] = ['original', 'brightness', 'grayscale'];
                 for (let i = 0; i < 3; i++) {
-                    if (i > 0) {
-                        setCaptureProgress(t('nextPhotoInSeconds')
-                            .replace('{current}', String(i + 1))
-                            .replace('{total}', '3'));
-                        await new Promise(resolve => setTimeout(resolve, TRIPLE_CAPTURE_INTERVAL_MS));
-                    }
+                    setCurrentCaptureIndex(i + 1);
                     setCaptureProgress(t('capturingPhotoOf')
                         .replace('{current}', String(i + 1))
                         .replace('{total}', '3'));
@@ -180,6 +178,9 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                         const blob = await response.blob();
                         const file = new File([blob], `face_${Date.now()}_${i}.jpg`, { type: 'image/jpeg' });
                         newPhotos.push(file);
+                    }
+                    if (i < 2) {
+                        await new Promise(resolve => setTimeout(resolve, TRIPLE_CAPTURE_INTERVAL_MS));
                     }
                 }
             }
@@ -374,9 +375,39 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                                 <Typography.Title level={4} style={{ color: 'white', margin: 0 }}>
                                     {t('livenessVerified')}
                                 </Typography.Title>
-                                <Typography.Paragraph style={{ color: 'white', margin: '8px 0 0 0' }}>
-                                    {capturing ? captureProgress : t('capturingPhotos')}
-                                </Typography.Paragraph>
+                                {capturing && mode !== 'single' ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+                                        {[1, 2, 3].map((num) => {
+                                            const active = currentCaptureIndex >= num;
+                                            return (
+                                                <div
+                                                    key={num}
+                                                    style={{
+                                                        width: 36,
+                                                        height: 36,
+                                                        borderRadius: '50%',
+                                                        background: active ? '#fff' : 'rgba(255,255,255,0.3)',
+                                                        color: active ? '#4caf50' : 'rgba(255,255,255,0.7)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontWeight: 'bold',
+                                                        fontSize: 16,
+                                                        boxShadow: active ? '0 0 8px #fff' : 'none',
+                                                        transform: currentCaptureIndex === num ? 'scale(1.25)' : 'scale(1.0)',
+                                                        transition: 'all 0.2s ease-in-out',
+                                                    }}
+                                                >
+                                                    {num}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <Typography.Paragraph style={{ color: 'white', margin: '8px 0 0 0' }}>
+                                        {capturing ? captureProgress : t('capturingPhotos')}
+                                    </Typography.Paragraph>
+                                )}
                             </div>
                         )}
 
