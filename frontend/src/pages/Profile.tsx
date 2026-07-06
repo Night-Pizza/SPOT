@@ -58,7 +58,7 @@ export default function Profile() {
             }
 
             const attestationResponse = await startRegistration({
-                ...parsedOptions,
+                optionsJSON: parsedOptions,
             });
 
             await verifyRegistration(JSON.stringify(attestationResponse));
@@ -70,7 +70,14 @@ export default function Profile() {
         } catch (err: any) {
             console.error('Device registration failed:', err);
             let userFriendlyMsg = err.message || 'WebAuth device key registration failed.';
-            if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
+            if (
+                err.name === 'InvalidStateError' || 
+                userFriendlyMsg.includes('previously registered') || 
+                userFriendlyMsg.includes('InvalidState') || 
+                userFriendlyMsg.includes('exclude') ||
+                userFriendlyMsg.toLowerCase().includes('credential manager') ||
+                userFriendlyMsg.toLowerCase().includes('unknown error')
+            ) {
                 userFriendlyMsg = 'The device is already in use by someone else';
             }
             void messageApi.error(userFriendlyMsg);

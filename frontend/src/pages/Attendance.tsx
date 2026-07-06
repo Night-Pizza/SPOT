@@ -216,7 +216,9 @@ export default function Attendance() {
                 delete authOptions.extensions.appid;
             }
 
-            const assertionResponse = await startAuthentication(authOptions);
+            const assertionResponse = await startAuthentication({
+                optionsJSON: authOptions,
+            });
 
             await verifyAssertion(JSON.stringify(assertionResponse));
             return true;

@@ -46,7 +46,7 @@ export default function Dashboard() {
             }
 
             const attestationResponse = await startRegistration({
-                ...parsedOptions,
+                optionsJSON: parsedOptions,
             });
 
             await verifyRegistration(JSON.stringify(attestationResponse));
@@ -60,7 +60,14 @@ export default function Dashboard() {
         } catch (err: any) {
             console.error('Device registration failed:', err);
             let userFriendlyMsg = err.message || 'Biometric device registration failed.';
-            if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
+            if (
+                err.name === 'InvalidStateError' || 
+                userFriendlyMsg.includes('previously registered') || 
+                userFriendlyMsg.includes('InvalidState') || 
+                userFriendlyMsg.includes('exclude') ||
+                userFriendlyMsg.toLowerCase().includes('credential manager') ||
+                userFriendlyMsg.toLowerCase().includes('unknown error')
+            ) {
                 userFriendlyMsg = 'The device is already in use by someone else';
             }
             showRegistrationRetryModal(userFriendlyMsg);
@@ -96,7 +103,7 @@ export default function Dashboard() {
                     type="warning"
                     showIcon
                     action={
-                        <Button size="small" type="primary" className="primary-action" onClick={() => navigate('/profile')} style={{ width: 140 }}>
+                        <Button size="small" type="primary" className="primary-action" onClick={handleRegisterDevice} style={{ width: 140 }}>
                             Register Device
                         </Button>
                     }

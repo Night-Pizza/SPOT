@@ -18,6 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -27,6 +30,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class WebAuthService implements CredentialRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(WebAuthService.class);
 
     private final UserRepository userRepository;
     private final RelyingParty relyingParty;
@@ -58,14 +63,20 @@ public class WebAuthService implements CredentialRepository {
                 .id(new ByteArray(longToBytes(user.getId())))
                 .build();
 
+        AuthenticatorSelectionCriteria selectionCriteria = AuthenticatorSelectionCriteria.builder()
+                .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
+                .build();
+
         PublicKeyCredentialCreationOptions options = relyingParty.startRegistration(
                 StartRegistrationOptions.builder()
                         .user(userIdentity)
+                        .authenticatorSelection(selectionCriteria)
                         .build()
         );
 
         try {
-            String optionsJson = objectMapper.writeValueAsString(options);
+            String optionsJson = options.toJson();
+            log.info("Registration Options JSON: {}", optionsJson);
             challengeCache.put("reg:" + user.getEmail(), optionsJson);
             return new WebAuthRegistrationOptionsDTO(optionsJson);
         } catch (JsonProcessingException e) {
@@ -84,7 +95,7 @@ public class WebAuthService implements CredentialRepository {
         challengeCache.invalidate("reg:" + user.getEmail());
 
         try {
-            PublicKeyCredentialCreationOptions options = objectMapper.readValue(cachedOptionsJson, PublicKeyCredentialCreationOptions.class);
+            PublicKeyCredentialCreationOptions options = PublicKeyCredentialCreationOptions.fromJson(cachedOptionsJson);
             PublicKeyCredential<AuthenticatorAttestationResponse, ClientRegistrationExtensionOutputs> pkc =
                     PublicKeyCredential.parseRegistrationResponseJson(requestDto.responseJson());
 
@@ -123,7 +134,8 @@ public class WebAuthService implements CredentialRepository {
         );
 
         try {
-            String requestJson = objectMapper.writeValueAsString(request);
+            String requestJson = request.toJson();
+            log.info("Assertion Request JSON: {}", requestJson);
             challengeCache.put("auth:" + user.getEmail(), requestJson);
             return new WebAuthAssertionOptionsDTO(requestJson);
         } catch (JsonProcessingException e) {
@@ -142,7 +154,7 @@ public class WebAuthService implements CredentialRepository {
         challengeCache.invalidate("auth:" + user.getEmail());
 
         try {
-            AssertionRequest request = objectMapper.readValue(cachedRequestJson, AssertionRequest.class);
+            AssertionRequest request = AssertionRequest.fromJson(cachedRequestJson);
             PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> pkc =
                     PublicKeyCredential.parseAssertionResponseJson(requestDto.responseJson());
 
@@ -152,6 +164,11 @@ public class WebAuthService implements CredentialRepository {
                             .response(pkc)
                             .build()
             );
+
+            if (user.getWebauthCredentialId() == null || 
+                !java.util.Arrays.equals(user.getWebauthCredentialId(), pkc.getId().getBytes())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The biometric key used does not belong to your account.");
+            }
 
             if (result.isSuccess()) {
                 if (result.getSignatureCount() > 0 && result.getSignatureCount() <= user.getWebauthSignatureCount()) {
