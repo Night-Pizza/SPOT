@@ -90,7 +90,7 @@ public class WebAuthService implements CredentialRepository {
 
         if (!otherCredentials.isEmpty()) {
             options = options.toBuilder()
-                    .excludeCredentials(otherCredentials)
+                    .excludeCredentials(Optional.of(otherCredentials))
                     .build();
         }
 
