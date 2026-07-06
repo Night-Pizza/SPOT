@@ -40,13 +40,15 @@ export default function Dashboard() {
         try {
             const { optionsJson } = await getRegistrationOptions();
             const parsedOptions = JSON.parse(optionsJson);
-            if (parsedOptions.extensions) {
-                delete parsedOptions.extensions.appidExclude;
-                delete parsedOptions.extensions.appid;
+            const regOptions = parsedOptions.publicKeyCredentialCreationOptions || parsedOptions.publicKey || parsedOptions;
+
+            if (regOptions.extensions) {
+                delete regOptions.extensions.appidExclude;
+                delete regOptions.extensions.appid;
             }
 
             const attestationResponse = await startRegistration({
-                optionsJSON: parsedOptions,
+                optionsJSON: regOptions,
             });
 
             await verifyRegistration(JSON.stringify(attestationResponse));
