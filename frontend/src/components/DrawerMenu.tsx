@@ -5,6 +5,7 @@ import {
     UserOutlined,
 } from '@ant-design/icons';
 import { NavLink } from 'react-router-dom';
+import { useTheme } from '../contexts/ThemeContext';
 
 type DrawerMenuProps = {
     isOpen: boolean;
@@ -12,6 +13,8 @@ type DrawerMenuProps = {
 };
 
 export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
+    const { t } = useTheme();
+
     return (
         <>
             <div
@@ -40,7 +43,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         onClick={onClose}
                     >
                         <AppstoreOutlined className="drawer-icon" />
-                        <span>Dashboard</span>
+                        <span>{t('dashboard')}</span>
                     </NavLink>
 
                     <NavLink
@@ -51,7 +54,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         onClick={onClose}
                     >
                         <CheckSquareOutlined className="drawer-icon" />
-                        <span>Attendance</span>
+                        <span>{t('attendance')}</span>
                     </NavLink>
 
                     <NavLink
@@ -62,7 +65,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         onClick={onClose}
                     >
                         <CalendarOutlined className="drawer-icon" />
-                        <span>Sessions</span>
+                        <span>{t('sessions')}</span>
                     </NavLink>
 
                     <NavLink
@@ -73,7 +76,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
                         onClick={onClose}
                     >
                         <UserOutlined className="drawer-icon" />
-                        <span>Profile</span>
+                        <span>{t('profile')}</span>
                     </NavLink>
                 </nav>
 

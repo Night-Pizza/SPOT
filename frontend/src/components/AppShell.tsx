@@ -57,7 +57,7 @@ export default function AppShell({
     ];
 
     const themeIcon = theme === 'light' ? <SunOutlined /> : <MoonOutlined />;
-    const userLabel = user.email || (loading ? 'Loading...' : 'Profile');
+    const userLabel = user.email || (loading ? t('loading') : t('profile'));
     const firstLetter = user.email.charAt(0).toUpperCase() || '?';
 
     const goToProfile = () => navigate('/profile');
