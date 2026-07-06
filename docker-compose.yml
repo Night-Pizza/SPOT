@@ -40,21 +40,31 @@ services:
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls=true"
       - "traefik.http.routers.backend.service=backend"
+      - "traefik.http.routers.backend.priority=90"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
       - "traefik.http.routers.backend.middlewares=api-ratelimit,strip-api"
+      - "traefik.http.routers.backend-login.rule=Host(`${APP_HOST}`) && Path(`/api/user/login`)"
+      - "traefik.http.routers.backend-login.entrypoints=websecure"
+      - "traefik.http.routers.backend-login.tls=true"
+      - "traefik.http.routers.backend-login.service=backend"
+      - "traefik.http.routers.backend-login.priority=100"
+      - "traefik.http.routers.backend-login.middlewares=login-ratelimit,strip-api"
 
       - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.average=60"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.period=1m"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=20"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.average=5"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.period=1m"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.burst=5"
     environment:
       SPRING_PROFILES_ACTIVE: default
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: DEBUG
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: DEBUG
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: INFO
 
   frontend:
     build: ./frontend
@@ -67,7 +77,7 @@ services:
       - "traefik.http.routers.frontend.rule=Host(`${APP_HOST}`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls=true"
-      # Если фронтенд использует Nginx (порт 80 внутри контейнера)
+      - "traefik.http.routers.frontend.priority=10"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
   postgres:

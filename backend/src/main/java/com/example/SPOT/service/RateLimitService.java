@@ -1,22 +1,23 @@
 package com.example.SPOT.service;
 
-import org.springframework.stereotype.Service;
-
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class RateLimitService {
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofMinutes(15))
+            .maximumSize(100_000)
+            .build();
 
     public boolean tryConsume(String key, long capacity, Duration period) {
-        Bucket bucket = buckets.computeIfAbsent(key, ignored -> newBucket(capacity, period));
+        Bucket bucket = buckets.get(key, ignored -> newBucket(capacity, period));
         return bucket.tryConsume(1);
     }
 

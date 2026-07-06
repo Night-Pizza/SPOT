@@ -80,8 +80,8 @@ public class AttendanceService {
     }
 
 
-public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request, Long currentUserId){
-        SessionModel session = sessionService.getSessionOwnedByUser(request.sessionId().orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist")), currentUserId);
+    public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request, Long currentUserId){
+        SessionModel session = sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
 
@@ -101,7 +101,7 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
     }
 
     public void deleteAttendance(DeleteAttendanceRequestDTO request, Long currentUserId){
-        sessionService.getSessionOwnedByUser(request.sessionId().orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist")), currentUserId);
+        sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("EMAIL_NOT_EXIST","Email does not exist");
         UserModel user = userRepository.findByEmail(request.email());

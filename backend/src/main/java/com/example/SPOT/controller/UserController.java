@@ -12,6 +12,7 @@ import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.UserService;
 import com.example.SPOT.service.RateLimitService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -29,7 +30,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.example.SPOT.dto.request.UserUpdateDTO;
 import jakarta.servlet.http.Cookie;
 
 
@@ -72,7 +72,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserDTO> signIn(@RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+    public ResponseEntity<UserDTO> signIn(@Valid @RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
 
         String ip = getClientIp(request);
         String email = loginDTO.email() != null ? loginDTO.email().toLowerCase() : "unknown";
@@ -108,7 +108,7 @@ public class UserController {
 
 
     @PostMapping("/register")
-    public ResponseEntity<UserDTO> createUser(@RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+    public ResponseEntity<UserDTO> createUser(@Valid @RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
         UserDTO response = userService.createUser(userCreateDTO);
 
         HttpSession existingSession = request.getSession(false);
@@ -161,13 +161,13 @@ public class UserController {
     }
 
     @PatchMapping("/update")
-    public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @RequestBody UserUpdateDTO userUpdateDTO) {
+    public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @Valid @RequestBody UserUpdateDTO userUpdateDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok(userService.updatePassword(userId, userUpdateDTO));
     }
 
     @PostMapping("/face")
-    public ResponseEntity<FaceResponseDTO> addFace(@AuthenticationPrincipal String userIdStr, @RequestBody AddFaceDTO addFaceDTO) {
+    public ResponseEntity<FaceResponseDTO> addFace(@AuthenticationPrincipal String userIdStr, @Valid @RequestBody AddFaceDTO addFaceDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(userService.addFace(userId, addFaceDTO));
     }

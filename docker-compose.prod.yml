@@ -56,10 +56,24 @@ services:
       - "traefik.http.routers.backend.rule=Host(`${APP_HOST}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls=true"
-      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend.middlewares=strip-api"
-      - "traefik.http.services.backend.loadbalancer.server.port=8080"
       - "traefik.http.routers.backend.service=backend"
+      - "traefik.http.routers.backend.priority=90"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
+      - "traefik.http.routers.backend.middlewares=api-ratelimit,strip-api"
+      - "traefik.http.routers.backend-login.rule=Host(`${APP_HOST}`) && Path(`/api/user/login`)"
+      - "traefik.http.routers.backend-login.entrypoints=websecure"
+      - "traefik.http.routers.backend-login.tls=true"
+      - "traefik.http.routers.backend-login.service=backend"
+      - "traefik.http.routers.backend-login.priority=100"
+      - "traefik.http.routers.backend-login.middlewares=login-ratelimit,strip-api"
+
+      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=60"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.period=1m"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=20"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.average=5"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.period=1m"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.burst=5"
     env_file:
       - .env
     networks:
@@ -82,6 +96,7 @@ services:
       - "traefik.http.routers.frontend.rule=Host(`${APP_HOST}`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.priority=10"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
     networks:
       - app-network
