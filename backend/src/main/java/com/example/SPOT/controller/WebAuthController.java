@@ -25,20 +25,6 @@ public class WebAuthController {
         this.userRepository = userRepository;
     }
 
-    @GetMapping("/debug")
-    public ResponseEntity<java.util.Map<String, Object>> getDebugInfo(@AuthenticationPrincipal String userIdStr) {
-        Long userId = Long.valueOf(userIdStr);
-        UserModel user = userRepository.findById(userId)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "User not found"));
-        java.util.Map<String, Object> map = new java.util.HashMap<>();
-        map.put("email", user.getEmail());
-        map.put("credentialIdHex", user.getWebauthCredentialId() != null ? 
-                java.util.HexFormat.of().formatHex(user.getWebauthCredentialId()) : null);
-        map.put("credentialIdBase64Url", user.getWebauthCredentialId() != null ? 
-                new com.yubico.webauthn.data.ByteArray(user.getWebauthCredentialId()).getBase64Url() : null);
-        map.put("publicKeyLen", user.getWebauthPublicKey() != null ? user.getWebauthPublicKey().length : 0);
-        return ResponseEntity.ok(map);
-    }
 
     @GetMapping("/register/options")
     public ResponseEntity<WebAuthRegistrationOptionsDTO> getRegisterOptions(@AuthenticationPrincipal String userIdStr) {
