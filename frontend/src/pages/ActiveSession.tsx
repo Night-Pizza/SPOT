@@ -569,29 +569,7 @@ export default function ActiveSessionPage() {
                         </div>
                     )}
 
-                    {!isQrSession && (
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                marginBottom: 24,
-                                minHeight: 200,
-                                padding: '20px 0',
-                                border: '1px dashed #d9d9d9',
-                                borderRadius: '8px',
-                                background: '#fafafa',
-                            }}
-                        >
-                            <Typography.Text type="secondary" style={{ fontSize: 16, marginBottom: 8 }}>
-                                {t('sessionCode')}
-                            </Typography.Text>
-                            <Typography.Title level={2} copyable style={{ margin: 0, fontWeight: 700, letterSpacing: 1.5 }}>
-                                {sessionPassword || 'Unavailable'}
-                            </Typography.Title>
-                        </div>
-                    )}
+
 
                     <div className="session-detail-list">
                         {!isQrSession && (
