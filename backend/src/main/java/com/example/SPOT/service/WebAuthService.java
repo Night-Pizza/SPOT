@@ -69,7 +69,7 @@ public class WebAuthService implements CredentialRepository {
                         .user(userIdentity)
                         .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
                                 .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
-                                .residentKey(ResidentKeyRequirement.PREFERRED)
+                                .residentKey(ResidentKeyRequirement.DISCOURAGED)
                                 .userVerification(UserVerificationRequirement.REQUIRED)
                                 .build())
                         .build()
