@@ -4,10 +4,6 @@ function App() {
   return (
       <>
         <AppRouter />
-        <FaceRegistrationModal
-            visible={modalVisible}
-            onSuccess={() => setModalVisible(false)}
-        />
       </>
   );
 }

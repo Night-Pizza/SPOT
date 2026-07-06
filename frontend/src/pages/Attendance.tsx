@@ -15,9 +15,9 @@ import {
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createAttendance, scanQrAttendance, ApiError, getAttendedSessions } from '../api/Attendance';
+import { createAttendance, scanQrAttendance, ApiError } from '../api/Attendance';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
-import type { AttendancePayload, AttendedSessionHistoryItem } from '../api/Attendance';
+import type { AttendancePayload } from '../api/Attendance';
 import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import FaceCapture from '../components/face/FaceCapture';
@@ -30,15 +30,7 @@ type CodeFormValues = {
     sessionCode: string;
 };
 
-function formatAttendanceDate(timestamp: string) {
-    return new Intl.DateTimeFormat('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(new Date(timestamp));
-}
+
 
 const SCAN_ERRORS = {
     permissionDenied: 'Camera access was denied. Allow camera permission in your browser and try again.',
@@ -251,27 +243,7 @@ export default function Attendance() {
             return false;
         }
     };
-    const [history, setHistory] = useState<AttendedSessionHistoryItem[]>([]);
-    const [historyLoading, setHistoryLoading] = useState(true);
-    const [historyError, setHistoryError] = useState('');
 
-    const loadHistory = useCallback(async () => {
-        setHistoryLoading(true);
-        setHistoryError('');
-
-        try {
-            const attendedSessions = await getAttendedSessions();
-            setHistory(attendedSessions);
-        } catch (error) {
-            setHistoryError(error instanceof Error ? error.message : 'Failed to load attendance history');
-        } finally {
-            setHistoryLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        void loadHistory();
-    }, [loadHistory]);
 
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
@@ -300,7 +272,6 @@ export default function Attendance() {
 
             void messageApi.success(t('attendanceSubmitted'));
             form.resetFields();
-            void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 let locData: { latitude?: number, longitude?: number } = {};
@@ -374,7 +345,6 @@ export default function Attendance() {
             await scanQrAttendance(token, payload);
             void messageApi.success(t('qrAttendanceSubmitted'));
             setScanOpen(false);
-            void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 setScanOpen(false);
@@ -397,7 +367,7 @@ export default function Attendance() {
         } finally {
             setScanLoading(false);
         }
-    }, [loadHistory, messageApi]);
+    }, [messageApi]);
 
     const startScanner = useCallback(async () => {
         setScanError('');
@@ -540,7 +510,6 @@ export default function Attendance() {
         setPendingAttendance(null);
         form.resetFields();
         void messageApi.success('Attendance submitted successfully!');
-        void loadHistory();
     };
 
     const handleFaceRetry = () => {

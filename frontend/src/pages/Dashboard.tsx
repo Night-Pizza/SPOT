@@ -13,7 +13,6 @@ import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { sessions } = useApp();
     const { user, loading, refreshCurrentUser } = useAuth();
     const { t } = useTheme();
     const [registerModalOpen, setRegisterModalOpen] = useState(false);

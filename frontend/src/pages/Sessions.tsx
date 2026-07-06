@@ -114,16 +114,6 @@ export default function SessionsPage() {
                 <div className="sessions-empty-state">
                     <Typography.Title level={3} style={{ fontWeight: 600 }}>Create your first session</Typography.Title>
                     <Typography.Text style={{ fontWeight: 400 }}>{t('noSessions')}</Typography.Text>
-                    <div style={{ marginTop: 20 }}>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            className="primary-action"
-                            onClick={() => navigate('/sessions/create')}
-                        >
-                            {t('newSession')}
-                        </Button>
-                    </div>
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
