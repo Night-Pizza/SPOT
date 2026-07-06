@@ -1,24 +1,53 @@
 import AppShell from '../components/AppShell';
 import { MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { logoutUser } from '../api/Authentification';
 import { startRegistration } from '@simplewebauthn/browser';
 import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+import { getCreatedSessionsCount } from '../api/Session';
+import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Profile() {
     const { user, loading, error, refreshCurrentUser } = useAuth();
-    const { sessions } = useApp();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [registeringDevice, setRegisteringDevice] = useState(false);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
+
+    const [stats, setStats] = useState({ created: 0, attended: 0 });
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadStats() {
+            setStatsLoading(true);
+            try {
+                const [created, attended] = await Promise.all([
+                    getCreatedSessionsCount(),
+                    getAttendedSessionsCount(),
+                ]);
+                if (!cancelled) {
+                    setStats({ created, attended });
+                }
+            } catch (err) {
+                console.error('Failed to load profile statistics:', err);
+            } finally {
+                if (!cancelled) {
+                    setStatsLoading(false);
+                }
+            }
+        }
+        void loadStats();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
     const email = user.email || 'Unavailable';
     const avatarText = user.email.charAt(0).toUpperCase() || '?';
 
@@ -114,11 +143,15 @@ export default function Profile() {
 
             <Flex gap={16} className="profile-stats-row" wrap="wrap">
                 <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">{sessions.length}</Typography.Title>
+                    <Typography.Title level={2} className="profile-stat-number">
+                        {statsLoading ? <Spin size="small" /> : stats.created}
+                    </Typography.Title>
                     <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
                 </Card>
                 <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">{user.attendedSessions}</Typography.Title>
+                    <Typography.Title level={2} className="profile-stat-number">
+                        {statsLoading ? <Spin size="small" /> : stats.attended}
+                    </Typography.Title>
                     <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
                 </Card>
             </Flex>
