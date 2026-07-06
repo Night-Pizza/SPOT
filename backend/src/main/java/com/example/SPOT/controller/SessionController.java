@@ -35,8 +35,9 @@ public class SessionController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSession(@PathVariable Long id) {
-        sessionService.deleteSession(id);
+    public ResponseEntity<Void> deleteSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.deleteSession(id, userId);
         return ResponseEntity.noContent().build();
 
     }
@@ -55,14 +56,16 @@ public class SessionController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Void> updateSession(@PathVariable Long id,@Valid @RequestBody SessionUpdateDTO sessionUpdateDTO) {
-        sessionService.updateSessionName(id, sessionUpdateDTO);
+    public ResponseEntity<Void> updateSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr, @Valid @RequestBody SessionUpdateDTO sessionUpdateDTO) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.updateSessionName(id, userId, sessionUpdateDTO);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/close/{id}")
-    public ResponseEntity<Void> closeSession(@PathVariable Long id) {
-        sessionService.closeSession(id);
+    public ResponseEntity<Void> closeSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.closeSession(id, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -72,8 +75,8 @@ public class SessionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id){
-        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id));
+    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
+        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
     }
 
 

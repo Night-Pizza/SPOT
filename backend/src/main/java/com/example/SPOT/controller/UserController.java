@@ -7,17 +7,22 @@ import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.FaceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserDTO;
+import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.UserService;
+import com.example.SPOT.service.RateLimitService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.Collections;
 import java.util.Map;
+import java.time.Duration;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -25,7 +30,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.example.SPOT.dto.request.UserUpdateDTO;
 import jakarta.servlet.http.Cookie;
 
 
@@ -35,11 +39,23 @@ public class UserController {
     private final UserService userService;
     private final SecurityContextRepository securityContextRepository;
     private final KafkaRepository kafkaRepository;
+    private final RateLimitService rateLimitService;
 
-    public UserController(UserService userService, KafkaRepository kafkaRepository, SecurityContextRepository securityContextRepository) {
+    public UserController(UserService userService, KafkaRepository kafkaRepository, SecurityContextRepository securityContextRepository, RateLimitService rateLimitService) {
         this.userService = userService;
         this.kafkaRepository = kafkaRepository;
         this.securityContextRepository = securityContextRepository;
+        this.rateLimitService = rateLimitService;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        return request.getRemoteAddr();
     }
 
     @GetMapping()
@@ -56,7 +72,17 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserDTO> signIn(@RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+    public ResponseEntity<UserDTO> signIn(@Valid @RequestBody UserLoginDTO loginDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+
+        String ip = getClientIp(request);
+        String email = loginDTO.email() != null ? loginDTO.email().toLowerCase() : "unknown";
+
+        String key = "login:" + ip + ":" + email;
+
+        if (!rateLimitService.tryConsume(key, 5, Duration.ofMinutes(1))) {
+            throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many login attempts");
+        }
+
         UserDTO response = userService.loginUser(loginDTO);
 
         HttpSession existingSession = request.getSession(false);
@@ -82,7 +108,7 @@ public class UserController {
 
 
     @PostMapping("/register")
-    public ResponseEntity<UserDTO> createUser(@RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
+    public ResponseEntity<UserDTO> createUser(@Valid @RequestBody UserCreateDTO userCreateDTO, HttpServletRequest request, HttpServletResponse responseHttp) {
         UserDTO response = userService.createUser(userCreateDTO);
 
         HttpSession existingSession = request.getSession(false);
@@ -106,7 +132,7 @@ public class UserController {
         return ResponseEntity.ok().body(response);
     }
 
-        @PostMapping("/logout")
+    @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse responseHttp) {
         HttpSession existingSession = request.getSession(false);
         if (existingSession != null) {
@@ -135,13 +161,13 @@ public class UserController {
     }
 
     @PatchMapping("/update")
-    public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @RequestBody UserUpdateDTO userUpdateDTO) {
+    public ResponseEntity<UserDTO> updateUser(@AuthenticationPrincipal String userIdStr, @Valid @RequestBody UserUpdateDTO userUpdateDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok(userService.updatePassword(userId, userUpdateDTO));
     }
 
     @PostMapping("/face")
-    public ResponseEntity<FaceResponseDTO> addFace(@AuthenticationPrincipal String userIdStr, @RequestBody AddFaceDTO addFaceDTO) {
+    public ResponseEntity<FaceResponseDTO> addFace(@AuthenticationPrincipal String userIdStr, @Valid @RequestBody AddFaceDTO addFaceDTO) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(userService.addFace(userId, addFaceDTO));
     }

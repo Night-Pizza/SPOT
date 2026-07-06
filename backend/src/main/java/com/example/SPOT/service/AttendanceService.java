@@ -35,15 +35,17 @@ public class AttendanceService {
     private final KafkaMessagingService kafka;
     private final KafkaRepository kafkaRepository;
     private final QRTokenService qrTokenService;
+    private final SessionService sessionService;
 
     public AttendanceService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository,
-                             KafkaMessagingService kafka, KafkaRepository kafkaRepository, QRTokenService qrTokenService) {
+                             KafkaMessagingService kafka, KafkaRepository kafkaRepository, QRTokenService qrTokenService, SessionService sessionService) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
         this.kafka = kafka;
         this.kafkaRepository = kafkaRepository;
         this.qrTokenService = qrTokenService;
+        this.sessionService = sessionService;
     }
 
     public AttendDTO createAttendance(Long userId, AttendanceCreateDTO request){
@@ -79,7 +81,8 @@ public class AttendanceService {
     }
 
 
-public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request){
+    public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request, Long currentUserId){
+        SessionModel session = sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
 
@@ -88,7 +91,6 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
-        SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
         AttendanceModel attendanceModel = new AttendanceModel();
@@ -99,11 +101,10 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
         return mapToDTO(attendanceRepository.save(attendanceModel));
     }
 
-    public void deleteAttendance(DeleteAttendanceRequestDTO request){
+    public void deleteAttendance(DeleteAttendanceRequestDTO request, Long currentUserId){
+        sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("EMAIL_NOT_EXIST","Email does not exist");
-        if (!(sessionRepository.existsById(request.sessionId())))
-            throw new CustomException("SESSION_DOES_NOT_EXISTS", "Session with this id does not exists");
         UserModel user = userRepository.findByEmail(request.email());
         Long userId = user.getId();
         if (!(attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId())))
