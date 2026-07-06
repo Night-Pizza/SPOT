@@ -4,7 +4,6 @@ import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
-import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
