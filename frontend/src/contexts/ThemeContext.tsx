@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { ConfigProvider, theme as antdTheme } from 'antd';
 
 type Theme = 'light' | 'dark';
 type Language = 'en' | 'ru';
@@ -456,7 +457,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme, language, setLanguage, t }}>
-            {children}
+            <ConfigProvider 
+                theme={{ 
+                    algorithm: theme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+                    token: {
+                        colorPrimary: '#5ec832',
+                        ...(theme === 'dark' ? {
+                            colorBgBase: '#0f172a',
+                            colorBgElevated: '#1e293b',
+                            colorTextBase: '#f1f5f9',
+                            colorBorder: '#334155',
+                            colorBgContainer: '#2d3748',
+                        } : {})
+                    }
+                }}
+            >
+                {children}
+            </ConfigProvider>
         </ThemeContext.Provider>
     );
 };

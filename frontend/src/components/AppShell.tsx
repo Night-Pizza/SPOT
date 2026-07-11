@@ -8,7 +8,7 @@ import {
     UserOutlined,
     MoonOutlined,
 } from '@ant-design/icons';
-import { Button, Dropdown, Space, Typography, type MenuProps } from 'antd';
+import { Button, Space, Typography } from 'antd';
 import { type ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,14 +39,7 @@ export default function AppShell({
     const isActive = (path: string) => location.pathname === path;
     const toggleDrawer = () => setDrawerOpen(!drawerOpen);
 
-    const languageItems: MenuProps['items'] = [
-        { key: 'en', label: 'English' },
-        { key: 'ru', label: 'Русский' },
-    ];
 
-    const handleLanguageChange: MenuProps['onClick'] = ({ key }) => {
-        setLanguage(key as 'en' | 'ru');
-    };
 
     const navItems = [
         { key: '/dashboard', icon: <AppstoreOutlined />, labelKey: 'dashboard' },
@@ -116,14 +109,13 @@ export default function AppShell({
                             style={{ fontSize: 20 }}
                         />
 
-                        <Dropdown
-                            menu={{ items: languageItems, onClick: handleLanguageChange }}
-                            trigger={['click']}
+                        <Button
+                            className="language-button"
+                            icon={<GlobalOutlined />}
+                            onClick={() => setLanguage(language === 'en' ? 'ru' : 'en')}
                         >
-                            <Button className="language-button" icon={<GlobalOutlined />}>
-                                {language.toUpperCase()}
-                            </Button>
-                        </Dropdown>
+                            {language.toUpperCase()}
+                        </Button>
 
 
                         <Space size={10} align="center" style={{ cursor: 'pointer' }} onClick={goToProfile}>
