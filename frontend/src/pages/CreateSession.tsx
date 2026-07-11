@@ -14,7 +14,7 @@ import {
     Spin,
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AppShell from '../components/AppShell';
 import { createSession } from '../api/Session';
 import { useGeolocation } from '../hooks/Geolocation';
@@ -43,8 +43,11 @@ export default function CreateSessionPage() {
 
     const { getPosition, loading: geoLoading } = useGeolocation();
 
+    const fetchingRef = useRef(false);
+
     useEffect(() => {
-        if (geolocationEnabled && !coords) {
+        if (geolocationEnabled && !coords && !fetchingRef.current) {
+            fetchingRef.current = true;
             const fetchLocation = async () => {
                 try {
                     const result = await getPosition();
@@ -53,6 +56,8 @@ export default function CreateSessionPage() {
                 } catch (e) {
                     console.error(e);
                     message.error(t('locationPermissionError') || 'Failed to acquire location. Please grant permission.');
+                } finally {
+                    fetchingRef.current = false;
                 }
             };
             void fetchLocation();
