@@ -17,6 +17,7 @@ import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.SessionModel;
 import com.example.SPOT.repository.SessionRepository;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.example.SPOT.dto.response.SessionPublicDetailsDTO;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,11 +29,13 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final AttendanceRepository attendanceRepository;
+    private final QRTokenService qrTokenService;
 
-    public SessionService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository) {
+    public SessionService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository, QRTokenService qrTokenService) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
+        this.qrTokenService = qrTokenService;
     }
 
     public SessionModel getSessionOwnedByUser(Long sessionId, Long userId) {
@@ -152,5 +155,24 @@ public class SessionService {
                 sessionModel.getTitle(),
                 sessionModel.getCreateAt()
         );
+    }
+
+    public SessionPublicDetailsDTO getSessionPublicDetails(Long sessionId) {
+        SessionModel session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "Session id does not exist"));
+        return new SessionPublicDetailsDTO(
+                session.getId(),
+                session.getTitle(),
+                session.getValidationTypes(),
+                session.getLatitude(),
+                session.getLongitude(),
+                session.getAllowedRadius(),
+                session.isActive()
+        );
+    }
+
+    public SessionPublicDetailsDTO getSessionPublicDetailsByQrToken(String token) {
+        Long sessionId = qrTokenService.validateTokenAndGetSesionId(token);
+        return getSessionPublicDetails(sessionId);
     }
 }

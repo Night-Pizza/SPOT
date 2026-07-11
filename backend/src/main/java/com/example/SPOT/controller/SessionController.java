@@ -4,6 +4,7 @@ import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
 import com.example.SPOT.dto.response.SessionDetailsDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
+import com.example.SPOT.dto.response.SessionPublicDetailsDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.model.UserModel;
@@ -106,4 +107,13 @@ public class SessionController {
         return ResponseEntity.ok().body(userRepository.count());
     }
 
+    @GetMapping("/{id}/public")
+    public ResponseEntity<SessionPublicDetailsDTO> getSessionPublicDetails(@PathVariable Long id) {
+        return ResponseEntity.ok(sessionService.getSessionPublicDetails(id));
+    }
+
+    @GetMapping("/qr/{token}/public")
+    public ResponseEntity<SessionPublicDetailsDTO> getSessionPublicDetailsByQrToken(@PathVariable String token) {
+        return ResponseEntity.ok(sessionService.getSessionPublicDetailsByQrToken(token));
+    }
 }

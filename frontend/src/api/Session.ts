@@ -106,3 +106,38 @@ export async function getActiveSessionIds(): Promise<number[]> {
 
     return response.json() as Promise<number[]>;
 }
+
+export type SessionPublicDetails = {
+    id: number;
+    title: string;
+    validationTypes: string[];
+    latitude?: number;
+    longitude?: number;
+    allowedRadius?: number;
+    isActive: boolean;
+};
+
+export async function getSessionPublicDetails(id: number): Promise<SessionPublicDetails> {
+    const response = await converter(`/session/${id}/public`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, `Failed to load details for session ${id}`));
+    }
+
+    return response.json() as Promise<SessionPublicDetails>;
+}
+
+export async function getSessionPublicDetailsByQrToken(token: string): Promise<SessionPublicDetails> {
+    const response = await converter(`/session/qr/${token}/public`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load session details from QR code.'));
+    }
+
+    return response.json() as Promise<SessionPublicDetails>;
+}
+

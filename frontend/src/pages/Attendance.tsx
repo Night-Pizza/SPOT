@@ -1,4 +1,4 @@
-import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
@@ -10,12 +10,15 @@ import {
     Typography,
     message,
     Alert,
-    Spin
+    Spin,
+    Flex,
 } from 'antd';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createAttendance, scanQrAttendance, ApiError, getAttendedSessions, type AttendancePayload, type AttendedSessionHistoryItem } from '../api/Attendance';
+import { getSessionPublicDetails, getSessionPublicDetailsByQrToken, type SessionPublicDetails } from '../api/Session';
+import SessionMap from '../components/SessionMap';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
@@ -191,6 +194,10 @@ export default function Attendance() {
     const [historyLoading, setHistoryLoading] = useState(true);
     const [historyError, setHistoryError] = useState('');
 
+    const [currentSessionDetails, setCurrentSessionDetails] = useState<SessionPublicDetails | null>(null);
+    const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [fetchingDetails, setFetchingDetails] = useState(false);
+
     const loadHistory = useCallback(async () => {
         setHistoryLoading(true);
         setHistoryError('');
@@ -208,6 +215,45 @@ export default function Attendance() {
     useEffect(() => {
         void loadHistory();
     }, [loadHistory]);
+
+    useEffect(() => {
+        if (!sessionId || typeof sessionId !== 'number' || sessionId <= 0) {
+            setCurrentSessionDetails(null);
+            setUserCoords(null);
+            return;
+        }
+
+        const fetchDetails = async () => {
+            setFetchingDetails(true);
+            try {
+                const details = await getSessionPublicDetails(sessionId);
+                setCurrentSessionDetails(details);
+            } catch (err) {
+                console.error('Failed to fetch session public details:', err);
+                setCurrentSessionDetails(null);
+                setUserCoords(null);
+            } finally {
+                setFetchingDetails(false);
+            }
+        };
+
+        const timer = setTimeout(fetchDetails, 500); // Debounce typing
+        return () => clearTimeout(timer);
+    }, [sessionId]);
+
+    useEffect(() => {
+        if (currentSessionDetails?.validationTypes.includes('GPS')) {
+            const fetchUserLocation = async () => {
+                try {
+                    const loc = await getBrowserLocation();
+                    setUserCoords(loc);
+                } catch (err) {
+                    console.error('Failed to get user location:', err);
+                }
+            };
+            void fetchUserLocation();
+        }
+    }, [currentSessionDetails]);
 
     const handleRegisterDevice = async () => {
         setRegisteringDevice(true);
@@ -287,11 +333,19 @@ export default function Attendance() {
             }
 
             let locationData: { latitude?: number, longitude?: number } = {};
-            try {
-                const loc = await getBrowserLocation();
-                locationData = { latitude: loc.latitude, longitude: loc.longitude };
-            } catch (err) {
-                console.warn('Geolocation skipped or denied:', err);
+            if (currentSessionDetails?.validationTypes.includes('GPS')) {
+                let loc = userCoords;
+                if (!loc) {
+                    try {
+                        loc = await getBrowserLocation();
+                        setUserCoords(loc);
+                    } catch (err) {
+                        console.warn('Geolocation skipped or denied:', err);
+                    }
+                }
+                if (loc) {
+                    locationData = { latitude: loc.latitude, longitude: loc.longitude };
+                }
             }
 
             const payload: AttendancePayload = {
@@ -303,15 +357,15 @@ export default function Attendance() {
 
             void messageApi.success(t('attendanceSubmitted'));
             form.resetFields();
+            setCurrentSessionDetails(null);
+            setUserCoords(null);
             void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 let locData: { latitude?: number, longitude?: number } = {};
-                try {
-                    const loc = await getBrowserLocation();
+                if (currentSessionDetails?.validationTypes.includes('GPS')) {
+                    const loc = userCoords || { latitude: undefined, longitude: undefined };
                     locData = { latitude: loc.latitude, longitude: loc.longitude };
-                } catch (err) {
-                    // Ignore
                 }
                 setPendingAttendance({
                     sessionId: values.sessionId,
@@ -360,6 +414,10 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
+            // Fetch session public details associated with the token first
+            const details = await getSessionPublicDetailsByQrToken(token);
+            setCurrentSessionDetails(details);
+
             // Trigger biometrics check automatically after successful QR scan
             const biometricsOk = await handleDeviceAuthentication();
             if (!biometricsOk) {
@@ -368,28 +426,41 @@ export default function Attendance() {
             }
 
             let payload: AttendancePayload = {};
-            try {
-                payload = await getBrowserLocation();
-            } catch {
-                payload = {};
+            let fetchedLoc = null;
+            if (details.validationTypes.includes('GPS')) {
+                try {
+                    fetchedLoc = await getBrowserLocation();
+                    setUserCoords(fetchedLoc);
+                    payload = { latitude: fetchedLoc.latitude, longitude: fetchedLoc.longitude };
+                } catch (err) {
+                    console.warn('Geolocation skipped or denied:', err);
+                }
             }
 
             await scanQrAttendance(token, payload);
             void messageApi.success(t('qrAttendanceSubmitted'));
             setScanOpen(false);
+            setCurrentSessionDetails(null);
+            setUserCoords(null);
             void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 setScanOpen(false);
-                let payload: AttendancePayload = {};
+                let locPayload: AttendancePayload = {};
+                // If we got the details earlier and fetched location, use it
                 try {
-                    payload = await getBrowserLocation();
-                } catch {
-                    payload = {};
+                    const details = await getSessionPublicDetailsByQrToken(token);
+                    if (details.validationTypes.includes('GPS')) {
+                        const loc = await getBrowserLocation();
+                        setUserCoords(loc);
+                        locPayload = { latitude: loc.latitude, longitude: loc.longitude };
+                    }
+                } catch (err) {
+                    // ignore
                 }
                 setPendingAttendance({
                     token,
-                    payload
+                    payload: locPayload
                 });
                 setFaceStep('capture');
                 setFaceModalOpen(true);
@@ -678,6 +749,61 @@ export default function Attendance() {
                     </Card>
                 </div>
             )}
+
+            {currentSessionDetails && currentSessionDetails.validationTypes.includes('GPS') && (
+                <Card
+                    className="attendance-map-card"
+                    style={{
+                        maxWidth: 1180,
+                        margin: '28px auto 0',
+                        borderRadius: 16,
+                    }}
+                    title={
+                        <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%' }}>
+                            <span>{t('sessionLocation') || 'Session Location'}: {currentSessionDetails.title}</span>
+                            <Space size={8}>
+                                <Button
+                                    size="small"
+                                    icon={<EnvironmentOutlined />}
+                                    onClick={async () => {
+                                        try {
+                                            const loc = await getBrowserLocation();
+                                            setUserCoords(loc);
+                                            void messageApi.success('Location updated!');
+                                        } catch (e) {
+                                            void messageApi.error(t('locationPermissionError') || 'Failed to get location');
+                                        }
+                                    }}
+                                >
+                                    {t('getLocation') || 'Get Location'}
+                                </Button>
+                                {fetchingDetails && <Spin size="small" />}
+                            </Space>
+                        </Flex>
+                    }
+                >
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                        This session requires geolocation check-in. You must be inside the designated radius.
+                    </Typography.Paragraph>
+                    <div style={{ height: 350, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+                        {currentSessionDetails.latitude !== undefined && currentSessionDetails.longitude !== undefined && userCoords ? (
+                            <SessionMap
+                                center={[currentSessionDetails.latitude, currentSessionDetails.longitude]}
+                                radius={currentSessionDetails.allowedRadius || 100}
+                                userLocation={[userCoords.latitude, userCoords.longitude]}
+                            />
+                        ) : (
+                            <Flex align="center" justify="center" style={{ height: '100%', background: '#f5f5f5' }}>
+                                <Space direction="vertical" align="center">
+                                    <Spin />
+                                    <Typography.Text type="secondary">Acquiring your location...</Typography.Text>
+                                </Space>
+                            </Flex>
+                        )}
+                    </div>
+                </Card>
+            )}
+
 
             <section className="attendance-history-section">
                 <Typography.Title level={2} className="section-kicker">
