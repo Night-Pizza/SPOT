@@ -2061,3 +2061,8 @@ h4.ant-typography,
   width: 100%;
   border-radius: 0;
 }
+
+/* Fix Leaflet map z-index escaping stacking context and overlapping sticky header */
+.leaflet-container {
+  z-index: 1;
+}
