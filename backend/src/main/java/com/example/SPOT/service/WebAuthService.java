@@ -18,9 +18,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -31,8 +28,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class WebAuthService implements CredentialRepository {
-
-    private static final Logger log = LoggerFactory.getLogger(WebAuthService.class);
 
     private final UserRepository userRepository;
     private final RelyingParty relyingParty;
@@ -50,8 +45,7 @@ public class WebAuthService implements CredentialRepository {
     }
 
     public WebAuthRegistrationOptionsDTO generateRegisterOptions(Long userId) {
-        UserModel user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        UserModel user = getUserOrThrow(userId);
 
         if (user.getWebauthLastModified() != null && 
             user.getWebauthLastModified().isAfter(java.time.LocalDateTime.now().minusDays(1))) {
@@ -96,7 +90,6 @@ public class WebAuthService implements CredentialRepository {
 
         try {
             String optionsJson = options.toJson();
-            log.info("Registration Options JSON: {}", optionsJson);
             challengeCache.put("reg:" + user.getEmail(), optionsJson);
             return new WebAuthRegistrationOptionsDTO(optionsJson);
         } catch (JsonProcessingException e) {
@@ -105,8 +98,7 @@ public class WebAuthService implements CredentialRepository {
     }
 
     public void verifyRegisterResponse(Long userId, WebAuthRegistrationVerifyDTO requestDto) {
-        UserModel user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        UserModel user = getUserOrThrow(userId);
 
         String cachedOptionsJson = challengeCache.getIfPresent("reg:" + user.getEmail());
         if (cachedOptionsJson == null) {
@@ -127,10 +119,7 @@ public class WebAuthService implements CredentialRepository {
             );
 
             byte[] newCredentialId = result.getKeyId().getId().getBytes();
-            Optional<UserModel> existingUser = userRepository.findByWebauthCredentialId(newCredentialId);
-            if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already in use by someone else");
-            }
+            requireUniqueCredentialId(newCredentialId, user.getId());
 
             Optional<UserModel> deviceOwner = userRepository.findByWebauthDeviceFingerprint(requestDto.deviceFingerprint());
             if (deviceOwner.isPresent() && !deviceOwner.get().getId().equals(user.getId())) {
@@ -152,8 +141,7 @@ public class WebAuthService implements CredentialRepository {
     }
 
     public WebAuthAssertionOptionsDTO generateAttendanceOptions(Long userId) {
-        UserModel user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        UserModel user = getUserOrThrow(userId);
 
         if (user.getWebauthCredentialId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please register your device first.");
@@ -168,7 +156,6 @@ public class WebAuthService implements CredentialRepository {
 
         try {
             String requestJson = request.toJson();
-            log.info("Assertion Request JSON: {}", requestJson);
             challengeCache.put("auth:" + user.getEmail(), requestJson);
             return new WebAuthAssertionOptionsDTO(requestJson);
         } catch (JsonProcessingException e) {
@@ -177,8 +164,7 @@ public class WebAuthService implements CredentialRepository {
     }
 
     public void verifyAttendanceResponse(Long userId, WebAuthAssertionVerifyDTO requestDto) {
-        UserModel user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        UserModel user = getUserOrThrow(userId);
 
         String cachedRequestJson = challengeCache.getIfPresent("auth:" + user.getEmail());
         if (cachedRequestJson == null) {
@@ -211,10 +197,7 @@ public class WebAuthService implements CredentialRepository {
 
             // Verify the same physical credential is not registered to a different account
             // (catches cases where the same device was registered to multiple accounts before the excludeCredentials fix)
-            Optional<UserModel> otherOwner = userRepository.findByWebauthCredentialId(pkc.getId().getBytes());
-            if (otherOwner.isPresent() && !otherOwner.get().getId().equals(user.getId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already registered to a different account.");
-            }
+            requireUniqueCredentialId(pkc.getId().getBytes(), user.getId());
 
             if (result.isSuccess()) {
                 if (result.getSignatureCount() > 0 && result.getSignatureCount() <= user.getWebauthSignatureCount()) {
@@ -273,37 +256,14 @@ public class WebAuthService implements CredentialRepository {
 
     @Override
     public Optional<RegisteredCredential> lookup(ByteArray credentialId, ByteArray userHandle) {
-        Optional<UserModel> userOpt = userRepository.findByWebauthCredentialId(credentialId.getBytes());
-        if (userOpt.isEmpty()) {
-            return Optional.empty();
-        }
-        UserModel user = userOpt.get();
-        return Optional.of(
-                RegisteredCredential.builder()
-                        .credentialId(credentialId)
-                        .userHandle(userHandle)
-                        .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
-                        .signatureCount(user.getWebauthSignatureCount())
-                        .build()
-        );
+        return createRegisteredCredential(credentialId, userHandle);
     }
 
     @Override
     public Set<RegisteredCredential> lookupAll(ByteArray credentialId) {
-        Optional<UserModel> userOpt = userRepository.findByWebauthCredentialId(credentialId.getBytes());
-        if (userOpt.isEmpty()) {
-            return Collections.emptySet();
-        }
-        UserModel user = userOpt.get();
-        byte[] userHandle = longToBytes(user.getId());
-        return Collections.singleton(
-                RegisteredCredential.builder()
-                        .credentialId(credentialId)
-                        .userHandle(new ByteArray(userHandle))
-                        .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
-                        .signatureCount(user.getWebauthSignatureCount())
-                        .build()
-        );
+        return createRegisteredCredential(credentialId, null)
+                .map(Collections::singleton)
+                .orElse(Collections.emptySet());
     }
 
     private byte[] longToBytes(long x) {
@@ -317,5 +277,31 @@ public class WebAuthService implements CredentialRepository {
         buffer.put(bytes);
         buffer.flip();
         return buffer.getLong();
+    }
+
+    private UserModel getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    private void requireUniqueCredentialId(byte[] credentialId, Long currentUserId) {
+        userRepository.findByWebauthCredentialId(credentialId).ifPresent(existingUser -> {
+            if (!existingUser.getId().equals(currentUserId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already in use by someone else");
+            }
+        });
+    }
+
+    private Optional<RegisteredCredential> createRegisteredCredential(ByteArray credentialId, ByteArray userHandleOpt) {
+        return userRepository.findByWebauthCredentialId(credentialId.getBytes())
+                .map(user -> {
+                    ByteArray userHandle = userHandleOpt != null ? userHandleOpt : new ByteArray(longToBytes(user.getId()));
+                    return RegisteredCredential.builder()
+                            .credentialId(credentialId)
+                            .userHandle(userHandle)
+                            .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
+                            .signatureCount(user.getWebauthSignatureCount())
+                            .build();
+                });
     }
 }
