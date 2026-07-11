@@ -126,17 +126,21 @@ public class WebAuthService implements CredentialRepository {
                             .build()
             );
 
-
-
             byte[] newCredentialId = result.getKeyId().getId().getBytes();
             Optional<UserModel> existingUser = userRepository.findByWebauthCredentialId(newCredentialId);
             if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already in use by someone else");
             }
 
+            Optional<UserModel> deviceOwner = userRepository.findByWebauthDeviceFingerprint(requestDto.deviceFingerprint());
+            if (deviceOwner.isPresent() && !deviceOwner.get().getId().equals(user.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This physical device is already registered to another user.");
+            }
+
             user.setWebauthCredentialId(newCredentialId);
             user.setWebauthPublicKey(result.getPublicKeyCose().getBytes());
             user.setWebauthSignatureCount(result.getSignatureCount());
+            user.setWebauthDeviceFingerprint(requestDto.deviceFingerprint());
             user.setWebauthLastModified(java.time.LocalDateTime.now());
             userRepository.save(user);
 
@@ -198,6 +202,11 @@ public class WebAuthService implements CredentialRepository {
             if (user.getWebauthCredentialId() == null ||
                 !java.util.Arrays.equals(user.getWebauthCredentialId(), pkc.getId().getBytes())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The biometric key used does not belong to your account.");
+            }
+
+            if (user.getWebauthDeviceFingerprint() != null &&
+                !user.getWebauthDeviceFingerprint().equals(requestDto.deviceFingerprint())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unrecognized physical device. Please use the device you originally registered.");
             }
 
             // Verify the same physical credential is not registered to a different account
