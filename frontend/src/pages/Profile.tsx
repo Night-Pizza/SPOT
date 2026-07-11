@@ -120,7 +120,7 @@ export default function Profile() {
     };
 
     return (
-        <AppShell title={t('profile')}>
+        <AppShell title={t('profile')} pageClassName="profile-page">
             {contextHolder}
             {error && (
                 <Alert
@@ -131,77 +131,84 @@ export default function Profile() {
                     style={{ marginBottom: 16 }}
                 />
             )}
-            <div className="profile-card">
-                <div className="profile-avatar-placeholder">
-                    {loading ? <Spin size="small" /> : avatarText}
-                </div>
-                <div className="profile-info">
-                    <p className="profile-name">{loading ? 'Loading...' : email}</p>
-                    <p className="profile-email">{email}</p>
-                </div>
-            </div>
-
-            <Flex gap={16} className="profile-stats-row" wrap="wrap">
-                <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">
-                        {statsLoading ? <Spin size="small" /> : stats.created}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
-                </Card>
-                <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">
-                        {statsLoading ? <Spin size="small" /> : stats.attended}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
-                </Card>
-            </Flex>
-
-            <Card className="profile-contact-card" title={t('contactInformation')}>
-                <Flex align="center" gap={14}>
-                    <span className="contact-icon"><MailOutlined /></span>
-                    <div>
-                        <Typography.Text type="secondary" className="contact-label">{t('email')}</Typography.Text>
-                        <Typography.Text strong className="contact-value">{email}</Typography.Text>
+            <section className="profile-overview">
+                <div className="profile-card">
+                    <div className="profile-avatar-placeholder">
+                        {loading ? <Spin size="small" /> : avatarText}
                     </div>
-                </Flex>
-            </Card>
+                    <div className="profile-info">
+                        <p className="profile-name">{loading ? 'Loading...' : email}</p>
+                        <p className="profile-email">{email}</p>
+                    </div>
+                </div>
 
-            <Button
-                block
-                size="large"
-                className="change-password-btn"
-                onClick={() => setIsPasswordModalOpen(true)}
-                style={{ marginBottom: 16 }}
-            >
-                {t('changePassword')}
-            </Button>
+                <Card className="profile-stats-card" title="Session activity">
+                    <div className="profile-stats-row">
+                        <div className="profile-stat-item">
+                            <Typography.Title level={2} className="profile-stat-number">
+                                {statsLoading ? <Spin size="small" /> : stats.created}
+                            </Typography.Title>
+                            <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
+                        </div>
+                        <div className="profile-stat-item">
+                            <Typography.Title level={2} className="profile-stat-number">
+                                {statsLoading ? <Spin size="small" /> : stats.attended}
+                            </Typography.Title>
+                            <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
+                        </div>
+                    </div>
+                </Card>
+            </section>
 
-            <Button
-                block
-                size="large"
-                type="primary"
-                className="primary-action"
-                onClick={() => setIsFaceModalOpen(true)}
-                style={{ marginBottom: 16 }}
-            >
-                Update Face
-            </Button>
+            <section className="profile-details-grid">
+                <Card className="profile-contact-card" title={t('contactInformation')}>
+                    <Flex align="center" gap={14} className="profile-contact-row">
+                        <span className="contact-icon"><MailOutlined /></span>
+                        <div>
+                            <Typography.Text type="secondary" className="contact-label">{t('email')}</Typography.Text>
+                            <Typography.Text strong className="contact-value">{email}</Typography.Text>
+                        </div>
+                    </Flex>
+                </Card>
 
-            <Button
-                block
-                size="large"
-                className="change-password-btn"
-                onClick={handleRegisterDevice}
-                loading={registeringDevice}
-                icon={<SafetyCertificateOutlined />}
-                style={{ marginBottom: 16 }}
-            >
-                {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
-            </Button>
+                <Card className="profile-actions-card" title="Account actions">
+                    <div className="profile-actions-list">
+                        <Button
+                            block
+                            size="large"
+                            className="change-password-btn"
+                            onClick={() => setIsPasswordModalOpen(true)}
+                        >
+                            {t('changePassword')}
+                        </Button>
 
-            <button className="profile-logout-btn" onClick={handleLogout}>
-                {t('logout')}
-            </button>
+                        <Button
+                            block
+                            size="large"
+                            type="primary"
+                            className="primary-action"
+                            onClick={() => setIsFaceModalOpen(true)}
+                        >
+                            Update Face Recognition
+                        </Button>
+
+                        <Button
+                            block
+                            size="large"
+                            className="change-password-btn"
+                            onClick={handleRegisterDevice}
+                            loading={registeringDevice}
+                            icon={<SafetyCertificateOutlined />}
+                        >
+                            {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
+                        </Button>
+
+                        <button className="profile-logout-btn" onClick={handleLogout}>
+                            {t('logout')}
+                        </button>
+                    </div>
+                </Card>
+            </section>
 
             <Modal
                 title={t('changePassword')}

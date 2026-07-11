@@ -79,6 +79,7 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
             closable={false}
             maskClosable={false}
             width={600}
+            className="responsive-modal face-registration-modal"
         >
             {step === 'capture' && (
                 <Typography.Paragraph type="secondary">

@@ -115,7 +115,7 @@ export default function SessionsPage() {
                     <Typography.Text style={{ fontWeight: 400 }}>{t('noSessions')}</Typography.Text>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+                <div className="sessions-grid">
                     {sessions.map((session) => (
                         <Card
                             key={session.id}
