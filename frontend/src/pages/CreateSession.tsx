@@ -117,6 +117,7 @@ export default function CreateSessionPage() {
                     initialValues={{ geolocationEnabled: false, faceRecognitionEnabled: false, radius: 100 }}
                     onFinish={handleSubmit}
                     requiredMark={false}
+                    autoComplete="off"
                 >
                     <Form.Item
                         label="Session Mode"
@@ -151,7 +152,7 @@ export default function CreateSessionPage() {
                             { required: true, whitespace: true, message: t('titleRequired') || 'Please enter a session title.' },
                         ]}
                     >
-                        <Input placeholder={t('titlePlaceholder') || 'e.g. Machine Learning Lecture'} size="large" />
+                        <Input placeholder={t('titlePlaceholder') || 'e.g. Machine Learning Lecture'} size="large" autoComplete="off" />
                     </Form.Item>
 
                     <div className="session-switch-row" style={{ marginBottom: 16 }}>
@@ -249,7 +250,7 @@ export default function CreateSessionPage() {
                             ]}
                             extra={t('codeExtra') || 'Participants can use this code to join.'}
                         >
-                            <Input.Password placeholder={t('codePlaceholder') || 'Enter password'} size="large" />
+                            <Input.Password placeholder={t('codePlaceholder') || 'Enter password'} size="large" autoComplete="new-password" />
                         </Form.Item>
                     )}
 

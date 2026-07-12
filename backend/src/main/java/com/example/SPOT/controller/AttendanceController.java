@@ -111,6 +111,14 @@ public class AttendanceController {
         return ResponseEntity.ok().body(attendanceService.getAllAttendance());
     }
 
+    @GetMapping("/export")
+    public void exportAttendance(
+            @RequestParam Long sessionId,
+            @RequestParam String format,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        attendanceService.exportAttendance(sessionId, format, response);
+    }
+
     @GetMapping("/status/{requestId}")
     public ResponseEntity<PollingStatusDTO> checkStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
         KafkaModel request = kafkaRepository.findById(requestId)

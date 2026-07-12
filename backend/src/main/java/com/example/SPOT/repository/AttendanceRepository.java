@@ -23,4 +23,7 @@ public interface AttendanceRepository extends JpaRepository<AttendanceModel, Lon
     void deleteBySessionId(Long id);
 
     long countByUserId(Long id);
-}
+
+    @Query("SELECT a FROM AttendanceModel a WHERE a.session.id = :sessionId")
+    java.util.stream.Stream<AttendanceModel> streamBySessionId(@org.springframework.data.repository.query.Param("sessionId") Long sessionId);
+}
