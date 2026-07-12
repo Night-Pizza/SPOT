@@ -6,6 +6,7 @@ import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.kafka.KafkaMessagingService;
+import com.example.SPOT.model.AuthProvider;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.repository.UserRepository;
@@ -45,7 +46,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", null);
+        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", AuthProvider.LOCAL, null);
     }
 
     @Test

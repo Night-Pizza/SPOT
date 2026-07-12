@@ -1,8 +1,10 @@
 package com.example.SPOT.controller;
 
 import java.net.URI;
-import java.util.Collections;
+import java.time.Instant;
+import java.util.List;
 
+import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.service.MyUniversitySsoService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -61,12 +64,14 @@ public class AuthController {
             existingSession.invalidate();
         }
 
-        request.getSession(true);
+        HttpSession session = request.getSession(true);
+        session.setAttribute(AuthConstants.AUTH_METHOD_SESSION_ATTRIBUTE, AuthConstants.AUTH_METHOD_SSO);
+        session.setAttribute(AuthConstants.AUTHENTICATED_AT_SESSION_ATTRIBUTE, Instant.now());
 
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
-                Collections.emptyList());
+                List.of(new SimpleGrantedAuthority(AuthConstants.ROLE_SSO)));
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);

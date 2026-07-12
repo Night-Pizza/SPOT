@@ -23,8 +23,19 @@ public class UserModel {
     @Column(name = "password")
     private String password;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider")
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
     @Column(name = "embedding", columnDefinition = "TEXT")
     @Convert(converter = DoubleArrayConverter.class)
     private Double[] embedding;
+
+    @PrePersist
+    public void prePersist() {
+        if (authProvider == null) {
+            authProvider = AuthProvider.LOCAL;
+        }
+    }
 
 }

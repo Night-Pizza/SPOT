@@ -11,6 +11,7 @@ import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.kafka.KafkaMessagingService;
 import com.example.SPOT.model.EmbeddingStatus;
+import com.example.SPOT.model.AuthProvider;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.KafkaRepository;
@@ -57,6 +58,8 @@ public class UserService {
             throw new CustomException("WRONG_PASSWORD", "Password does not match");
         }
 
+        normalizeMissingAuthProvider(user, AuthProvider.LOCAL);
+
         return mapToDTO(user);
     }
 
@@ -72,6 +75,7 @@ public class UserService {
                 null,
                 userCreateDTO.email(),
                 passwordEncoder.encode(userCreateDTO.password()),
+                AuthProvider.LOCAL,
                 null
         );
         return mapToDTO(userRepository.save(newUser));
@@ -82,6 +86,7 @@ public class UserService {
 
         UserModel existingUser = userRepository.findByEmail(email);
         if (existingUser != null) {
+            normalizeMissingAuthProvider(existingUser, AuthProvider.LOCAL);
             return mapToDTO(existingUser);
         }
 
@@ -89,10 +94,18 @@ public class UserService {
                 null,
                 email,
                 passwordEncoder.encode(UUID.randomUUID().toString()),
+                AuthProvider.MY_UNIVERSITY_SSO,
                 null
         );
 
         return mapToDTO(userRepository.save(newUser));
+    }
+
+    private void normalizeMissingAuthProvider(UserModel user, AuthProvider defaultProvider) {
+        if (user.getAuthProvider() == null) {
+            user.setAuthProvider(defaultProvider);
+            userRepository.save(user);
+        }
     }
 
     public void deleteUser(Long id) {

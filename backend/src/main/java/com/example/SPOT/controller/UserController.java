@@ -7,6 +7,7 @@ import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.FaceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserDTO;
+import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
@@ -16,15 +17,15 @@ import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import java.util.Collections;
-import java.util.Map;
+import java.util.List;
 import java.time.Duration;
+import java.time.Instant;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -90,12 +91,14 @@ public class UserController {
             existingSession.invalidate();
         }
         
-        request.getSession(true);
+        HttpSession session = request.getSession(true);
+        session.setAttribute(AuthConstants.AUTH_METHOD_SESSION_ATTRIBUTE, AuthConstants.AUTH_METHOD_LOCAL);
+        session.setAttribute(AuthConstants.AUTHENTICATED_AT_SESSION_ATTRIBUTE, Instant.now());
 
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
-                Collections.emptyList());
+                List.of(new SimpleGrantedAuthority(AuthConstants.ROLE_LOCAL)));
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);
@@ -116,12 +119,14 @@ public class UserController {
             existingSession.invalidate();
         }
 
-        request.getSession(true);
+        HttpSession session = request.getSession(true);
+        session.setAttribute(AuthConstants.AUTH_METHOD_SESSION_ATTRIBUTE, AuthConstants.AUTH_METHOD_LOCAL);
+        session.setAttribute(AuthConstants.AUTHENTICATED_AT_SESSION_ATTRIBUTE, Instant.now());
 
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
-                Collections.emptyList());
+                List.of(new SimpleGrantedAuthority(AuthConstants.ROLE_LOCAL)));
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);

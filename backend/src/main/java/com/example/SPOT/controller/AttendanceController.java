@@ -1,10 +1,10 @@
 package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.request.QrScanRequestDTO;
+import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
-import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
@@ -19,6 +19,8 @@ import com.example.SPOT.service.RateLimitService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,13 +45,21 @@ public class AttendanceController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<AttendDTO> createAttendance(@Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+    public ResponseEntity<AttendDTO> createAttendance(
+            @Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO,
+            @AuthenticationPrincipal String userIdStr,
+            Authentication authentication) {
+        requireSsoAuthentication(authentication);
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
     }
 
     @PostMapping("/scan")
-    public ResponseEntity<AttendDTO> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr){
+    public ResponseEntity<AttendDTO> scanQrCode(
+            @Valid @RequestBody QrScanRequestDTO qrScanRequestDTO,
+            @AuthenticationPrincipal String userIdStr,
+            Authentication authentication){
+        requireSsoAuthentication(authentication);
         Long userId = Long.valueOf(userIdStr);
         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
         String key = "attendance-scan:" + userId + ":" + sessionId;
@@ -113,5 +123,12 @@ public class AttendanceController {
                 request.getStatus().name(),
                 request.getErrorMessage() != null ? request.getErrorMessage() : ""
         ));
+    }
+
+    private void requireSsoAuthentication(Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities().stream()
+                .noneMatch(authority -> AuthConstants.ROLE_SSO.equals(authority.getAuthority()))) {
+            throw new AccessDeniedException("SSO login is required to create attendance");
+        }
     }
 }
