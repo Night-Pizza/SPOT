@@ -102,7 +102,12 @@ jobs:
                 DB_PASSWORD=${{ secrets.DB_PASSWORD }}
                 DB_NAME=${{ secrets.DB_NAME }}
                 KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
-                APP_HOST=${{ secrets.APP_HOST}}
+                APP_HOST=${{ secrets.APP_HOST }}
+                MY_UNIVERSITY_ORIGIN=${{ secrets.MY_UNIVERSITY_ORIGIN }}
+                MY_UNIVERSITY_CLIENT_ID=${{ secrets.MY_UNIVERSITY_CLIENT_ID }}
+                MY_UNIVERSITY_CLIENT_SECRET=${{ secrets.MY_UNIVERSITY_CLIENT_SECRET }}
+                MY_UNIVERSITY_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_REDIRECT_URI }}
+                MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI }}
                 EOF
 
             - name: Deploy to Server
