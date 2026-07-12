@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginUser } from '../api/Authentification';
+import { loginUser, startMyUniversityLogin } from '../api/Authentification';
 import { useAuth } from '../contexts/AuthContext';
 
 function validateEmail(email: string): string | null {
@@ -42,6 +42,9 @@ export default function LoginPage() {
             <div className="auth-inner">
                 <img src="/iu-logo.png" alt="Innopolis University" className="iu-logo" />
                 <h1 className="auth-heading">Login</h1>
+                <button className="auth-sso-button" type="button" onClick={startMyUniversityLogin}>
+                    Continue with My.University
+                </button>
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <input
                         className="auth-input"

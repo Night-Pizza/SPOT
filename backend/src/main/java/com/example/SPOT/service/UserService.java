@@ -1,5 +1,7 @@
 package com.example.SPOT.service;
 
+import java.util.UUID;
+
 import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
@@ -72,6 +74,24 @@ public class UserService {
                 passwordEncoder.encode(userCreateDTO.password()),
                 null
         );
+        return mapToDTO(userRepository.save(newUser));
+    }
+
+    public UserDTO findOrCreateSsoUser(String email) {
+        validateEmail(email);
+
+        UserModel existingUser = userRepository.findByEmail(email);
+        if (existingUser != null) {
+            return mapToDTO(existingUser);
+        }
+
+        UserModel newUser = new UserModel(
+                null,
+                email,
+                passwordEncoder.encode(UUID.randomUUID().toString()),
+                null
+        );
+
         return mapToDTO(userRepository.save(newUser));
     }
 

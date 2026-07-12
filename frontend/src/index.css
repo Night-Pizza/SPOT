@@ -86,6 +86,23 @@ body {
   cursor: pointer;
 }
 
+.auth-sso-button {
+  width: 100%;
+  height: 56px;
+  margin-bottom: 18px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #111827;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.auth-sso-button:hover {
+  border-color: #5ec832;
+  color: #3f9727;
+}
+
 .auth-submit:disabled {
   opacity: 0.7;
 }
@@ -1024,6 +1041,11 @@ body {
 [data-theme="dark"] .auth-submit {
   background: #5ec832;
   color: #fff;
+}
+[data-theme="dark"] .auth-sso-button {
+  background: #2d3748;
+  border-color: var(--border-color);
+  color: var(--text-primary);
 }
 [data-theme="dark"] .auth-error {
   color: #f87171;

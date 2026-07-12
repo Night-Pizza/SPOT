@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .requestMatchers("/user/login").permitAll()
                         .requestMatchers("/user/register").permitAll()
                         .requestMatchers("/auth/csrf").permitAll()
+                        .requestMatchers("/auth/my-university/login").permitAll()
+                        .requestMatchers("/auth/my-university/callback").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/docs").permitAll()
