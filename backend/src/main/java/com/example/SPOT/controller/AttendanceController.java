@@ -15,7 +15,7 @@ import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.AttendanceService;
 import com.example.SPOT.service.QRTokenService;
 import com.example.SPOT.service.RateLimitService;
-
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,13 +43,21 @@ public class AttendanceController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<AttendDTO> createAttendance(@Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+    public ResponseEntity<AttendDTO> createAttendance(@Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO, @AuthenticationPrincipal String userIdStr, HttpServletRequest request) {
+        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+        if (isVerified == null || !isVerified) {
+            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
+        }
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
     }
 
     @PostMapping("/scan")
-    public ResponseEntity<AttendDTO> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr){
+    public ResponseEntity<AttendDTO> scanQrCode(@Valid @RequestBody QrScanRequestDTO qrScanRequestDTO, @AuthenticationPrincipal String userIdStr, HttpServletRequest request){
+        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+        if (isVerified == null || !isVerified) {
+            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to scan QR code");
+        }
         Long userId = Long.valueOf(userIdStr);
         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
         String key = "attendance-scan:" + userId + ":" + sessionId;
@@ -72,7 +80,11 @@ public class AttendanceController {
     }
 
     @PostMapping("/create/email")
-    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr, HttpServletRequest request) {
+        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+        if (isVerified == null || !isVerified) {
+            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
+        }
         Long userId = Long.valueOf(userIdStr);
 
         String key = "attendance-email:" + userId + ":" + emailAttendanceCreateDTO.sessionId();
