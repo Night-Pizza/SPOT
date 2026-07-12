@@ -21,8 +21,8 @@ import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import FaceCapture from '../components/face/FaceCapture';
 import { fileToBase64, checkAttendanceStatus } from '../api/Face';
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
-import { getAssertionOptions, verifyAssertion, getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+import { startRegistration } from '@simplewebauthn/browser';
+import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 
 type CodeFormValues = {
     sessionId: number;
@@ -162,7 +162,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading, refreshCurrentUser } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -229,6 +229,7 @@ export default function Attendance() {
 
             await verifyRegistration(JSON.stringify(attestationResponse));
             void messageApi.success('Biometric device registered successfully!');
+            markWebauthVerified();
             await refreshCurrentUser();
         } catch (err: any) {
             console.error('Device registration failed:', err);
@@ -242,49 +243,9 @@ export default function Attendance() {
         }
     };
 
-    const handleDeviceAuthentication = async (): Promise<boolean> => {
-        try {
-            const { optionsJson } = await getAssertionOptions();
-            const parsedOptions = JSON.parse(optionsJson);
-            const authOptions = parsedOptions.publicKeyCredentialRequestOptions || parsedOptions.publicKey || parsedOptions;
-
-            if (authOptions && authOptions.extensions) {
-                delete authOptions.extensions.appidExclude;
-                delete authOptions.extensions.appid;
-            }
-
-            authOptions.hints = ['client-device'];
-
-            const assertionResponse = await startAuthentication({
-                optionsJSON: authOptions,
-                useBrowserAutofill: false,
-            });
-
-            await verifyAssertion(JSON.stringify(assertionResponse));
-            return true;
-        } catch (err: any) {
-            console.error('Device biometric check failed:', err);
-            let errorMsg = err.message || 'Device biometric verification failed.';
-            
-            if (errorMsg.toLowerCase().includes('no credential') || errorMsg.toLowerCase().includes('not allowed')) {
-                errorMsg = 'Passkey not found on this device. Please use the exact device you originally registered with.';
-            }
-            
-            void messageApi.error(errorMsg);
-            return false;
-        }
-    };
-
-
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
-            // Trigger biometrics check automatically before submitting session code
-            const biometricsOk = await handleDeviceAuthentication();
-            if (!biometricsOk) {
-                setSubmitting(false);
-                return;
-            }
 
             let locationData: { latitude?: number, longitude?: number } = {};
             try {
@@ -360,12 +321,6 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
-            // Trigger biometrics check automatically after successful QR scan
-            const biometricsOk = await handleDeviceAuthentication();
-            if (!biometricsOk) {
-                setScanLoading(false);
-                return;
-            }
 
             let payload: AttendancePayload = {};
             try {

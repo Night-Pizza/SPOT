@@ -13,7 +13,7 @@ import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { user, loading, refreshCurrentUser } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified } = useAuth();
     const { t } = useTheme();
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
 
@@ -55,6 +55,7 @@ export default function Dashboard() {
 
             await verifyRegistration(JSON.stringify(attestationResponse));
             void message.success('Biometric device registered successfully!');
+            markWebauthVerified();
             await refreshCurrentUser();
             
             // Auto trigger face registration after successful device registration
