@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isWebauthVerified, setIsWebauthVerified] = useState<boolean>(() => {
-        return sessionStorage.getItem('spot_webauth_verified') === 'true';
+        return localStorage.getItem('spot_webauth_verified') === 'true';
     });
 
     const verifyWebauth = useCallback(async (): Promise<boolean> => {
@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             await verifyAssertion(JSON.stringify(assertionResponse));
             
             setIsWebauthVerified(true);
-            sessionStorage.setItem('spot_webauth_verified', 'true');
+            localStorage.setItem('spot_webauth_verified', 'true');
             return true;
         } catch (err) {
             console.error('WebAuthn verification failed:', err);
@@ -73,13 +73,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const clearWebauthVerification = useCallback(() => {
-        setIsWebauthVerified(false);
-        sessionStorage.removeItem('spot_webauth_verified');
+        localStorage.removeItem('spot_webauth_verified');
     }, []);
 
     const markWebauthVerified = useCallback(() => {
         setIsWebauthVerified(true);
-        sessionStorage.setItem('spot_webauth_verified', 'true');
+        localStorage.setItem('spot_webauth_verified', 'true');
     }, []);
 
     const updateUser = (data: Partial<User>) =>

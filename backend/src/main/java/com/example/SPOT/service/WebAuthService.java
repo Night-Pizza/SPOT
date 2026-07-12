@@ -69,10 +69,6 @@ public class WebAuthService implements CredentialRepository {
                         .build()
         );
 
-        // Populate excludeCredentials with ALL other users' credentials so the browser
-        // refuses to register the same physical device for a different account.
-        // (getCredentialIdsForUsername only returns the current user's credential,
-        //  which is correct for assertion but insufficient for this registration check.)
         Set<PublicKeyCredentialDescriptor> otherCredentials = userRepository.findAll().stream()
                 .filter(u -> u.getWebauthCredentialId() != null && !u.getId().equals(user.getId()))
                 .map(u -> PublicKeyCredentialDescriptor.builder()
