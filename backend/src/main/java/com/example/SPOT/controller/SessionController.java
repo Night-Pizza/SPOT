@@ -1,5 +1,20 @@
 package com.example.SPOT.controller;
 
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
 import com.example.SPOT.dto.response.SessionDetailsDTO;
@@ -7,16 +22,10 @@ import com.example.SPOT.dto.response.SessionResponseDTO;
 import com.example.SPOT.dto.response.SessionPublicDetailsDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
-import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.service.SessionService;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/session")
@@ -87,25 +96,6 @@ public class SessionController {
         return ResponseEntity.ok(sessionService.getSessionDetails(id, userId));
     }
 
-
-    @GetMapping("/alla")
-    public ResponseEntity<List<Long>> getAllaSessions(){
-        return ResponseEntity.ok().body(sessionService.getAllaSessions());
-    }
-
-    @PostMapping("/test")
-    public ResponseEntity<Void> createUser(){
-        UserModel userModel = new UserModel();
-        userModel.setEmail("1234567890");
-        userModel.setPassword("44444");
-        userRepository.save(userModel);
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/test")
-    public ResponseEntity<Long> getNumber(){
-        return ResponseEntity.ok().body(userRepository.count());
-    }
 
     @GetMapping("/{id}/public")
     public ResponseEntity<SessionPublicDetailsDTO> getSessionPublicDetails(@PathVariable Long id) {

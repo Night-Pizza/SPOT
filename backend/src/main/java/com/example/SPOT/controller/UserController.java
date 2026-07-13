@@ -1,5 +1,27 @@
 package com.example.SPOT.controller;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
@@ -10,12 +32,15 @@ import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
-import com.example.SPOT.service.UserService;
 import com.example.SPOT.service.RateLimitService;
-import jakarta.validation.Valid;
+import com.example.SPOT.service.UserService;
+
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+
 import java.util.Collections;
 import java.util.Map;
 import java.time.Duration;
@@ -57,12 +82,6 @@ public class UserController {
         return request.getRemoteAddr();
     }
 
-    @GetMapping()
-    public ResponseEntity<UserDTO> getUser(@AuthenticationPrincipal String userIdStr) {
-        Long userId = Long.valueOf(userIdStr);
-        return ResponseEntity.ok(userService.getUser(userId));
-    }
-
     @GetMapping("/me")
     public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal String userIdStr) {
         Long userId = Long.valueOf(userIdStr);
@@ -89,12 +108,14 @@ public class UserController {
             existingSession.invalidate();
         }
         
-        request.getSession(true);
+        HttpSession session = request.getSession(true);
+        session.setAttribute(AuthConstants.AUTH_METHOD_SESSION_ATTRIBUTE, AuthConstants.AUTH_METHOD_LOCAL);
+        session.setAttribute(AuthConstants.AUTHENTICATED_AT_SESSION_ATTRIBUTE, Instant.now());
 
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
-                Collections.emptyList());
+                List.of(new SimpleGrantedAuthority(AuthConstants.ROLE_LOCAL)));
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);
@@ -115,12 +136,14 @@ public class UserController {
             existingSession.invalidate();
         }
 
-        request.getSession(true);
+        HttpSession session = request.getSession(true);
+        session.setAttribute(AuthConstants.AUTH_METHOD_SESSION_ATTRIBUTE, AuthConstants.AUTH_METHOD_LOCAL);
+        session.setAttribute(AuthConstants.AUTHENTICATED_AT_SESSION_ATTRIBUTE, Instant.now());
 
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
                 response.id().toString(),
                 null,
-                Collections.emptyList());
+                List.of(new SimpleGrantedAuthority(AuthConstants.ROLE_LOCAL)));
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);
@@ -151,12 +174,6 @@ public class UserController {
         responseHttp.addCookie(csrfCookie); 
 
         return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/delete")
-    public void deleteUser(@AuthenticationPrincipal String userIdStr){
-        Long userId = Long.valueOf(userIdStr);
-        userService.deleteUser(userId);
     }
 
     @PatchMapping("/update")

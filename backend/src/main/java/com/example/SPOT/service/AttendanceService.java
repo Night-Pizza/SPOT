@@ -23,9 +23,18 @@ import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.repository.SessionRepository;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.PrintWriter;
+import java.io.IOException;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AttendanceService {
@@ -143,6 +152,59 @@ public class AttendanceService {
 
     public Long getAttendedSessionsCount(Long id){
         return attendanceRepository.countByUserId(id);
+    }
+
+    @Transactional(readOnly = true)
+    public void exportAttendance(Long sessionId, String format, HttpServletResponse response) throws IOException {
+        SessionModel session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new CustomException("SESSION_NOT_FOUND", "Session not found"));
+        
+        response.setCharacterEncoding("UTF-8");
+        
+        try (PrintWriter writer = response.getWriter();
+             Stream<AttendanceModel> stream = attendanceRepository.streamBySessionId(sessionId)) {
+            
+            if ("csv".equalsIgnoreCase(format)) {
+                response.setContentType("text/csv");
+                response.setHeader("Content-Disposition", "attachment; filename=\"attendance_" + sessionId + ".csv\"");
+                
+                try (CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.builder().setHeader("email", "stage", "time", "manual").build())) {
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+                    stream.forEach(attendance -> {
+                        try {
+                            String email = attendance.getUser().getEmail();
+                            String time = attendance.getTimestamp() != null ? attendance.getTimestamp().format(formatter) : "";
+                            csvPrinter.printRecord(email, "0", time, "0");
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error writing CSV", e);
+                        }
+                    });
+                }
+            } else if ("moodle".equalsIgnoreCase(format)) {
+                response.setContentType("text/csv");
+                response.setHeader("Content-Disposition", "attachment; filename=\"attendance_moodle_" + sessionId + ".csv\"");
+                
+                try (CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.builder().setHeader("External user field", "status").build())) {
+                    stream.forEach(attendance -> {
+                        try {
+                            String email = attendance.getUser().getEmail();
+                            csvPrinter.printRecord(email, "P");
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error writing CSV", e);
+                        }
+                    });
+                }
+            } else if ("txt".equalsIgnoreCase(format)) {
+                response.setContentType("text/plain");
+                response.setHeader("Content-Disposition", "attachment; filename=\"attendance_" + sessionId + ".txt\"");
+                
+                stream.forEach(attendance -> {
+                    writer.println(attendance.getUser().getEmail());
+                });
+            } else {
+                throw new CustomException("INVALID_FORMAT", "Unsupported export format");
+            }
+        }
     }
 
     private AttendanceResponseDTO mapToDTO(AttendanceModel attendanceModel) {

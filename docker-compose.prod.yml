@@ -83,12 +83,12 @@ services:
       - "traefik.http.routers.backend-login.priority=100"
       - "traefik.http.routers.backend-login.middlewares=login-ratelimit,strip-api"
       - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=60"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=3000"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.period=1m"
-      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=20"
-      - "traefik.http.middlewares.login-ratelimit.ratelimit.average=5"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=1000"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.average=1000"
       - "traefik.http.middlewares.login-ratelimit.ratelimit.period=1m"
-      - "traefik.http.middlewares.login-ratelimit.ratelimit.burst=5"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.burst=300"
     env_file:
       - .env
     networks:
@@ -99,6 +99,11 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MY_UNIVERSITY_ORIGIN: ${MY_UNIVERSITY_ORIGIN:-}
+      MY_UNIVERSITY_CLIENT_ID: ${MY_UNIVERSITY_CLIENT_ID:-}
+      MY_UNIVERSITY_CLIENT_SECRET: ${MY_UNIVERSITY_CLIENT_SECRET:-}
+      MY_UNIVERSITY_REDIRECT_URI: ${MY_UNIVERSITY_REDIRECT_URI:-https://${APP_HOST}/api/auth/my-university/callback}
+      MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI: ${MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI:-/dashboard}
       WEBAUTHN_RP_ID: ${WEBAUTH_RP_ID}
       WEBAUTHN_RP_NAME: ${WEBAUTH_RP_NAME}
   

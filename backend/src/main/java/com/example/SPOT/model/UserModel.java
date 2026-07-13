@@ -24,6 +24,10 @@ public class UserModel {
     @Column(name = "password")
     private String password;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider")
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
     @Column(name = "embedding", columnDefinition = "TEXT")
     @Convert(converter = DoubleArrayConverter.class)
     private Double[] embedding;
@@ -37,7 +41,13 @@ public class UserModel {
     private Long webauthSignatureCount;
 
     private LocalDateTime webauthLastModified;
-
     @Column(name = "webauth_device_fingerprint")
     private String webauthDeviceFingerprint;
+
+    @PrePersist
+    public void prePersist() {
+        if (authProvider == null) {
+            authProvider = AuthProvider.LOCAL;
+        }
+    }
 }

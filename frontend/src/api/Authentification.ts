@@ -1,12 +1,18 @@
 import type { UserCreateDTO, UserDTO, UserLoginDTO } from '../types/Authentification';
 import { converter } from './Converter';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 function getCookie(name: string): string | null {
     const match = document.cookie
         .split('; ')
         .find((row) => row.startsWith(`${name}=`));
 
     return match ? decodeURIComponent(match.split('=')[1]) : null;
+}
+
+export function startMyUniversityLogin(): void {
+    window.location.assign(`${API_BASE_URL}/auth/my-university/login`);
 }
 
 export async function loginUser(data: UserLoginDTO): Promise<UserDTO> {

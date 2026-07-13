@@ -1,15 +1,14 @@
 import AppShell from '../components/AppShell';
-import { MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
-import { useState, useEffect } from 'react';
+import { SafetyCertificateOutlined } from '@ant-design/icons';
+import { Button, Card, Modal, Form, Input, message, Alert, Spin } from 'antd';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { logoutUser } from '../api/Authentification';
 import { startRegistration } from '@simplewebauthn/browser';
 import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
-import { getCreatedSessionsCount } from '../api/Session';
-import { getAttendedSessionsCount } from '../api/Attendance';
+import { updatePassword } from '../api/User';
 
 export default function Profile() {
     const { user, loading, error, refreshCurrentUser, clearWebauthVerification, markWebauthVerified } = useAuth();
@@ -17,37 +16,10 @@ export default function Profile() {
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [registeringDevice, setRegisteringDevice] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
 
-    const [stats, setStats] = useState({ created: 0, attended: 0 });
-    const [statsLoading, setStatsLoading] = useState(true);
-
-    useEffect(() => {
-        let cancelled = false;
-        async function loadStats() {
-            setStatsLoading(true);
-            try {
-                const [created, attended] = await Promise.all([
-                    getCreatedSessionsCount(),
-                    getAttendedSessionsCount(),
-                ]);
-                if (!cancelled) {
-                    setStats({ created, attended });
-                }
-            } catch (err) {
-                console.error('Failed to load profile statistics:', err);
-            } finally {
-                if (!cancelled) {
-                    setStatsLoading(false);
-                }
-            }
-        }
-        void loadStats();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
     const email = user.email || 'Unavailable';
     const avatarText = user.email.charAt(0).toUpperCase() || '?';
 
@@ -67,13 +39,19 @@ export default function Profile() {
             void messageApi.error(t('passwordMismatch'));
             return;
         }
+        setChangingPassword(true);
         try {
-            console.log('Change password:', values);
-            void messageApi.success(t('passwordChanged'));
+            await updatePassword({
+                currentPassword: values.oldPassword,
+                newPassword: values.newPassword,
+            });
+            void messageApi.success(t('passwordChanged') || 'Password changed successfully');
             setIsPasswordModalOpen(false);
             form.resetFields();
-        } catch {
-            void messageApi.error('Failed to change password');
+        } catch (changeError: unknown) {
+            void messageApi.error(changeError instanceof Error ? changeError.message : 'Failed to change password');
+        } finally {
+            setChangingPassword(false);
         }
     };
 
@@ -122,7 +100,7 @@ export default function Profile() {
     };
 
     return (
-        <AppShell title={t('profile')}>
+        <AppShell title={t('profile')} pageClassName="profile-page">
             {contextHolder}
             {error && (
                 <Alert
@@ -133,92 +111,76 @@ export default function Profile() {
                     style={{ marginBottom: 16 }}
                 />
             )}
-            <div className="profile-card">
-                <div className="profile-avatar-placeholder">
-                    {loading ? <Spin size="small" /> : avatarText}
-                </div>
-                <div className="profile-info">
-                    <p className="profile-name">{loading ? 'Loading...' : email}</p>
-                    <p className="profile-email">{email}</p>
-                </div>
-            </div>
-
-            <Flex gap={16} className="profile-stats-row" wrap="wrap">
-                <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">
-                        {statsLoading ? <Spin size="small" /> : stats.created}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
-                </Card>
-                <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">
-                        {statsLoading ? <Spin size="small" /> : stats.attended}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
-                </Card>
-            </Flex>
-
-            <Card className="profile-contact-card" title={t('contactInformation')}>
-                <Flex align="center" gap={14}>
-                    <span className="contact-icon"><MailOutlined /></span>
-                    <div>
-                        <Typography.Text type="secondary" className="contact-label">{t('email')}</Typography.Text>
-                        <Typography.Text strong className="contact-value">{email}</Typography.Text>
+            <section className="profile-overview">
+                <div className="profile-card">
+                    <div className="profile-avatar-placeholder">
+                        {loading ? <Spin size="small" /> : avatarText}
                     </div>
-                </Flex>
-            </Card>
+                    <div className="profile-info">
+                        <p className="profile-name">{loading ? 'Loading...' : email}</p>
+                        <p className="profile-email">{email}</p>
+                    </div>
+                </div>
+            </section>
 
-            <Button
-                block
-                size="large"
-                className="change-password-btn"
-                onClick={() => setIsPasswordModalOpen(true)}
-                style={{ marginBottom: 16 }}
-            >
-                {t('changePassword')}
-            </Button>
+            <section className="profile-actions-section">
+                <Card className="profile-actions-card" title="Account actions">
+                    <div className="profile-actions-grid">
+                        <Button
+                            block
+                            size="large"
+                            className="profile-action-button change-password-btn"
+                            onClick={() => setIsPasswordModalOpen(true)}
+                        >
+                            {t('changePassword')}
+                        </Button>
 
-            <Button
-                block
-                size="large"
-                type="primary"
-                className="primary-action"
-                onClick={() => setIsFaceModalOpen(true)}
-                style={{ marginBottom: 16 }}
-            >
-                Update Face
-            </Button>
+                        <Button
+                            block
+                            size="large"
+                            type="primary"
+                            className="profile-action-button primary-action"
+                            onClick={() => setIsFaceModalOpen(true)}
+                        >
+                            Update Face Recognition
+                        </Button>
 
-            <Button
-                block
-                size="large"
-                className="change-password-btn"
-                onClick={handleRegisterDevice}
-                loading={registeringDevice}
-                icon={<SafetyCertificateOutlined />}
-                style={{ marginBottom: 16 }}
-            >
-                {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
-            </Button>
+                        <Button
+                            block
+                            size="large"
+                            className="profile-action-button change-password-btn"
+                            onClick={handleRegisterDevice}
+                            loading={registeringDevice}
+                            icon={<SafetyCertificateOutlined />}
+                        >
+                            {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
+                        </Button>
 
-            <button className="profile-logout-btn" onClick={handleLogout}>
-                {t('logout')}
-            </button>
+                        <button className="profile-logout-btn" onClick={handleLogout}>
+                            {t('logout')}
+                        </button>
+                    </div>
+                </Card>
+            </section>
 
             <Modal
                 title={t('changePassword')}
                 open={isPasswordModalOpen}
-                onCancel={() => setIsPasswordModalOpen(false)}
+                onCancel={() => {
+                    if (!changingPassword) {
+                        setIsPasswordModalOpen(false);
+                    }
+                }}
                 footer={null}
                 className="password-modal"
             >
-                <Form form={form} layout="vertical" onFinish={handleChangePassword}>
+                <Form form={form} layout="vertical" onFinish={handleChangePassword} autoComplete="off">
                     <Form.Item
                         label={t('currentPassword')}
                         name="oldPassword"
                         rules={[{ required: true, message: 'Please enter your current password' }]}
                     >
-                        <Input.Password placeholder={t('currentPassword')} />
+                        <Input.Password placeholder={t('currentPassword')} autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item
                         label={t('newPassword')}
@@ -228,7 +190,7 @@ export default function Profile() {
                             { min: 8, message: 'Password must be at least 8 characters' },
                         ]}
                     >
-                        <Input.Password placeholder={t('newPassword')} />
+                        <Input.Password placeholder={t('newPassword')} autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item
                         label={t('confirmPassword')}
@@ -245,10 +207,16 @@ export default function Profile() {
                             }),
                         ]}
                     >
-                        <Input.Password placeholder={t('confirmPassword')} />
+                        <Input.Password placeholder={t('confirmPassword')} autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item>
-                        <Button type="primary" htmlType="submit" className="primary-action wide-button">
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            className="primary-action wide-button"
+                            loading={changingPassword}
+                            disabled={changingPassword}
+                        >
                             {t('changePassword')}
                         </Button>
                     </Form.Item>

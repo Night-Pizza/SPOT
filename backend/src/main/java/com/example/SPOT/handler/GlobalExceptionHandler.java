@@ -3,6 +3,7 @@ package com.example.SPOT.handler;
 import com.example.SPOT.dto.error.CustomExceptionDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,7 +16,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<CustomExceptionDTO> handleCustomException(CustomException ex) {
         CustomExceptionDTO error = new CustomExceptionDTO(ex.getErrorCode(), ex.getMessage());
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        HttpStatus status = "RATE_LIMIT_EXCEEDED".equals(ex.getErrorCode())
+                ? HttpStatus.TOO_MANY_REQUESTS
+                : HttpStatus.BAD_REQUEST;
+
+        return new ResponseEntity<>(error, status);
     }
 
     @ExceptionHandler(Exception.class)
@@ -38,6 +43,12 @@ public class GlobalExceptionHandler {
         }
         CustomExceptionDTO errors = new CustomExceptionDTO("VALIDATION_ERROR", errorMessage);
         return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<CustomExceptionDTO> handleAccessDeniedException(AccessDeniedException ex) {
+        CustomExceptionDTO error = new CustomExceptionDTO("ACCESS_DENIED", ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
 }
  

@@ -26,6 +26,22 @@ export type SessionAttendee = {
     email: string;
 };
 
+export type SessionDetails = {
+    id: number;
+    title: string;
+    password: string | null;
+    validationTypes: string[] | null;
+    latitude: number | null;
+    longitude: number | null;
+    allowedRadius: number | null;
+    createdAt: string;
+    isActive: boolean;
+};
+
+export type SessionUser = {
+    email: string;
+};
+
 async function readErrorMessage(response: Response, fallback: string) {
     try {
         const data = await response.json() as { message?: string; error?: string; status?: string };
@@ -83,6 +99,30 @@ export async function getSessionAttendees(sessionId: number): Promise<SessionAtt
     }
 
     return response.json() as Promise<SessionAttendee[]>;
+}
+
+export async function getSessionDetails(sessionId: number): Promise<SessionDetails> {
+    const response = await converter(`/session/${sessionId}/details`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load session details.'));
+    }
+
+    return response.json() as Promise<SessionDetails>;
+}
+
+export async function getSessionUsers(sessionId: number): Promise<SessionUser[]> {
+    const response = await converter(`/session/${sessionId}`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load checked-in users.'));
+    }
+
+    return response.json() as Promise<SessionUser[]>;
 }
 
 export async function closeSession(sessionId: number): Promise<void> {
