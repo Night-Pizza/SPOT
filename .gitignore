@@ -3,3 +3,4 @@
 .env
 /traefik/certs
 frontend/design-reference/
+.security-reports/
