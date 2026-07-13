@@ -999,35 +999,15 @@ body {
   background: var(--hover-bg);
   color: var(--text-primary);
 }
-[data-theme="dark"] .ant-card,
-[data-theme="dark"] .profile-card,
-[data-theme="dark"] .profile-stat-card,
-[data-theme="dark"] .profile-contact-card {
-  background: var(--bg-card);
-  border-color: var(--border-color);
-  box-shadow: var(--shadow);
-}
-[data-theme="dark"] .ant-card-head {
-  border-bottom-color: var(--border-color);
-}
-[data-theme="dark"] .ant-card-head-title,
-[data-theme="dark"] .ant-typography,
-[data-theme="dark"] .ant-typography-secondary,
-[data-theme="dark"] .profile-name,
-[data-theme="dark"] .profile-email,
-[data-theme="dark"] .header-title,
-[data-theme="dark"] .user-name {
-  color: var(--text-primary);
-}
-[data-theme="dark"] .ant-typography-secondary {
-  color: var(--text-secondary);
-}
+
+
+
+
 [data-theme="dark"] .auth-screen {
   background: var(--bg-primary);
 }
 [data-theme="dark"] .auth-inner {
-  background: var(--bg-secondary);
-  border-radius: 12px;
+  /* Removed background and border-radius to prevent weird column look */
 }
 [data-theme="dark"] .auth-heading {
   color: var(--text-primary);
@@ -1063,104 +1043,41 @@ body {
   background: var(--bg-card);
   border-color: var(--border-color);
 }
-[data-theme="dark"] .quick-action-card .ant-typography {
-  color: var(--text-primary);
-}
-[data-theme="dark"] .quick-action-card .ant-typography-secondary {
-  color: var(--text-secondary);
-}
-[data-theme="dark"] .session-form-card .ant-form-item-label > label {
-  color: var(--text-primary);
-}
+
+
+
 [data-theme="dark"] .field-helper {
   color: var(--text-secondary);
 }
-[data-theme="dark"] .ant-table {
-  background: var(--bg-card);
-  color: var(--text-primary);
-}
-[data-theme="dark"] .ant-table-thead > tr > th {
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border-bottom-color: var(--border-color);
-}
-[data-theme="dark"] .ant-table-tbody > tr > td {
-  border-bottom-color: var(--border-color);
-}
-[data-theme="dark"] .ant-table-tbody > tr:hover > td {
-  background: var(--hover-bg);
-}
-[data-theme="dark"] .ant-input,
-[data-theme="dark"] .ant-input-number,
-[data-theme="dark"] .ant-input-affix-wrapper {
-  background: #2d3748;
-  border-color: var(--border-color);
-  color: var(--text-primary);
-}
-[data-theme="dark"] .ant-input::placeholder {
-  color: var(--text-secondary);
-}
-[data-theme="dark"] .ant-btn {
-  color: var(--text-primary);
-  border-color: var(--border-color);
-}
-[data-theme="dark"] .ant-btn-primary.primary-action {
-  background: #5ec832;
-  border-color: #5ec832;
-  color: #fff;
-}
-[data-theme="dark"] .ant-btn-primary.primary-action:hover {
-  background: #4aad2a;
-  border-color: #4aad2a;
-}
-[data-theme="dark"] .ant-btn-text {
-  color: var(--text-primary);
-}
+
+
+
+
+
+
+
+
+
+
 [data-theme="dark"] .manual-add-section {
   border-top-color: var(--border-color);
 }
 [data-theme="dark"] .drawer-footer {
   color: var(--text-secondary);
 }
-[data-theme="dark"] .scanned-card .ant-table-thead > tr > th {
-  background: var(--bg-secondary);
-}
+
 [data-theme="dark"] .student-email-cell,
 [data-theme="dark"] .student-time-cell {
   color: var(--text-secondary);
 }
-[data-theme="dark"] .student-name-cell .ant-typography {
-  color: var(--text-primary);
-}
-[data-theme="dark"] .active-session-header .ant-typography {
-  color: var(--text-primary);
-}
-[data-theme="dark"] .session-detail-list .ant-typography {
-  color: var(--text-primary);
-}
-[data-theme="dark"] .session-detail-list .ant-typography-secondary {
-  color: var(--text-secondary);
-}
-[data-theme="dark"] .ant-tag {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-color: var(--border-color);
-}
-[data-theme="dark"] .ant-tag-success {
-  background: #1a3a2a;
-  color: #5ec832;
-  border-color: #5ec832;
-}
-[data-theme="dark"] .ant-tag-green {
-  background: #1a3a2a;
-  color: #5ec832;
-  border-color: #5ec832;
-}
-[data-theme="dark"] .ant-tag-blue {
-  background: #1a2a4a;
-  color: #60a5fa;
-  border-color: #60a5fa;
-}
+
+
+
+
+
+
+
+
 [data-theme="dark"] .leaflet-control-attribution {
   background: rgba(0,0,0,0.7) !important;
   color: #ccc !important;
@@ -1169,46 +1086,30 @@ body {
   color: #8ab4f8 !important;
 }
 
-[data-theme="dark"] .language-button,
-[data-theme="dark"] .theme-toggle {
+[data-theme="dark"] .language-button {
   background: #2d3748;
   color: #f1f5f9;
   border-color: #4a5568;
 }
-[data-theme="dark"] .language-button:hover,
-[data-theme="dark"] .theme-toggle:hover {
+[data-theme="dark"] .language-button:hover {
   background: #3d4a5c;
   border-color: #5ec832;
   color: #5ec832;
 }
 
-[data-theme="dark"] .attendance-action-card h2.ant-typography {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .attendance-action-card .ant-typography {
-  color: #94a3b8 !important;
-}
-[data-theme="dark"] .attendance-action-card .ant-typography-secondary {
-  color: #94a3b8 !important;
+[data-theme="dark"] .theme-toggle:hover {
+  color: #5ec832;
 }
 
-[data-theme="dark"] .ant-empty-description {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-empty-image svg path {
-  fill: #4a5568;
-}
 
-[data-theme="dark"] .change-password-btn {
-  background: #e2e8f0;
-  color: #1a202c;
-  border-color: #cbd5e0;
-}
-[data-theme="dark"] .change-password-btn:hover {
-  background: #cbd5e0;
-  color: #1a202c;
-  border-color: #a0aec0;
-}
+
+
+
+
+
+
+
+
 
 [data-theme="dark"] .profile-logout-btn {
   color: #f87171;
@@ -1217,234 +1118,99 @@ body {
   color: #ef4444;
 }
 
-[data-theme="dark"] .ant-input::placeholder,
-[data-theme="dark"] .ant-input-password input::placeholder {
-  color: #94a3b8 !important;
-}
 
-[data-theme="dark"] .ant-modal-title {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-modal-content {
-  background: #1e293b;
-}
-[data-theme="dark"] .ant-modal-close-x {
-  color: #f1f5f9;
-}
-[data-theme="dark"] .ant-form-item-label > label {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .sessions-page .ant-card {
-  background: #1e293b;
-  border-color: #334155;
-}
-[data-theme="dark"] .sessions-page .ant-card .ant-typography {
-  color: #f1f5f9;
-}
-[data-theme="dark"] .sessions-page .ant-card .ant-typography-secondary {
-  color: #94a3b8;
-}
 
-[data-theme="dark"] .ant-modal-content {
-  background: #1e293b;
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .ant-modal-title {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-close-x {
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .ant-modal-close-x:hover {
-  color: #94a3b8;
-}
 
-[data-theme="dark"] .ant-modal-body {
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .ant-form-item-label > label {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-input-password input,
-[data-theme="dark"] .ant-input-password {
-  background: #2d3748;
-  border-color: #4a5568;
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .ant-input-password input::placeholder {
-  color: #94a3b8 !important;
-}
 
-[data-theme="dark"] .ant-input-password .ant-input-password-icon {
-  color: #94a3b8;
-}
 
-[data-theme="dark"] .ant-input-password .ant-input-password-icon:hover {
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .ant-modal-footer .ant-btn {
-  background: #2d3748;
-  border-color: #4a5568;
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
-  background: #5ec832;
-  border-color: #5ec832;
-  color: #fff;
-}
 
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary:hover {
-  background: #4aad2a;
-  border-color: #4aad2a;
-}
 
-[data-theme="dark"] .ant-modal-footer .ant-btn-default:hover {
-  background: #3d4a5c;
-  border-color: #6b7a8a;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 .attendance-action-card .wide-button.ant-btn-primary {
   color: #ffffff !important;
 }
 
-[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary {
-  background: #5ec832 !important;
-  border-color: #5ec832 !important;
-  color: #ffffff !important;
-}
-[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary:hover {
-  background: #4aad2a !important;
-  border-color: #4aad2a !important;
-  color: #ffffff !important;
-}
+
+
 
 .attendance-action-card .wide-button.ant-btn-primary {
   color: #ffffff !important;
 }
 
-[data-theme="dark"] .ant-modal-content {
-  background: #1e293b;
-  color: #f1f5f9;
-}
-[data-theme="dark"] .ant-modal-title {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-modal-close-x {
-  color: #f1f5f9;
-}
-[data-theme="dark"] .ant-form-item-label > label {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-input-password input,
-[data-theme="dark"] .ant-input-password {
-  background: #2d3748;
-  border-color: #4a5568;
-  color: #f1f5f9;
-}
-[data-theme="dark"] .ant-input-password input::placeholder {
-  color: #94a3b8 !important;
-}
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
-  background: #5ec832;
-  border-color: #5ec832;
-  color: #fff;
-}
 
-[data-theme="dark"] .ant-modal-content,
-[data-theme="dark"] .ant-modal-body,
-[data-theme="dark"] .ant-modal-header {
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-title {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-close-x {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-input-password,
-[data-theme="dark"] .ant-input-password input,
-[data-theme="dark"] .ant-input {
-  background: #2d3748 !important;
-  border-color: #4a5568 !important;
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-input-password input::placeholder,
-[data-theme="dark"] .ant-input::placeholder {
-  color: #94a3b8 !important;
-}
 
-[data-theme="dark"] .ant-input-password .ant-input-password-icon {
-  color: #94a3b8 !important;
-}
-[data-theme="dark"] .ant-input-password .ant-input-password-icon:hover {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-form-item-label > label {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-footer .ant-btn {
-  background: #2d3748 !important;
-  border-color: #4a5568 !important;
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
-  background: #5ec832 !important;
-  border-color: #5ec832 !important;
-  color: #ffffff !important;
-}
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary:hover {
-  background: #4aad2a !important;
-  border-color: #4aad2a !important;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 .attendance-action-card .wide-button.ant-btn-primary,
 .attendance-action-card .wide-button.ant-btn-primary .ant-btn-icon,
 .attendance-action-card .wide-button.ant-btn-primary span {
   color: #ffffff !important;
 }
-[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary {
-  background: #5ec832 !important;
-  border-color: #5ec832 !important;
-  color: #ffffff !important;
-}
-[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary:hover {
-  background: #4aad2a !important;
-  border-color: #4aad2a !important;
-}
+
+
 
 .attendance-action-card .ant-btn-primary {
   color: #ffffff !important;
 }
 
-[data-theme="dark"] .ant-empty-description {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .change-password-btn {
-  background: #e2e8f0 !important;
-  color: #1a202c !important;
-  border-color: #cbd5e0 !important;
-}
-[data-theme="dark"] .change-password-btn:hover {
-  background: #cbd5e0 !important;
-  color: #1a202c !important;
-}
+
+
+
 
 [data-theme="dark"] .profile-logout-btn {
   color: #f87171 !important;
@@ -1847,76 +1613,31 @@ h4.ant-typography,
 }
 
 
-[data-theme="dark"] h1.ant-typography {
-  color: #f1f5f9;
-}
 
-[data-theme="dark"] .password-modal .ant-modal-content {
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .password-modal .ant-modal-title {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .password-modal .ant-modal-close-x {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .password-modal .ant-modal-close-x:hover {
-  color: #94a3b8 !important;
-}
 
-[data-theme="dark"] .password-modal .ant-modal-body {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .password-modal .ant-form-item-label > label {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .password-modal .ant-input-password {
-  background: #2d3748 !important;
-  border-color: #4a5568 !important;
-}
-[data-theme="dark"] .password-modal .ant-input-password input {
-  background: #2d3748 !important;
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .password-modal .ant-input-password input::placeholder {
-  color: #94a3b8 !important;
-}
-[data-theme="dark"] .password-modal .ant-input-password .ant-input-password-icon {
-  color: #94a3b8 !important;
-}
-[data-theme="dark"] .password-modal .ant-input-password .ant-input-password-icon:hover {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .password-modal .ant-modal-footer .ant-btn {
-  background: #2d3748 !important;
-  border-color: #4a5568 !important;
-  color: #ffffff !important;
-}
-[data-theme="dark"] .password-modal .ant-modal-footer .ant-btn-primary {
-  background: #5ec832 !important;
-  border-color: #5ec832 !important;
-  color: #ffffff !important;
-}
-[data-theme="dark"] .password-modal .ant-modal-footer .ant-btn-primary:hover {
-  background: #4aad2a !important;
-  border-color: #4aad2a !important;
-}
 
-[data-theme="dark"] .change-password-btn {
-  background: #ffffff !important;
-  color: #1a202c !important;
-  border-color: #cbd5e0 !important;
-}
-[data-theme="dark"] .change-password-btn:hover {
-  background: #ffffff !important;
-  color: #1a202c !important;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [data-theme="dark"] .profile-logout-btn {
   color: #f87171 !important;
@@ -1941,85 +1662,36 @@ h4.ant-typography,
   color: #94a3b8 !important;
 }
 
-[data-theme="dark"] .ant-modal-content {
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
-  border: none !important;
-  box-shadow: none !important;
-}
 
-[data-theme="dark"] .ant-modal-header {
-  background: #1e293b !important;
-  border-bottom: 1px solid #334155 !important;
-}
 
-[data-theme="dark"] .ant-modal-title {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-close {
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-modal-close:hover {
-  color: #94a3b8 !important;
-}
-[data-theme="dark"] .ant-modal-close-x {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-body {
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-modal-footer {
-  background: #1e293b !important;
-  border-top: 1px solid #334155 !important;
-}
 
-[data-theme="dark"] .ant-form-item-label > label {
-  color: #f1f5f9 !important;
-}
 
-[data-theme="dark"] .ant-input-password,
-[data-theme="dark"] .ant-input {
-  background: #2d3748 !important;
-  border-color: #4a5568 !important;
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-input-password input::placeholder,
-[data-theme="dark"] .ant-input::placeholder {
-  color: #94a3b8 !important;
-}
 
-[data-theme="dark"] .ant-modal-footer .ant-btn {
-  background: #2d3748 !important;
-  border-color: #4a5568 !important;
-  color: #f1f5f9 !important;
-}
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
-  background: #5ec832 !important;
-  border-color: #5ec832 !important;
-  color: #ffffff !important;
-}
-[data-theme="dark"] .ant-modal-footer .ant-btn-primary:hover {
-  background: #4aad2a !important;
-  border-color: #4aad2a !important;
-}
 
-[data-theme="dark"] .ant-empty-description,
-[data-theme="dark"] .ant-table-wrapper .ant-empty-description,
-[data-theme="dark"] .ant-empty .ant-empty-description {
-  color: #ffffff !important;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [data-theme="dark"] .empty-text-light {
   color: #ffffff !important;
 }
 
-[data-theme="dark"] .ant-empty-description {
-  color: #ffffff !important;
-}
+
 
 .active-session-grid .ant-table-wrapper {
   overflow-x: auto;
@@ -2062,7 +1734,37 @@ h4.ant-typography,
   border-radius: 0;
 }
 
-/* Fix Leaflet map z-index escaping stacking context and overlapping sticky header */
-.leaflet-container {
-  z-index: 1;
+.theme-toggle, .theme-toggle:hover, .theme-toggle:focus, .theme-toggle:active { background: transparent !important; border: none !important; box-shadow: none !important; }
+
+
+/* Final Dark Theme Overrides */
+
+
+
+
+
+
+/* Restoring typography colors for dark mode */
+[data-theme="dark"] .ant-typography,
+[data-theme="dark"] h1.ant-typography,
+[data-theme="dark"] h2.ant-typography,
+[data-theme="dark"] h3.ant-typography,
+[data-theme="dark"] h4.ant-typography,
+[data-theme="dark"] .sessions-header h1.ant-typography,
+[data-theme="dark"] .sessions-header .ant-typography,
+[data-theme="dark"] .attendance-action-card h2.ant-typography,
+[data-theme="dark"] .attendance-action-card .ant-typography,
+[data-theme="dark"] .page-heading h1.ant-typography,
+[data-theme="dark"] .page-heading .ant-typography,
+[data-theme="dark"] .section-kicker.ant-typography,
+[data-theme="dark"] .ant-card-head-title,
+[data-theme="dark"] .ant-form-item-label > label {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .ant-typography-secondary,
+[data-theme="dark"] .sessions-header .ant-typography:not(h1),
+[data-theme="dark"] .page-heading .ant-typography:not(h1),
+[data-theme="dark"] .attendance-action-card p.ant-typography {
+  color: var(--text-secondary) !important;
 }

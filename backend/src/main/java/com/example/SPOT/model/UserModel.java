@@ -37,4 +37,7 @@ public class UserModel {
     private Long webauthSignatureCount;
 
     private LocalDateTime webauthLastModified;
+
+    @Column(name = "webauth_device_fingerprint")
+    private String webauthDeviceFingerprint;
 }

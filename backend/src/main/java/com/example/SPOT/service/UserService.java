@@ -74,6 +74,7 @@ public class UserService {
                 null,
                 null,
                 null,
+                null,
                 null
         );
         return mapToDTO(userRepository.save(newUser));

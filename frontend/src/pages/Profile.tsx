@@ -12,7 +12,7 @@ import { getCreatedSessionsCount } from '../api/Session';
 import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Profile() {
-    const { user, loading, error, refreshCurrentUser } = useAuth();
+    const { user, loading, error, refreshCurrentUser, clearWebauthVerification, markWebauthVerified } = useAuth();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
@@ -57,6 +57,7 @@ export default function Profile() {
         } catch (error) {
             console.error("Error while logout:", error);
         } finally {
+            clearWebauthVerification();
             window.location.href = '/login';
         }
     };
@@ -96,6 +97,7 @@ export default function Profile() {
 
             await verifyRegistration(JSON.stringify(attestationResponse));
             void messageApi.success('WebAuth device key registered successfully!');
+            markWebauthVerified();
             void refreshCurrentUser();
             if (user && !user.faceRegistered) {
                 setIsFaceModalOpen(true);

@@ -1,4 +1,12 @@
 import { converter } from './Converter';
+async function getDeviceFingerprint(): Promise<string> {
+    let deviceId = localStorage.getItem('spot_device_id');
+    if (!deviceId) {
+        deviceId = crypto.randomUUID();
+        localStorage.setItem('spot_device_id', deviceId);
+    }
+    return deviceId;
+}
 
 async function readErrorMessage(response: Response, fallback: string) {
     try {
@@ -50,9 +58,10 @@ export async function getRegistrationOptions(): Promise<{ optionsJson: string }>
 }
 
 export async function verifyRegistration(responseJson: string): Promise<void> {
+    const deviceFingerprint = await getDeviceFingerprint();
     const response = await converter('/webauth/register/verify', {
         method: 'POST',
-        body: JSON.stringify({ responseJson }),
+        body: JSON.stringify({ responseJson, deviceFingerprint }),
     });
     if (!response.ok) {
         throw new Error(await readErrorMessage(response, 'Registration verification failed'));
@@ -87,9 +96,10 @@ export async function getAssertionOptions(): Promise<{ optionsJson: string }> {
 }
 
 export async function verifyAssertion(responseJson: string): Promise<void> {
+    const deviceFingerprint = await getDeviceFingerprint();
     const response = await converter('/webauth/attendance/verify', {
         method: 'POST',
-        body: JSON.stringify({ responseJson }),
+        body: JSON.stringify({ responseJson, deviceFingerprint }),
     });
     if (!response.ok) {
         throw new Error(await readErrorMessage(response, 'Assertion verification failed'));
