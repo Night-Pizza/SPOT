@@ -172,13 +172,13 @@ export default function Profile() {
                 footer={null}
                 className="password-modal"
             >
-                <Form form={form} layout="vertical" onFinish={handleChangePassword}>
+                <Form form={form} layout="vertical" onFinish={handleChangePassword} autoComplete="off">
                     <Form.Item
                         label={t('currentPassword')}
                         name="oldPassword"
                         rules={[{ required: true, message: 'Please enter your current password' }]}
                     >
-                        <Input.Password placeholder={t('currentPassword')} />
+                        <Input.Password placeholder={t('currentPassword')} autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item
                         label={t('newPassword')}
@@ -188,7 +188,7 @@ export default function Profile() {
                             { min: 8, message: 'Password must be at least 8 characters' },
                         ]}
                     >
-                        <Input.Password placeholder={t('newPassword')} />
+                        <Input.Password placeholder={t('newPassword')} autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item
                         label={t('confirmPassword')}
@@ -205,7 +205,7 @@ export default function Profile() {
                             }),
                         ]}
                     >
-                        <Input.Password placeholder={t('confirmPassword')} />
+                        <Input.Password placeholder={t('confirmPassword')} autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item>
                         <Button

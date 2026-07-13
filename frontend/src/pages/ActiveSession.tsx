@@ -6,6 +6,7 @@ import {
     ReloadOutlined,
     PlusOutlined,
     DeleteOutlined,
+    DownloadOutlined,
 } from '@ant-design/icons';
 import {
     Button,
@@ -22,7 +23,9 @@ import {
     Input,
     Alert,
     Spin,
+    Dropdown,
 } from 'antd';
+import type { MenuProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -379,6 +382,50 @@ export default function ActiveSessionPage() {
         }
     };
 
+    const handleExport = async (format: string) => {
+        if (numericSessionId === null) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/attendance/export?sessionId=${numericSessionId}&format=${format}`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                throw new Error(await readErrorMessage(response, 'Failed to export attendance.'));
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            const extension = format === 'txt' ? 'txt' : 'csv';
+            a.download = `attendance_${numericSessionId}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to export.');
+        }
+    };
+
+    const exportMenuItems: MenuProps['items'] = [
+        {
+            key: 'csv',
+            label: 'Standard CSV',
+            onClick: () => void handleExport('csv'),
+        },
+        {
+            key: 'moodle',
+            label: 'Moodle CSV',
+            onClick: () => void handleExport('moodle'),
+        },
+        {
+            key: 'txt',
+            label: 'Plain Text',
+            onClick: () => void handleExport('txt'),
+        },
+    ];
+
     if (numericSessionId === null) {
         return (
             <AppShell title={t('sessionNotFound')} showPageTitle={false}>
@@ -590,6 +637,11 @@ export default function ActiveSessionPage() {
                                 >
                                     Add attendee
                                 </Button>
+                                <Dropdown menu={{ items: exportMenuItems }} placement="bottomRight">
+                                    <Button size="small" icon={<DownloadOutlined />}>
+                                        Export
+                                    </Button>
+                                </Dropdown>
                                 <Button
                                     size="small"
                                     icon={<ReloadOutlined />}
@@ -689,6 +741,7 @@ export default function ActiveSessionPage() {
                     onPressEnter={() => void handleAddAttendee()}
                     placeholder="student@example.com"
                     type="email"
+                    autoComplete="off"
                     autoFocus
                 />
             </Modal>

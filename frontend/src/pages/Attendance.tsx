@@ -633,7 +633,7 @@ export default function Attendance() {
                                 </div>
                             </Space>
 
-                            <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false}>
+                            <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false} autoComplete="off">
                                 <Form.Item
                                     name="sessionId"
                                     label="Session ID"
@@ -661,7 +661,7 @@ export default function Attendance() {
                                         { required: true, whitespace: true, message: 'Please enter a session code.' },
                                     ]}
                                 >
-                                    <Input.Password size="large" placeholder="Session password" />
+                                    <Input.Password size="large" placeholder="Session password" autoComplete="new-password" />
                                 </Form.Item>
                                 <Button
                                     type="primary"
