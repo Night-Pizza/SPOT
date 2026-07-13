@@ -19,7 +19,6 @@ import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
-import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.service.SessionService;
 
@@ -73,26 +72,6 @@ public class SessionController {
     @GetMapping("/{id}")
     public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
         return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
-    }
-
-
-    @GetMapping("/alla")
-    public ResponseEntity<List<Long>> getAllaSessions(){
-        return ResponseEntity.ok().body(sessionService.getAllaSessions());
-    }
-
-    @PostMapping("/test")
-    public ResponseEntity<Void> createUser(){
-        UserModel userModel = new UserModel();
-        userModel.setEmail("1234567890");
-        userModel.setPassword("44444");
-        userRepository.save(userModel);
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/test")
-    public ResponseEntity<Long> getNumber(){
-        return ResponseEntity.ok().body(userRepository.count());
     }
 
 }

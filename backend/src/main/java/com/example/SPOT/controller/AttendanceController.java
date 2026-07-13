@@ -1,14 +1,29 @@
 package com.example.SPOT.controller;
 
-import com.example.SPOT.dto.request.QrScanRequestDTO;
+import java.time.Duration;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
-import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
@@ -17,16 +32,6 @@ import com.example.SPOT.service.QRTokenService;
 import com.example.SPOT.service.RateLimitService;
 
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/attendance")
@@ -91,23 +96,6 @@ public class AttendanceController {
         Long userId = Long.valueOf(userIdStr);
         attendanceService.deleteAttendance(deleteAttendanceCreateDTO, userId);
         return ResponseEntity.noContent().build();
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMyAttendance(@PathVariable Long id) {
-        attendanceService.deleteMyAttendance(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping()
-    public ResponseEntity<List<UserAttendanceDTO>> getAllUserAttendance(@AuthenticationPrincipal String userIdStr){
-        Long userId = Long.valueOf(userIdStr);
-        return ResponseEntity.ok().body(attendanceService.getAllUserAttendance(userId));
-    }
-
-    @GetMapping("/all")
-    public ResponseEntity<List<AttendanceResponseDTO>> getAllAttendance(){
-        return ResponseEntity.ok().body(attendanceService.getAllAttendance());
     }
 
     @GetMapping("/status/{requestId}")
