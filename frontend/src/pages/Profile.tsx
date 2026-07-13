@@ -8,6 +8,7 @@ import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { logoutUser } from '../api/Authentification';
 import { startRegistration } from '@simplewebauthn/browser';
 import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+import { updatePassword } from '../api/User';
 
 export default function Profile() {
     const { user, loading, error, refreshCurrentUser } = useAuth();
@@ -15,6 +16,7 @@ export default function Profile() {
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [registeringDevice, setRegisteringDevice] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
 
@@ -36,13 +38,19 @@ export default function Profile() {
             void messageApi.error(t('passwordMismatch'));
             return;
         }
+        setChangingPassword(true);
         try {
-            console.log('Change password:', values);
-            void messageApi.success(t('passwordChanged'));
+            await updatePassword({
+                currentPassword: values.oldPassword,
+                newPassword: values.newPassword,
+            });
+            void messageApi.success(t('passwordChanged') || 'Password changed successfully');
             setIsPasswordModalOpen(false);
             form.resetFields();
-        } catch {
-            void messageApi.error('Failed to change password');
+        } catch (changeError: unknown) {
+            void messageApi.error(changeError instanceof Error ? changeError.message : 'Failed to change password');
+        } finally {
+            setChangingPassword(false);
         }
     };
 
@@ -156,7 +164,11 @@ export default function Profile() {
             <Modal
                 title={t('changePassword')}
                 open={isPasswordModalOpen}
-                onCancel={() => setIsPasswordModalOpen(false)}
+                onCancel={() => {
+                    if (!changingPassword) {
+                        setIsPasswordModalOpen(false);
+                    }
+                }}
                 footer={null}
                 className="password-modal"
             >
@@ -196,7 +208,13 @@ export default function Profile() {
                         <Input.Password placeholder={t('confirmPassword')} />
                     </Form.Item>
                     <Form.Item>
-                        <Button type="primary" htmlType="submit" className="primary-action wide-button">
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            className="primary-action wide-button"
+                            loading={changingPassword}
+                            disabled={changingPassword}
+                        >
                             {t('changePassword')}
                         </Button>
                     </Form.Item>

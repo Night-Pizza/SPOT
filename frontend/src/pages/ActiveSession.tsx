@@ -3,8 +3,6 @@ import {
     EnvironmentOutlined,
     ExpandOutlined,
     StopOutlined,
-    EditOutlined,
-    SaveOutlined,
     ReloadOutlined,
     PlusOutlined,
     DeleteOutlined,
@@ -21,7 +19,6 @@ import {
     Typography,
     message,
     Modal,
-    InputNumber,
     Input,
     Alert,
     Spin,
@@ -36,17 +33,12 @@ import { useApp, type Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
-import { closeSession, getActiveSessionIds } from '../api/Session';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
 
 type Attendee = {
     id: string;
     name: string;
-    email: string;
-};
-
-type SessionUserResponse = {
     email: string;
 };
 
@@ -57,15 +49,6 @@ function getDisplayName(email: string) {
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ') || email;
-}
-
-async function readErrorMessage(response: Response, fallback: string) {
-    try {
-        const data = await response.json() as { message?: string; error?: string; status?: string };
-        return data.message || data.error || data.status || fallback;
-    } catch {
-        return fallback;
-    }
 }
 
 function isValidEmail(email: string) {
@@ -79,7 +62,6 @@ export default function ActiveSessionPage() {
     const {
         getSessionById,
         endSession,
-        updateSession,
     } = useApp();
     const { t } = useTheme();
     const [messageApi, contextHolder] = message.useMessage();
@@ -95,9 +77,7 @@ export default function ActiveSessionPage() {
     const [sessionEnded, setSessionEnded] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
-    const [isEditingRadius, setIsEditingRadius] = useState(false);
-    const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
-    const [mapKey, setMapKey] = useState(0);
+    const mapKey = 0;
     const [isMounted, setIsMounted] = useState(false); //
     const [qrToken, setQrToken] = useState('');
     const [qrError, setQrError] = useState('');
@@ -119,30 +99,25 @@ export default function ActiveSessionPage() {
     const loadSessionDetails = useCallback(async () => {
         if (numericSessionId === null) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}/details`, {
-                method: 'GET',
-                credentials: 'include',
+            const data = await getSessionDetails(numericSessionId);
+            const validationTypes = data.validationTypes ?? [];
+            const hasPassword = validationTypes.includes('PASSWORD');
+            const sessionMode = hasPassword ? 'CODE' : 'QR';
+            setFetchedSession({
+                id: String(data.id),
+                title: data.title,
+                mode: sessionMode,
+                password: data.password || '',
+                geolocationEnabled: validationTypes.includes('GPS'),
+                radius: data.allowedRadius ?? undefined,
+                lat: data.latitude ?? undefined,
+                lng: data.longitude ?? undefined,
+                createdAt: data.createdAt,
+                isActive: data.isActive,
+                validationTypes,
             });
-            if (response.ok) {
-                const data = await response.json();
-                const hasPassword = data.validationTypes?.includes('PASSWORD');
-                const sessionMode = hasPassword ? 'CODE' : 'QR';
-                setFetchedSession({
-                    id: String(data.id),
-                    title: data.title,
-                    mode: sessionMode,
-                    password: data.password || '',
-                    geolocationEnabled: data.validationTypes?.includes('GPS') || false,
-                    radius: data.allowedRadius,
-                    lat: data.latitude,
-                    lng: data.longitude,
-                    createdAt: data.createdAt,
-                    isActive: data.isActive,
-                    validationTypes: data.validationTypes,
-                });
-            }
-        } catch (error) {
-            console.error('Failed to load session details:', error);
+        } catch {
+            // Keep fallback route state/context details if the backend details request fails.
         }
     }, [numericSessionId]);
 
@@ -193,13 +168,6 @@ export default function ActiveSessionPage() {
         setIsMounted(true);
     }, []);
 
-    // Инициализация editRadius из активной сессии
-    useEffect(() => {
-        if (activeSession) {
-            setEditRadius(activeSession.radius);
-        }
-    }, [activeSession]);
-
     const isQrSession = activeSession?.mode !== 'CODE';
     const shouldSubscribeQr = isActive && isQrSession;
 
@@ -241,16 +209,7 @@ export default function ActiveSessionPage() {
         setAttendeesLoading(true);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}`, {
-                method: 'GET',
-                credentials: 'include',
-            });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to load checked-in users.'));
-            }
-
-            const users = await response.json() as SessionUserResponse[];
+            const users = await getSessionUsers(numericSessionId);
             setAttendees(
                 users.map((user) => ({
                     id: user.email,
@@ -306,21 +265,10 @@ export default function ActiveSessionPage() {
 
         setAddingAttendee(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/attendance/create/email`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sessionId: numericSessionId,
-                    email,
-                }),
+            await addAttendeeByEmail({
+                sessionId: numericSessionId,
+                email,
             });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to add attendee.'));
-            }
 
             void messageApi.success(t('attendeeAdded'));
             setAddAttendeeOpen(false);
@@ -341,21 +289,10 @@ export default function ActiveSessionPage() {
 
         setRemovingAttendeeEmail(email);
         try {
-            const response = await fetch(`${API_BASE_URL}/attendance/delete`, {
-                method: 'DELETE',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sessionId: numericSessionId,
-                    email,
-                }),
+            await removeAttendeeByEmail({
+                sessionId: numericSessionId,
+                email,
             });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to remove attendee.'));
-            }
 
             void messageApi.success('Attendee removed.');
             await loadSessionUsers();
@@ -439,20 +376,6 @@ export default function ActiveSessionPage() {
             void messageApi.error(error instanceof Error ? error.message : 'Failed to end session.');
         } finally {
             setEndingSession(false);
-        }
-    };
-
-    const handleSaveRadius = () => {
-        const nextRadius = editRadius ?? activeSession?.radius;
-
-        if (activeSession && nextRadius !== undefined && nextRadius > 0) {
-            updateSession(activeSession.id, { radius: nextRadius });
-            setEditRadius(nextRadius);
-            setIsEditingRadius(false);
-            setMapKey((prev) => prev + 1); // 👈 обновляем карту
-            void messageApi.success('Radius updated');
-        } else {
-            void messageApi.error('Please enter a valid radius');
         }
     };
 
@@ -618,51 +541,10 @@ export default function ActiveSessionPage() {
                         {hasLocation && isActive && (
                             <Flex className="session-detail-row radius-edit-row" justify="space-between" gap={16} align="center">
                                 <Typography.Text type="secondary">Radius</Typography.Text>
-                                {isEditingRadius ? (
-                                    <Space>
-                                        <InputNumber
-                                            min={1}
-                                            value={editRadius ?? activeSession?.radius}
-                                            onChange={(val) => setEditRadius(val ?? undefined)}
-                                            addonAfter="m"
-                                            size="small"
-                                        />
-                                        <Button
-                                            type="primary"
-                                            size="small"
-                                            icon={<SaveOutlined />}
-                                            onClick={handleSaveRadius}
-                                        >
-                                            Save
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            onClick={() => {
-                                                setIsEditingRadius(false);
-                                                setEditRadius(undefined);
-                                            }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </Space>
-                                ) : (
-                                    <Space>
-                                        <Typography.Text strong>
-                                            {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
-                                        </Typography.Text>
-                                        {isActive && (
-                                            <Button
-                                                type="text"
-                                                icon={<EditOutlined />}
-                                                onClick={() => {
-                                                    setEditRadius(activeSession?.radius);
-                                                    setIsEditingRadius(true);
-                                                }}
-                                                size="small"
-                                            />
-                                        )}
-                                    </Space>
-                                )}
+                                <Typography.Text strong>
+                                    {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
+                                </Typography.Text>
+                                {/* TODO: re-enable editing when PATCH /session/{id} accepts allowedRadius. */}
                             </Flex>
                         )}
                     </div>

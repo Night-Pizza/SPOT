@@ -11,6 +11,11 @@ export type AttendanceResponse = {
     timestamp: string;
 };
 
+export type EmailAttendanceRequest = {
+    sessionId: number;
+    email: string;
+};
+
 export type AttendanceSubmitResult = {
     attendanceId?: number;
     requestId?: number;
@@ -125,4 +130,34 @@ export async function getAttendedSessions(): Promise<AttendedSessionHistoryItem[
     }
 
     return response.json() as Promise<AttendedSessionHistoryItem[]>;
+}
+
+export async function addAttendeeByEmail(data: EmailAttendanceRequest): Promise<AttendanceResponse> {
+    const response = await converter('/attendance/create/email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to add attendee.'));
+    }
+
+    return response.json() as Promise<AttendanceResponse>;
+}
+
+export async function removeAttendeeByEmail(data: EmailAttendanceRequest): Promise<void> {
+    const response = await converter('/attendance/delete', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to remove attendee.'));
+    }
 }
