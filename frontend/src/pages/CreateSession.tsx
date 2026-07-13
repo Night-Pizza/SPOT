@@ -11,12 +11,13 @@ import {
     Switch,
     Typography,
     message,
+    Spin,
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AppShell from '../components/AppShell';
 import { createSession } from '../api/Session';
-import GeolocationButton from '../components/GeolocationButton';
+import { useGeolocation } from '../hooks/Geolocation';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -39,6 +40,29 @@ export default function CreateSessionPage() {
 
     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
     const [loading, setLoading] = useState(false);
+
+    const { getPosition, loading: geoLoading } = useGeolocation();
+
+    const fetchingRef = useRef(false);
+
+    useEffect(() => {
+        if (geolocationEnabled && !coords && !fetchingRef.current) {
+            fetchingRef.current = true;
+            const fetchLocation = async () => {
+                try {
+                    const result = await getPosition();
+                    setCoords(result);
+                    message.success(t('locationSet') || 'Location set!');
+                } catch (e) {
+                    console.error(e);
+                    message.error(t('locationPermissionError') || 'Failed to acquire location. Please grant permission.');
+                } finally {
+                    fetchingRef.current = false;
+                }
+            };
+            void fetchLocation();
+        }
+    }, [geolocationEnabled, coords, getPosition, t]);
 
     const handleSubmit = async (values: CreateSessionFormValues) => {
         if (values.geolocationEnabled && !coords) {
@@ -189,31 +213,54 @@ export default function CreateSessionPage() {
                                 />
                             </Form.Item>
 
-                            <Form.Item label={t('sessionLocation') || 'Session Location'} required>
-                                <Flex align="center" gap="small">
-                                    <GeolocationButton
-                                        onLocationSuccess={(newCoords) => {
-                                            setCoords(newCoords);
-                                            message.success(t('locationSet') || 'Location set!');
-                                        }}
-                                    />
-                                    {coords && (
-                                        <Typography.Text type="success">
-                                            Lat: {coords.lat.toFixed(5)}, Lng: {coords.long.toFixed(5)}
-                                        </Typography.Text>
-                                    )}
-                                </Flex>
-                            </Form.Item>
+                            {geoLoading && !coords && (
+                                <div style={{ marginBottom: 16 }}>
+                                    <Spin size="small" /> <Typography.Text type="secondary">Acquiring location...</Typography.Text>
+                                </div>
+                            )}
 
                             {coords && (
-                                <Form.Item label="Location preview">
-                                    <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
-                                        <SessionMap
-                                            center={[coords.lat, coords.long]}
-                                            radius={form.getFieldValue('radius') || 100}
-                                        />
-                                    </div>
-                                </Form.Item>
+                                <>
+                                    <Form.Item label={t('sessionLocation') || 'Session Location'}>
+                                        <Space size={12} align="center">
+                                            <Typography.Text type="success">
+                                                Lat: {coords.lat.toFixed(5)}, Lng: {coords.long.toFixed(5)}
+                                            </Typography.Text>
+                                            <Button
+                                                size="small"
+                                                icon={<EnvironmentOutlined />}
+                                                onClick={async () => {
+                                                    try {
+                                                        const result = await getPosition();
+                                                        setCoords(result);
+                                                        message.success(t('locationSet') || 'Location set!');
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        message.error(t('locationPermissionError') || 'Failed to acquire location.');
+                                                    }
+                                                }}
+                                                loading={geoLoading}
+                                            >
+                                                {t('getLocation') || 'Get Location'}
+                                            </Button>
+                                        </Space>
+                                        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
+                                            Drag the marker or click on the map to adjust the central location.
+                                        </Typography.Paragraph>
+                                    </Form.Item>
+
+                                    <Form.Item label="Location preview">
+                                        <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
+                                            <SessionMap
+                                                center={[coords.lat, coords.long]}
+                                                radius={form.getFieldValue('radius') || 100}
+                                                onCenterChange={(newCenter) => {
+                                                    setCoords({ lat: newCenter[0], long: newCenter[1] });
+                                                }}
+                                            />
+                                        </div>
+                                    </Form.Item>
+                                </>
                             )}
                         </>
                     )}
