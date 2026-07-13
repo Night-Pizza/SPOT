@@ -78,10 +78,20 @@ describe('AppShell', () => {
     });
 
     it('handles drawer toggle on mobile menu button and overlay click', () => {
+        window.matchMedia = vi.fn().mockImplementation((query) => ({
+            matches: query === '(max-width: 1180px)',
+            media: query,
+            onchange: null,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+        }));
         const { container } = renderWithRouter(<AppShell title="Test">Content</AppShell>);
 
         const overlay = container.querySelector('.drawer-overlay');
-        const menuBtn = container.querySelector('.mobile-menu-button');
+        const menuBtn = container.querySelector('.header-logo-trigger');
         const drawer = container.querySelector('.drawer-menu');
 
         expect(drawer).not.toHaveClass('open');

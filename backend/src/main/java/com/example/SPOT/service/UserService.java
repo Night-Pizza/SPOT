@@ -99,6 +99,10 @@ public class UserService {
                 email,
                 passwordEncoder.encode(UUID.randomUUID().toString()),
                 AuthProvider.MY_UNIVERSITY_SSO,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 

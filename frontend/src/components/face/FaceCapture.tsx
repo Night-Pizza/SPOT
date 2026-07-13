@@ -49,6 +49,10 @@ function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | '
 }
 
 type LivenessAction = 'mouth';
+type FaceBlendshapeCategory = {
+    categoryName: string;
+    score: number;
+};
 
 const LIVENESS_ACTIONS: { type: LivenessAction; label: string }[] = [
     { type: 'mouth', label: 'Please open your mouth' }
@@ -215,7 +219,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                 try {
                     const results = landmarker.detectForVideo(video, performance.now());
                     if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-                        const blendshapes = results.faceBlendshapes[0].categories;
+                        const blendshapes = results.faceBlendshapes[0].categories as FaceBlendshapeCategory[];
                         const jawOpen = blendshapes.find(c => c.categoryName === 'jawOpen')?.score || 0;
 
                         let success = false;

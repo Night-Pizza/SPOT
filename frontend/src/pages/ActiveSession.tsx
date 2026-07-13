@@ -39,6 +39,8 @@ import { subscribeToQrToken } from '../api/Qr';
 import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
 import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 type Attendee = {
     id: string;
     name: string;
@@ -56,6 +58,15 @@ function getDisplayName(email: string) {
 
 function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function readErrorMessage(response: Response, fallback: string) {
+    try {
+        const data = await response.json() as { message?: string; error?: string; status?: string };
+        return data.message || data.error || data.status || fallback;
+    } catch {
+        return fallback;
+    }
 }
 
 export default function ActiveSessionPage() {

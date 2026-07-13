@@ -1,6 +1,8 @@
 package com.example.SPOT.controller;
 
+import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,15 +16,18 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
+import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.KafkaModel;
@@ -31,6 +36,7 @@ import com.example.SPOT.service.AttendanceService;
 import com.example.SPOT.service.QRTokenService;
 import com.example.SPOT.service.RateLimitService;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 @RestController
@@ -102,6 +108,30 @@ public class AttendanceController {
         Long userId = Long.valueOf(userIdStr);
         attendanceService.deleteAttendance(deleteAttendanceCreateDTO, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping()
+    public ResponseEntity<List<UserAttendanceDTO>> getAllUserAttendance(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(attendanceService.getAllUserAttendance(userId));
+    }
+
+    @GetMapping("/session/{sessionId}")
+    public ResponseEntity<List<UsersForSessionDTO>> getSessionAttendance(
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(attendanceService.getAllAttendanceBySession(sessionId, userId));
+    }
+
+    @GetMapping("/export")
+    public void exportAttendance(
+            @RequestParam Long sessionId,
+            @RequestParam(defaultValue = "csv") String format,
+            @AuthenticationPrincipal String userIdStr,
+            HttpServletResponse response) throws IOException {
+        Long userId = Long.valueOf(userIdStr);
+        attendanceService.exportAttendance(sessionId, format, userId, response);
     }
 
     @GetMapping("/status/{requestId}")

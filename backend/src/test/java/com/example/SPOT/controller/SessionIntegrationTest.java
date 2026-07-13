@@ -82,7 +82,7 @@ public class SessionIntegrationTest {
         given()
             .cookie("JSESSIONID", cookie)
             .when()
-            .get("/session/all")
+            .get("/session")
             .then()
             .statusCode(200)
             .body("title", hasItem("Integration Test Session"));

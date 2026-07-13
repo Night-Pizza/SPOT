@@ -46,7 +46,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", null, null, null, null, AuthProvider.LOCAL, null);
+        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", AuthProvider.LOCAL, null, null, null, null, null);
     }
 
     @Test
