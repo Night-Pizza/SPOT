@@ -12,4 +12,5 @@ export type UserDTO = {
     id: number;
     email: string;
     faceRegistered?: boolean;
+    webauthRegistered?: boolean;
 };

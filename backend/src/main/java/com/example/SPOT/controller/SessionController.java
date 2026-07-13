@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
+import com.example.SPOT.dto.response.SessionDetailsDTO;
 import com.example.SPOT.dto.response.SessionResponseDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.service.SessionService;
@@ -50,6 +52,19 @@ public class SessionController {
 
     }
 
+    @GetMapping()
+    public ResponseEntity<List<UserAttendanceDTO>> getOwnedSessions(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(sessionService.getOwnedSessions(userId));
+
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> getOwnedSessionsCount(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok().body(sessionService.getOwnedSessionsCount(userId));
+    }
+
     @PatchMapping("/{id}")
     public ResponseEntity<Void> updateSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr, @Valid @RequestBody SessionUpdateDTO sessionUpdateDTO) {
         Long userId = Long.valueOf(userIdStr);
@@ -73,5 +88,12 @@ public class SessionController {
     public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
         return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
     }
+
+    @GetMapping("/{id}/details")
+    public ResponseEntity<SessionDetailsDTO> getSessionDetails(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(sessionService.getSessionDetails(id, userId));
+    }
+
 
 }

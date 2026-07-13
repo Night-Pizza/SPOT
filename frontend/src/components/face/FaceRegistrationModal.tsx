@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Modal } from 'antd';
+import { Modal, Typography } from 'antd';
 import FaceCapture from './FaceCapture';
 import FaceVerificationResult from './VerificationResult';
 import { registerFace, checkFaceStatus } from '../../api/Face';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface FaceRegistrationModalProps {
     visible: boolean;
@@ -13,6 +14,7 @@ interface FaceRegistrationModalProps {
 
 const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, onSuccess, onCancel }) => {
     const { user, updateUser } = useAuth();
+    const { t } = useTheme();
     const [step, setStep] = useState<'capture' | 'result'>('capture');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
                     registered = true;
                     break;
                 } else if (statusRes.status === 'FAILED') {
-                    throw new Error(statusRes.errorMessage || 'Face registration failed.');
+                    throw new Error(statusRes.errorMessage || t('faceVerificationFailed'));
                 }
                 attempts++;
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -52,7 +54,7 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
             setStep('result');
             updateUser({ faceRegistered: true });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Face registration failed');
+            setError(err instanceof Error ? err.message : t('faceVerificationFailed'));
             setVerified(false);
             setStep('result');
         } finally {
@@ -71,13 +73,19 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
 
     return (
         <Modal
-            title="Face Registration"
+            title={t('faceRegistration')}
             open={visible}
             footer={null}
             closable={false}
             maskClosable={false}
             width={600}
+            className="responsive-modal face-registration-modal"
         >
+            {step === 'capture' && (
+                <Typography.Paragraph type="secondary">
+                    {t('faceRegistrationIntro')}
+                </Typography.Paragraph>
+            )}
             {step === 'capture' ? (
                 <FaceCapture
                     onCapture={handleCapture}

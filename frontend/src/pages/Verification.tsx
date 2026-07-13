@@ -92,7 +92,7 @@ export default function VerificationPage() {
     return (
         <AppShell title={t('locationVerification')} showPageTitle={false} pageClassName="verification-page">
             {contextHolder}
-            <Card className="verification-card" style={{ maxWidth: 800, margin: '0 auto' }}>
+            <Card className="verification-card">
                 <Typography.Title level={2} style={{ textAlign: 'center', marginBottom: 24 }}>
                     {t('locationVerification')}
                 </Typography.Title>
@@ -108,7 +108,7 @@ export default function VerificationPage() {
                 ) : (
                     <>
                         {userLocation && (
-                            <div style={{ marginBottom: 24, height: 400, borderRadius: 16, overflow: 'hidden' }}>
+                            <div className="verification-map-frame">
                                 <MapContainer
                                     center={[session.lat!, session.lng!]}
                                     zoom={16}
@@ -136,7 +136,7 @@ export default function VerificationPage() {
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                        <div className="verification-result">
                             {isWithinRadius ? (
                                 <Space size={12}>
                                     <CheckCircleOutlined style={{ color: '#5ec832', fontSize: 32 }} />
@@ -163,9 +163,8 @@ export default function VerificationPage() {
                                 <Button
                                     type="primary"
                                     size="large"
-                                    className="primary-action"
+                                    className="primary-action verification-action-button"
                                     onClick={() => navigate(`/sessions/${session.id}`)}
-                                    style={{ marginTop: 8 }}
                                 >
                                     {t('proceedToSession')}
                                 </Button>

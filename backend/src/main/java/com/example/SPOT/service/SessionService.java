@@ -2,6 +2,7 @@ package com.example.SPOT.service;
 
 import com.example.SPOT.dto.request.SessionCreateDTO;
 import com.example.SPOT.dto.request.SessionUpdateDTO;
+import com.example.SPOT.dto.response.SessionDetailsDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.model.AttendanceModel;
@@ -73,6 +74,19 @@ public class SessionService {
         return mapToDTO(sessionRepository.save(sessionModel));
     }
 
+    public List<UserAttendanceDTO> getOwnedSessions(Long ownerId){
+        return sessionRepository.findAllByOwnerId(ownerId).stream().map(sessionModel -> new UserAttendanceDTO(
+                        sessionModel.getId(),
+                        sessionModel.getTitle(),
+                        sessionModel.getOwner().getEmail(),
+                        sessionModel.getCreateAt()))
+                .collect(Collectors.toList());
+    }
+
+    public Long getOwnedSessionsCount(Long ownerId){
+        return sessionRepository.countByOwnerId(ownerId);
+    }
+
     @GetMapping("/{id}")
     public List<UsersForSessionDTO> getAllEmailsForThisSession(Long id, Long userId){
         getSessionOwnedByUser(id, userId);
@@ -80,6 +94,21 @@ public class SessionService {
                         new UsersForSessionDTO(
                                 model.getUser().getEmail()))
                 .collect(Collectors.toList());
+    }
+
+    public SessionDetailsDTO getSessionDetails(Long id, Long userId) {
+        SessionModel session = getSessionOwnedByUser(id, userId);
+        return new SessionDetailsDTO(
+                session.getId(),
+                session.getTitle(),
+                session.getPassword(),
+                session.getValidationTypes(),
+                session.getLatitude(),
+                session.getLongitude(),
+                session.getAllowedRadius(),
+                session.getCreateAt(),
+                session.isActive()
+        );
     }
 
     @Transactional

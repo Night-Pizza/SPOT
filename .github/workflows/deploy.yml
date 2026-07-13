@@ -108,6 +108,10 @@ jobs:
                 MY_UNIVERSITY_CLIENT_SECRET=${{ secrets.MY_UNIVERSITY_CLIENT_SECRET }}
                 MY_UNIVERSITY_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_REDIRECT_URI }}
                 MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI }}
+                WEBAUTH_RP_ID=${{ secrets.WEBAUTH_RP_ID }}
+                WEBAUTH_RP_NAME=${{ secrets.WEBAUTH_RP_NAME }}
+                DUCKDNS_TOKEN=${{ secrets.DUCKDNS_TOKEN }}
+                ACME_EMAIL=${{ secrets.ACME_EMAIL }}
                 EOF
 
             - name: Deploy to Server

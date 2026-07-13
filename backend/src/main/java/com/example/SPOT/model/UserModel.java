@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
 
 @Data
 @Entity
@@ -31,6 +32,15 @@ public class UserModel {
     @Convert(converter = DoubleArrayConverter.class)
     private Double[] embedding;
 
+    @Column(columnDefinition = "BYTEA")
+    private byte[] webauthCredentialId;
+
+    @Column(columnDefinition = "BYTEA")
+    private byte[] webauthPublicKey;
+
+    private Long webauthSignatureCount;
+
+    private LocalDateTime webauthLastModified;
     @PrePersist
     public void prePersist() {
         if (authProvider == null) {

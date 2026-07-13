@@ -8,8 +8,10 @@ import java.util.List;
 
 @Repository
 public interface SessionRepository extends JpaRepository<SessionModel, Long> {
-    List<SessionModel> findAllByOwner_Id(Long id);
+    List<SessionModel> findAllByOwnerId(Long id);
 
     @Query("SELECT s.id FROM SessionModel s WHERE s.isActive = true")
     List<Long> findAllActiveIds();
+
+    long countByOwnerId(Long id);
 }

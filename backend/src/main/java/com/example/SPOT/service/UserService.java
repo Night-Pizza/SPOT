@@ -71,11 +71,15 @@ public class UserService {
 
         validatePassword(userCreateDTO.password());
 
-        UserModel newUser = new UserModel(
+        UserModel newUser = new UserModel (
                 null,
                 userCreateDTO.email(),
                 passwordEncoder.encode(userCreateDTO.password()),
                 AuthProvider.LOCAL,
+                null,
+                null,
+                null,
+                null,
                 null
         );
         return mapToDTO(userRepository.save(newUser));
@@ -168,7 +172,8 @@ public class UserService {
         return new UserDTO(
                 userModel.getId(),
                 userModel.getEmail(),
-                userModel.getEmbedding() != null
+                userModel.getEmbedding() != null,
+                userModel.getWebauthCredentialId() != null
         );
     }
 

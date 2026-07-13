@@ -52,6 +52,24 @@ async function mockCoreApi(page: Page) {
       body: JSON.stringify([]),
     });
   });
+
+  await page.route('**/api/session/42/details', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 42,
+        title: 'Integration Testing 101',
+        password: 'spot-1234',
+        validationTypes: ['PASSWORD', 'GPS'],
+        latitude: 55.75,
+        longitude: 37.61,
+        allowedRadius: 100.0,
+        createdAt: '2026-07-01T12:00:00.000Z',
+        isActive: true,
+      }),
+    });
+  });
 }
 
 test('redirects anonymous users to the login page', async ({ page }) => {
@@ -63,7 +81,9 @@ test('redirects anonymous users to the login page', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
 });
 
-test('logs in and creates a basic code session', async ({ page }) => {
+test('logs in and creates a basic code session', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 55.75, longitude: 37.61 });
   await mockCoreApi(page);
 
   await page.goto(`${baseUrl}/login`);
@@ -81,6 +101,7 @@ test('logs in and creates a basic code session', async ({ page }) => {
   await page.locator('.session-mode-choice .ant-radio-button-wrapper').filter({ hasText: 'Code Word session' }).click();
   await page.getByLabel('Session Title').fill('Integration Testing 101');
   await page.locator('.session-switch-row').first().getByRole('switch').click();
+  await page.getByRole('button', { name: 'Get Location' }).click();
   await page.getByLabel('Session Code').fill('spot-1234');
   await page.getByRole('button', { name: 'Create Session' }).click();
 

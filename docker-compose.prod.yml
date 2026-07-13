@@ -11,14 +11,28 @@ services:
     restart: always
     environment:
       - DOCKER_API_VERSION=1.44
+      - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
+      - DUCKDNS_PROPAGATION_TIMEOUT=120
+      - TRAEFIK_GLOBAL_SENDANONYMOUSUSAGE=false
+      - TRAEFIK_LOG_LEVEL=DEBUG
+      - TRAEFIK_API_DASHBOARD=true
+      - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
+      - TRAEFIK_ENTRYPOINTS_WEB_HTTP_REDIRECTIONS_ENTRYPOINT_TO=websecure
+      - TRAEFIK_ENTRYPOINTS_WEB_HTTP_REDIRECTIONS_ENTRYPOINT_SCHEME=https
+      - TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS=:443
+      - TRAEFIK_PROVIDERS_DOCKER_ENDPOINT=unix:///var/run/docker.sock
+      - TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT=false
+      - TRAEFIK_CERTIFICATESRESOLVERS_DUCKDNS_ACME_EMAIL=${ACME_EMAIL}
+      - TRAEFIK_CERTIFICATESRESOLVERS_DUCKDNS_ACME_STORAGE=/letsencrypt/acme.json
+      - TRAEFIK_CERTIFICATESRESOLVERS_DUCKDNS_ACME_DNSCHALLENGE=true
+      - TRAEFIK_CERTIFICATESRESOLVERS_DUCKDNS_ACME_DNSCHALLENGE_PROVIDER=duckdns
+      - TRAEFIK_CERTIFICATESRESOLVERS_DUCKDNS_ACME_DNSCHALLENGE_DELAYBEFORECHECK=10
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/certs:/certs:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./traefik/acme:/letsencrypt
     networks:
       - app-network
 
@@ -56,6 +70,7 @@ services:
       - "traefik.http.routers.backend.rule=Host(`${APP_HOST}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls=true"
+      - "traefik.http.routers.backend.tls.certresolver=duckdns"
       - "traefik.http.routers.backend.service=backend"
       - "traefik.http.routers.backend.priority=90"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
@@ -63,10 +78,10 @@ services:
       - "traefik.http.routers.backend-login.rule=Host(`${APP_HOST}`) && Path(`/api/user/login`)"
       - "traefik.http.routers.backend-login.entrypoints=websecure"
       - "traefik.http.routers.backend-login.tls=true"
+      - "traefik.http.routers.backend-login.tls.certresolver=duckdns"
       - "traefik.http.routers.backend-login.service=backend"
       - "traefik.http.routers.backend-login.priority=100"
       - "traefik.http.routers.backend-login.middlewares=login-ratelimit,strip-api"
-
       - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.average=3000"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.period=1m"
@@ -89,6 +104,8 @@ services:
       MY_UNIVERSITY_CLIENT_SECRET: ${MY_UNIVERSITY_CLIENT_SECRET:-}
       MY_UNIVERSITY_REDIRECT_URI: ${MY_UNIVERSITY_REDIRECT_URI:-https://${APP_HOST}/api/auth/my-university/callback}
       MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI: ${MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI:-/dashboard}
+      WEBAUTHN_RP_ID: ${WEBAUTH_RP_ID}
+      WEBAUTHN_RP_NAME: ${WEBAUTH_RP_NAME}
   
   frontend:
     image: ghcr.io/night-pizza/spot/spot-frontend:latest
@@ -101,6 +118,7 @@ services:
       - "traefik.http.routers.frontend.rule=Host(`${APP_HOST}`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=duckdns"
       - "traefik.http.routers.frontend.priority=10"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
     networks:

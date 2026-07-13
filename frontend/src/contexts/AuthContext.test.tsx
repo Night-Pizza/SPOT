@@ -35,6 +35,7 @@ describe('AuthContext', () => {
             email: 'valerii@spot.com',
             attendedSessions: 0,
             faceRegistered: true,
+            webauthRegistered: false,
         });
         expect(result.current.error).toBeNull();
     });

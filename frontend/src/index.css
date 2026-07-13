@@ -8,11 +8,13 @@ html,
 body,
 #root {
   height: 100%;
+  max-width: 100%;
 }
 
 body {
   font-family: Inter, Arial, sans-serif;
   background: rgba(1, 6, 28, 0.76);
+  overflow-x: hidden;
 }
 
 /* ===== AUTH SCREEN ===== */
@@ -140,12 +142,14 @@ body {
   min-height: 100vh;
   background: #f4f4f6;
   color: #111827;
+  overflow-x: clip;
 }
 
 .app-layout {
   min-height: 100vh;
   margin-left: 288px;
   background: #f4f4f6;
+  min-width: 0;
 }
 
 /* HEADER */
@@ -165,10 +169,6 @@ body {
   z-index: 20;
 }
 
-.mobile-menu-button {
-  display: none;
-}
-
 .brand-lockup {
   display: flex;
   align-items: center;
@@ -183,6 +183,22 @@ body {
 
 .header-brand {
   gap: 18px;
+}
+
+.header-logo-trigger {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: default;
+}
+
+.header-logo-trigger:focus-visible {
+  outline: 3px solid rgba(94, 200, 50, 0.35);
+  outline-offset: 6px;
+  border-radius: 10px;
 }
 
 .header-title {
@@ -204,6 +220,18 @@ body {
   color: #344054;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.header-profile-shortcut {
+  cursor: pointer;
+  min-width: 0;
+}
+
 .user-avatar {
   background: #5ec832;
   font-weight: 800;
@@ -219,6 +247,8 @@ body {
 
 .app-page {
   padding: 48px 58px;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .page-heading {
@@ -306,6 +336,10 @@ body {
 .full-width-space,
 .full-width-input {
   width: 100%;
+}
+
+.alert-action-button {
+  min-width: 140px;
 }
 
 .drawer-overlay {
@@ -422,14 +456,14 @@ body {
 
 .dashboard-page,
 .sessions-page {
-  padding-top: 58px;
+  padding-top: 24px;
 }
 
 .dashboard-greeting.ant-typography {
   max-width: 1380px;
-  margin: 0 auto 54px;
+  margin: 0 auto 18px;
   color: #111827;
-  font-size: 48px;
+  font-size: 36px;
   line-height: 1.12;
   font-weight: 900;
 }
@@ -438,11 +472,16 @@ body {
   color: #5ec832;
 }
 
+.dashboard-alert.ant-alert {
+  max-width: 1380px;
+  margin: 0 auto 10px;
+}
+
 .section-kicker.ant-typography {
   max-width: 1380px;
-  margin: 0 auto 28px;
+  margin: 0 auto 12px;
   color: #667085;
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 900;
   letter-spacing: 0;
 }
@@ -451,40 +490,67 @@ body {
   display: grid;
   max-width: 1380px;
   margin: 0 auto;
-  gap: 28px;
+  gap: 16px;
 }
 
 .quick-actions-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1380px;
+  margin: 14px auto 0;
+}
+
 .quick-action-card {
-  min-height: 260px;
-  cursor: default;
+  min-height: 148px;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 5px rgba(17, 24, 39, 0.08);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
 
 .quick-action-card[role="button"] {
   cursor: pointer;
 }
 
-.quick-action-card[role="button"]:focus-visible {
+.quick-action-card[role="button"]:focus-visible,
+.quick-action-card:focus-visible {
   outline: 3px solid rgba(94, 200, 50, 0.35);
   outline-offset: 4px;
 }
 
+.quick-action-card:hover {
+  background: #fbfdfb;
+  border-color: rgba(94, 200, 50, 0.42);
+  box-shadow: 0 5px 14px rgba(17, 24, 39, 0.11);
+  transform: translateY(-1px);
+}
+
+.quick-action-card:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 12px rgba(17, 24, 39, 0.12);
+}
+
 .quick-action-card .ant-card-body {
-  padding: 46px;
+  min-height: 148px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
 }
 
 .quick-action-icon {
-  width: 80px;
-  height: 80px;
+  width: 46px;
+  height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 20px;
-  font-size: 38px;
-  margin-bottom: 32px;
+  border-radius: 14px;
+  font-size: 22px;
+  margin-bottom: 14px;
 }
 
 .purple-icon {
@@ -494,15 +560,40 @@ body {
 
 .quick-action-card h3.ant-typography {
   color: #111827;
-  font-size: 24px;
+  font-size: 19px;
   font-weight: 900;
-  margin: 0 0 10px;
+  margin: 0 0 4px;
 }
 
 .quick-action-card .ant-typography {
   color: #667085;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 650;
+  margin-bottom: 10px;
+}
+
+.quick-action-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  color: #3f9f22;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.quick-action-card:hover .quick-action-cta {
+  color: #2f8018;
+}
+
+.dashboard-stat-card .ant-card-body {
+  padding: 14px 20px;
+}
+
+.dashboard-stat-number.ant-typography {
+  margin: 2px 0 0;
+  font-size: 26px;
+  line-height: 1.15;
 }
 
 .sessions-header {
@@ -532,6 +623,14 @@ body {
 .sessions-empty-state {
   max-width: 1380px;
   margin: 96px auto 0;
+}
+
+.sessions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 24px;
+  max-width: 1380px;
+  margin: 0 auto;
 }
 
 .create-session-page .page-heading {
@@ -689,6 +788,7 @@ body {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .scanned-card .ant-table-thead > tr > th {
@@ -821,6 +921,31 @@ body {
   align-items: stretch;
 }
 
+.attendance-history-section {
+  max-width: 1380px;
+  margin: 42px auto 0;
+}
+
+.attendance-history-section .section-kicker.ant-typography {
+  margin-bottom: 20px;
+}
+
+.attendance-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.attendance-history-card {
+  border-radius: 16px;
+}
+
+.attendance-blocked-card {
+  max-width: 600px;
+  margin: 40px auto;
+  text-align: center;
+}
+
 @media (max-width: 1180px) {
   .app-layout {
     margin-left: 0;
@@ -833,10 +958,6 @@ body {
 
   .drawer-menu.open {
     transform: translateX(0);
-  }
-
-  .mobile-menu-button {
-    display: inline-flex;
   }
 
   .app-header {
@@ -929,14 +1050,15 @@ body {
   align-items: center;
   gap: 24px;
   background: white;
-  border-radius: 28px;
-  padding: 32px;
-  margin-bottom: 24px;
+  border-radius: 24px;
+  padding: 24px 30px;
+  margin-bottom: 0;
   box-shadow: 0 2px 9px rgba(17, 24, 39, 0.12);
+  min-height: 132px;
 }
 .profile-avatar-placeholder {
-  width: 80px;
-  height: 80px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   background: #5ec832;
   color: white;
@@ -949,15 +1071,605 @@ body {
 .profile-info { flex: 1; }
 .profile-name { font-size: 24px; font-weight: 700; margin: 0; }
 .profile-email { color: #667085; margin: 4px 0 0; }
-.profile-stats-row { margin-bottom: 24px; }
-.profile-stat-card { flex: 1; min-width: 150px; border-radius: 28px; }
-.profile-stat-number { margin: 0 !important; }
-.profile-contact-card { border-radius: 28px; margin-bottom: 24px; }
-.contact-icon { font-size: 24px; color: #5ec832; }
-.contact-label { display: block; font-size: 12px; text-transform: uppercase; color: #98a2b3; }
-.contact-value { font-size: 18px; }
-.change-password-btn { border-radius: 16px; height: 56px; font-weight: 700; margin-bottom: 16px; }
-.profile-logout-btn { width: 100%; padding: 16px; background: none; border: none; color: #ff4d4f; font-weight: 700; font-size: 18px; cursor: pointer; text-align: center; }
+.profile-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
+.profile-page .page-heading {
+  margin-bottom: 18px;
+}
+.profile-page .page-heading h1.ant-typography {
+  font-size: 40px;
+}
+.profile-overview {
+  display: block;
+  margin-bottom: 16px;
+}
+.profile-actions-card {
+  border-radius: 24px;
+  margin-bottom: 0;
+  box-shadow: 0 2px 9px rgba(17, 24, 39, 0.12);
+}
+.profile-actions-section {
+  display: block;
+}
+.profile-actions-card .ant-card-head {
+  min-height: 54px;
+  padding: 0 26px;
+}
+.profile-actions-card .ant-card-head-title {
+  font-size: 19px;
+}
+.profile-actions-card .ant-card-body {
+  padding: 24px 26px 26px;
+}
+.profile-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.profile-action-button,
+.profile-actions-grid .ant-btn,
+.change-password-btn {
+  width: 100%;
+  min-height: 58px;
+  height: 58px;
+  border-radius: 14px;
+  font-weight: 700;
+  padding: 0 18px;
+  margin-bottom: 0;
+}
+.profile-logout-btn { width: 100%; min-height: 58px; padding: 0 18px; border-radius: 14px; background: #fff7f7; border: 1px solid #fee4e2; color: #ff4d4f; font-weight: 700; font-size: 16px; cursor: pointer; text-align: center; }
+
+.profile-name,
+.profile-email,
+.session-grid-card .ant-typography,
+.attendance-history-card .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.verification-page .verification-card {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.verification-map-frame {
+  height: 400px;
+  margin-bottom: 24px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.verification-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.verification-action-button {
+  margin-top: 8px;
+}
+
+.face-capture {
+  text-align: center;
+}
+
+.face-camera-frame {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 500px;
+}
+
+.face-preview-section {
+  margin-top: 16px;
+}
+
+.face-preview-grid {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.responsive-modal .ant-modal-content {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.responsive-modal .ant-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qr-modal-image {
+  width: min(480px, 100%);
+  height: auto;
+}
+
+.map-modal-frame {
+  height: min(80vh, 720px);
+  min-height: 320px;
+}
+
+.camera-modal video {
+  max-height: min(62vh, 520px);
+  object-fit: contain;
+}
+
+@media (max-width: 1024px) {
+  .app-page {
+    padding: 36px 28px;
+  }
+
+  .dashboard-page,
+  .sessions-page {
+    padding-top: 42px;
+  }
+
+  .quick-action-card .ant-card-body {
+    padding: 34px;
+  }
+
+  .active-session-grid {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 860px;
+  }
+
+  .active-session-header,
+  .sessions-header,
+  .page-heading,
+  .dashboard-greeting.ant-typography,
+  .section-kicker.ant-typography,
+  .attendance-history-section {
+    max-width: 860px;
+  }
+
+  .profile-page {
+    max-width: 860px;
+  }
+
+  .profile-card,
+  .profile-actions-card {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    height: 74px;
+    padding: 0 16px;
+  }
+
+  .header-university,
+  .user-name {
+    display: none;
+  }
+
+  .brand-mark {
+    width: 40px;
+  }
+
+  .header-logo-trigger {
+    min-height: 44px;
+    min-width: 44px;
+    cursor: pointer;
+  }
+
+  .header-actions {
+    display: none;
+  }
+
+  .app-page {
+    padding: 28px 16px;
+  }
+
+  .page-heading {
+    margin-bottom: 28px;
+  }
+
+  .page-heading h1.ant-typography,
+  .active-session-header h1.ant-typography,
+  .dashboard-greeting.ant-typography,
+  .sessions-header h1.ant-typography {
+    font-size: 32px;
+    line-height: 1.15;
+  }
+
+  .page-heading .ant-typography,
+  .sessions-header .ant-typography,
+  .section-kicker.ant-typography {
+    font-size: 17px;
+  }
+
+  .ant-card {
+    border-radius: 20px;
+  }
+
+  .ant-card .ant-card-head {
+    min-height: 60px;
+    padding: 0 18px;
+  }
+
+  .ant-card .ant-card-head-title {
+    font-size: 20px;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .ant-card .ant-card-body,
+  .quick-action-card .ant-card-body,
+  .session-form-card .ant-card-body {
+    padding: 22px;
+  }
+
+  .quick-actions-grid,
+  .dashboard-stats-grid,
+  .attendance-actions-grid,
+  .attendance-history-grid,
+  .sessions-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .dashboard-stats-grid {
+    margin-top: 32px;
+  }
+
+  .quick-action-card,
+  .attendance-action-card {
+    min-height: auto;
+  }
+
+  .quick-action-card .ant-card-body {
+    min-height: auto;
+  }
+
+  .quick-action-icon,
+  .large-action-icon {
+    width: 64px;
+    height: 64px;
+    font-size: 30px;
+    margin-bottom: 18px;
+  }
+
+  .sessions-header {
+    align-items: stretch;
+  }
+
+  .new-session-button,
+  .alert-action-button {
+    width: 100%;
+  }
+
+  .ant-btn {
+    min-height: 44px;
+    padding-inline: 14px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+
+  .ant-btn-lg {
+    min-height: 46px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+
+  .ant-btn-sm {
+    min-height: 40px;
+    border-radius: 10px;
+    font-size: 14px;
+    padding-inline: 12px;
+  }
+
+  .auth-inner {
+    max-width: none;
+    padding: 28px 18px;
+  }
+
+  .iu-logo {
+    width: min(240px, 78vw);
+    margin-bottom: 56px;
+  }
+
+  .auth-heading {
+    font-size: 26px;
+    margin-bottom: 30px;
+  }
+
+  .session-mode-choice {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .session-mode-choice .ant-radio-button-wrapper {
+    width: 100%;
+    border-inline-start-width: 1px;
+    border-radius: 14px;
+  }
+
+  .session-switch-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .session-switch-row .ant-space {
+    align-items: flex-start;
+  }
+
+  .form-actions {
+    margin-top: 30px;
+  }
+
+  .form-actions,
+  .form-actions .ant-flex {
+    width: 100%;
+  }
+
+  .form-actions .primary-action,
+  .form-actions .ant-btn,
+  .modal-action-stack,
+  .modal-action-stack .ant-btn {
+    width: 100%;
+  }
+
+  .active-session-header {
+    gap: 14px;
+    margin-bottom: 26px;
+  }
+
+  .active-session-header > div {
+    min-width: 0;
+  }
+
+  .active-session-meta {
+    row-gap: 8px;
+  }
+
+  .session-detail-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .session-detail-row .ant-typography {
+    overflow-wrap: anywhere;
+  }
+
+  .radius-edit-row .ant-space {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .session-card-actions,
+  .session-card-actions .ant-space-item,
+  .session-card-actions .ant-btn {
+    width: 100%;
+  }
+
+  .session-card-actions .ant-btn {
+    min-height: 44px;
+  }
+
+  .session-card-actions .ant-tag {
+    width: auto;
+  }
+
+  .manual-add-section {
+    padding: 18px;
+  }
+
+  .student-email-cell {
+    min-width: 180px;
+    max-width: 240px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-card {
+    align-items: flex-start;
+    flex-direction: column;
+    border-radius: 20px;
+    padding: 22px;
+  }
+
+  .profile-overview {
+    margin-bottom: 14px;
+  }
+
+  .profile-actions-card .ant-card-body {
+    padding: 20px;
+  }
+
+  .profile-actions-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .profile-action-button,
+  .profile-actions-grid .ant-btn,
+  .profile-logout-btn {
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .profile-avatar-placeholder {
+    width: 68px;
+    height: 68px;
+    font-size: 28px;
+  }
+
+  .profile-name {
+    font-size: 20px;
+  }
+
+  .verification-map-frame {
+    height: 320px;
+  }
+
+  .verification-result .ant-space {
+    justify-content: center;
+    white-space: normal;
+  }
+
+  .responsive-modal {
+    max-width: calc(100vw - 24px);
+  }
+
+  .responsive-modal .ant-modal-content {
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
+  }
+
+  .responsive-modal .ant-modal-footer .ant-btn {
+    flex: 1 1 160px;
+    min-height: 44px;
+  }
+
+  .map-modal-frame {
+    height: 68vh;
+    min-height: 300px;
+  }
+
+  .face-camera-frame {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-page {
+    padding: 22px 12px;
+  }
+
+  .profile-page {
+    max-width: 100%;
+    padding-top: 22px;
+    padding-bottom: 22px;
+  }
+
+  .profile-card {
+    padding: 18px;
+    gap: 14px;
+  }
+
+  .profile-actions-card .ant-card-head {
+    min-height: 50px;
+    padding: 0 18px;
+  }
+
+  .profile-actions-card .ant-card-body {
+    padding: 18px;
+  }
+
+  .drawer-menu {
+    width: min(288px, 88vw);
+    padding: 22px 12px 18px;
+  }
+
+  .drawer-link {
+    padding: 15px 16px;
+    font-size: 16px;
+  }
+
+  .drawer-footer {
+    padding: 18px 16px;
+  }
+
+  .page-heading h1.ant-typography,
+  .active-session-header h1.ant-typography,
+  .dashboard-greeting.ant-typography,
+  .sessions-header h1.ant-typography {
+    font-size: 28px;
+  }
+
+  .dashboard-greeting.ant-typography {
+    margin-bottom: 34px;
+  }
+
+  .ant-card .ant-card-body,
+  .quick-action-card .ant-card-body,
+  .session-form-card .ant-card-body {
+    padding: 18px;
+  }
+
+  .ant-btn-lg,
+  .ant-input-lg,
+  .ant-input-number-lg,
+  .ant-input-affix-wrapper-lg {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  .ant-btn-lg {
+    border-radius: 11px;
+    padding-inline: 14px;
+  }
+
+  .field-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 21px;
+  }
+
+  .attendance-action-card h2.ant-typography {
+    font-size: 22px;
+  }
+
+  .attendance-action-card .ant-card-body {
+    padding: 20px;
+  }
+
+  .code-card .ant-space-horizontal {
+    align-items: flex-start;
+  }
+
+  .active-session-header {
+    align-items: flex-start;
+  }
+
+  .scanned-card .ant-table-cell {
+    padding: 11px 12px;
+  }
+
+  .student-name-cell {
+    min-width: 150px;
+  }
+
+  .auth-input,
+  .auth-submit {
+    height: 52px;
+  }
+
+  .verification-map-frame {
+    height: 260px;
+  }
+
+  .verification-action-button {
+    width: 100%;
+  }
+
+  .responsive-modal .ant-modal-footer {
+    flex-direction: column-reverse;
+  }
+
+  .responsive-modal .ant-modal-footer .ant-btn {
+    width: 100%;
+  }
+
+  .camera-modal video {
+    max-height: 54vh;
+  }
+}
 
 [data-theme="dark"] {
   --bg-primary: #0f172a;
@@ -999,8 +1711,7 @@ body {
 }
 [data-theme="dark"] .ant-card,
 [data-theme="dark"] .profile-card,
-[data-theme="dark"] .profile-stat-card,
-[data-theme="dark"] .profile-contact-card {
+[data-theme="dark"] .profile-actions-card {
   background: var(--bg-card);
   border-color: var(--border-color);
   box-shadow: var(--shadow);
@@ -1776,7 +2487,6 @@ body {
 .attendance-action-card h2,
 .profile-name,
 .profile-email,
-.contact-value,
 .ant-modal-title,
 .ant-form-item-label > label {
   font-weight: 400 !important;
@@ -1929,19 +2639,13 @@ h4.ant-typography,
 }
 
 [data-theme="dark"] .profile-card,
-[data-theme="dark"] .profile-stat-card,
-[data-theme="dark"] .profile-contact-card {
+[data-theme="dark"] .profile-actions-card {
   background: #1e293b !important;
   border-color: #334155 !important;
 }
 [data-theme="dark"] .profile-name,
-[data-theme="dark"] .profile-email,
-[data-theme="dark"] .profile-stat-number,
-[data-theme="dark"] .contact-value {
+[data-theme="dark"] .profile-email {
   color: #ffffff !important;
-}
-[data-theme="dark"] .contact-label {
-  color: #94a3b8 !important;
 }
 
 [data-theme="dark"] .ant-modal-content {
@@ -2051,13 +2755,41 @@ h4.ant-typography,
   border-radius: 0;
 }
 
-.end-session-btn {
-  color: #ff4d4f;
-  border-color: #ff4d4f;
+.responsive-modal.map-modal .ant-modal-body {
+  height: auto;
 }
-.end-session-btn:hover {
-  color: #ff7875;
-  border-color: #ff7875;
+
+@media (max-width: 768px) {
+  .responsive-modal {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+
+  .responsive-modal .ant-modal-content {
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .responsive-modal.map-modal .ant-modal-body {
+    height: auto;
+  }
+
+  .scanned-card .ant-table-wrapper,
+  .active-session-grid .ant-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .responsive-modal {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+}
+
+.end-session-btn {
+  font-weight: 700;
 }
 
 .map-modal .ant-modal-body {
