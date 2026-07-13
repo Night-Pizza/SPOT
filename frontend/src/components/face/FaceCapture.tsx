@@ -307,7 +307,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
     };
 
     return (
-        <div style={{ textAlign: 'center' }}>
+        <div className="face-capture">
             {(error || livenessError) && (
                 <Alert
                     type="error"
@@ -326,7 +326,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                 </div>
             ) : (
                 <>
-                    <div style={{ position: 'relative', display: 'inline-block', width: '100%', maxWidth: 500 }}>
+                    <div className="face-camera-frame">
                         <Webcam
                             ref={webcamRef}
                             audio={false}
@@ -444,8 +444,8 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
 
                     {/* Previews while loading/verifying (without manual buttons) */}
                     {photos.length > 0 && (
-                        <div style={{ marginTop: 16 }}>
-                            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <div className="face-preview-section">
+                            <div className="face-preview-grid">
                                 {photos.map((file, index) => (
                                     <img
                                         key={index}

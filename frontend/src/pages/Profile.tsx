@@ -1,15 +1,13 @@
 import AppShell from '../components/AppShell';
-import { MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Button, Card, Flex, Typography, Modal, Form, Input, message, Alert, Spin } from 'antd';
-import { useState, useEffect } from 'react';
+import { SafetyCertificateOutlined } from '@ant-design/icons';
+import { Button, Card, Modal, Form, Input, message, Alert, Spin } from 'antd';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { logoutUser } from '../api/Authentification';
 import { startRegistration } from '@simplewebauthn/browser';
 import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
-import { getCreatedSessionsCount } from '../api/Session';
-import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Profile() {
     const { user, loading, error, refreshCurrentUser } = useAuth();
@@ -20,34 +18,6 @@ export default function Profile() {
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
 
-    const [stats, setStats] = useState({ created: 0, attended: 0 });
-    const [statsLoading, setStatsLoading] = useState(true);
-
-    useEffect(() => {
-        let cancelled = false;
-        async function loadStats() {
-            setStatsLoading(true);
-            try {
-                const [created, attended] = await Promise.all([
-                    getCreatedSessionsCount(),
-                    getAttendedSessionsCount(),
-                ]);
-                if (!cancelled) {
-                    setStats({ created, attended });
-                }
-            } catch (err) {
-                console.error('Failed to load profile statistics:', err);
-            } finally {
-                if (!cancelled) {
-                    setStatsLoading(false);
-                }
-            }
-        }
-        void loadStats();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
     const email = user.email || 'Unavailable';
     const avatarText = user.email.charAt(0).toUpperCase() || '?';
 
@@ -120,7 +90,7 @@ export default function Profile() {
     };
 
     return (
-        <AppShell title={t('profile')}>
+        <AppShell title={t('profile')} pageClassName="profile-page">
             {contextHolder}
             {error && (
                 <Alert
@@ -131,77 +101,57 @@ export default function Profile() {
                     style={{ marginBottom: 16 }}
                 />
             )}
-            <div className="profile-card">
-                <div className="profile-avatar-placeholder">
-                    {loading ? <Spin size="small" /> : avatarText}
-                </div>
-                <div className="profile-info">
-                    <p className="profile-name">{loading ? 'Loading...' : email}</p>
-                    <p className="profile-email">{email}</p>
-                </div>
-            </div>
-
-            <Flex gap={16} className="profile-stats-row" wrap="wrap">
-                <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">
-                        {statsLoading ? <Spin size="small" /> : stats.created}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
-                </Card>
-                <Card className="profile-stat-card">
-                    <Typography.Title level={2} className="profile-stat-number">
-                        {statsLoading ? <Spin size="small" /> : stats.attended}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
-                </Card>
-            </Flex>
-
-            <Card className="profile-contact-card" title={t('contactInformation')}>
-                <Flex align="center" gap={14}>
-                    <span className="contact-icon"><MailOutlined /></span>
-                    <div>
-                        <Typography.Text type="secondary" className="contact-label">{t('email')}</Typography.Text>
-                        <Typography.Text strong className="contact-value">{email}</Typography.Text>
+            <section className="profile-overview">
+                <div className="profile-card">
+                    <div className="profile-avatar-placeholder">
+                        {loading ? <Spin size="small" /> : avatarText}
                     </div>
-                </Flex>
-            </Card>
+                    <div className="profile-info">
+                        <p className="profile-name">{loading ? 'Loading...' : email}</p>
+                        <p className="profile-email">{email}</p>
+                    </div>
+                </div>
+            </section>
 
-            <Button
-                block
-                size="large"
-                className="change-password-btn"
-                onClick={() => setIsPasswordModalOpen(true)}
-                style={{ marginBottom: 16 }}
-            >
-                {t('changePassword')}
-            </Button>
+            <section className="profile-actions-section">
+                <Card className="profile-actions-card" title="Account actions">
+                    <div className="profile-actions-grid">
+                        <Button
+                            block
+                            size="large"
+                            className="profile-action-button change-password-btn"
+                            onClick={() => setIsPasswordModalOpen(true)}
+                        >
+                            {t('changePassword')}
+                        </Button>
 
-            <Button
-                block
-                size="large"
-                type="primary"
-                className="primary-action"
-                onClick={() => setIsFaceModalOpen(true)}
-                style={{ marginBottom: 16 }}
-            >
-                Update Face
-            </Button>
+                        <Button
+                            block
+                            size="large"
+                            type="primary"
+                            className="profile-action-button primary-action"
+                            onClick={() => setIsFaceModalOpen(true)}
+                        >
+                            Update Face Recognition
+                        </Button>
 
-            <Button
-                block
-                size="large"
-                className="change-password-btn"
-                onClick={handleRegisterDevice}
-                loading={registeringDevice}
-                icon={<SafetyCertificateOutlined />}
-                style={{ marginBottom: 16 }}
-            >
-                {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
-            </Button>
+                        <Button
+                            block
+                            size="large"
+                            className="profile-action-button change-password-btn"
+                            onClick={handleRegisterDevice}
+                            loading={registeringDevice}
+                            icon={<SafetyCertificateOutlined />}
+                        >
+                            {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
+                        </Button>
 
-            <button className="profile-logout-btn" onClick={handleLogout}>
-                {t('logout')}
-            </button>
+                        <button className="profile-logout-btn" onClick={handleLogout}>
+                            {t('logout')}
+                        </button>
+                    </div>
+                </Card>
+            </section>
 
             <Modal
                 title={t('changePassword')}

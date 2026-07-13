@@ -558,7 +558,7 @@ export default function ActiveSessionPage() {
                 />
                 <div>
                     <Typography.Title level={1}>{displayTitle}</Typography.Title>
-                    <Space size={12}>
+                    <Space size={12} wrap className="active-session-meta">
                         <Tag color={isActive ? 'success' : 'default'}>
                             {isActive ? t('active') : 'Ended'}
                         </Tag>
@@ -619,7 +619,7 @@ export default function ActiveSessionPage() {
 
                     <div className="session-detail-list">
                         {!isQrSession && (
-                            <Flex justify="space-between" gap={16}>
+                            <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
                                 <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
                             </Flex>
@@ -627,7 +627,7 @@ export default function ActiveSessionPage() {
 
                         {activeSession?.validationTypes &&
                             activeSession.validationTypes.length > 0 && (
-                                <Flex justify="space-between" gap={16}>
+                                <Flex className="session-detail-row" justify="space-between" gap={16}>
                                     <Typography.Text type="secondary">
                                         Validation Methods
                                     </Typography.Text>
@@ -637,7 +637,7 @@ export default function ActiveSessionPage() {
                                 </Flex>
                             )}
 
-                        <Flex justify="space-between" gap={16}>
+                        <Flex className="session-detail-row" justify="space-between" gap={16}>
                             <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
                             <Typography.Text
                                 strong
@@ -655,7 +655,7 @@ export default function ActiveSessionPage() {
                             </Typography.Text>
                         </Flex>
                         {hasLocation && (
-                            <Flex justify="space-between" gap={16}>
+                            <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('location')}</Typography.Text>
                                 <Typography.Text strong>
                                     {activeSession?.lat?.toFixed(5)}, {activeSession?.lng?.toFixed(5)}
@@ -663,7 +663,7 @@ export default function ActiveSessionPage() {
                             </Flex>
                         )}
                         {hasLocation && isActive && (
-                            <Flex justify="space-between" gap={16} align="center">
+                            <Flex className="session-detail-row radius-edit-row" justify="space-between" gap={16} align="center">
                                 <Typography.Text type="secondary">Radius</Typography.Text>
                                 {isEditingRadius ? (
                                     <Space>
@@ -745,7 +745,7 @@ export default function ActiveSessionPage() {
                     title={
                         <Flex justify="space-between" align="center" gap={12} wrap="wrap">
                             <span>{t('scannedStudents')}</span>
-                            <Space wrap>
+                            <Space wrap className="session-card-actions">
                                 <Tag color="success">{attendees.length}</Tag>
                                 <Button
                                     size="small"
@@ -824,6 +824,7 @@ export default function ActiveSessionPage() {
                 style={{ maxWidth: 600 }}
                 centered
                 closable
+                className="responsive-modal qr-modal"
             >
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
                     {qrFullUrl ? (
@@ -850,6 +851,7 @@ export default function ActiveSessionPage() {
                     setAttendeeEmail('');
                 }}
                 destroyOnHidden
+                className="responsive-modal"
             >
                 <Input
                     value={attendeeEmail}
@@ -868,7 +870,7 @@ export default function ActiveSessionPage() {
                 okText="End Session"
                 cancelText="Cancel"
                 confirmLoading={endingSession}
-                okButtonProps={{ disabled: endingSession }}
+                okButtonProps={{ danger: true, disabled: endingSession }}
                 cancelButtonProps={{ disabled: endingSession }}
                 onOk={() => void handleEndSession()}
                 onCancel={() => {
@@ -878,6 +880,7 @@ export default function ActiveSessionPage() {
                 }}
                 centered
                 destroyOnHidden
+                className="responsive-modal end-session-modal"
             >
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                     QR/code attendance will stop after ending the session. Participants will no longer be able to check in using this session.
@@ -891,11 +894,11 @@ export default function ActiveSessionPage() {
                 width="90%"
                 style={{ maxWidth: 1200 }}
                 centered
-                className="map-modal"
+                className="responsive-modal map-modal"
                 closable
                 title="Session Location"
             >
-                <div style={{ height: '80vh' }}>
+                <div className="map-modal-frame">
                     {isMounted && (
                         <SessionMap
                             key={mapKey + 1000}

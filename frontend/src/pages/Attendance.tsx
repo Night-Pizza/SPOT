@@ -634,7 +634,7 @@ export default function Attendance() {
                     type="warning"
                     showIcon
                     action={
-                        <Button size="small" type="primary" onClick={() => setRegisterModalOpen(true)}>
+                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => setRegisterModalOpen(true)}>
                             {t('registerFace')}
                         </Button>
                     }
@@ -643,7 +643,7 @@ export default function Attendance() {
             )}
 
             {!loading && !user.webauthRegistered ? (
-                <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center' }}>
+                <div className="attendance-blocked-card">
                     <Card style={{ borderRadius: 16 }}>
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>
                             <SafetyCertificateOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
@@ -675,7 +675,7 @@ export default function Attendance() {
                             <div className="centered-copy">
                                 <Typography.Title level={2}>{t('scanQRCode')}</Typography.Title>
                                 <Typography.Paragraph>
-                                    {t('scanQRDesc')}
+                                    Scan a session QR code to mark your attendance.
                                 </Typography.Paragraph>
                             </div>
                             <Button
@@ -807,7 +807,7 @@ export default function Attendance() {
 
             <section className="attendance-history-section">
                 <Typography.Title level={2} className="section-kicker">
-                    {t('attendanceHistory')}
+                    Attended Sessions
                 </Typography.Title>
 
                 {historyLoading ? (
@@ -864,6 +864,7 @@ export default function Attendance() {
                 afterOpenChange={handleScannerModalOpenChange}
                 footer={null}
                 centered
+                className="responsive-modal camera-modal"
             >
                 <Space direction="vertical" size={16} className="full-width-space">
                     <video
@@ -896,6 +897,7 @@ export default function Attendance() {
                 maskClosable={false}
                 width={600}
                 onCancel={() => setFaceModalOpen(false)}
+                className="responsive-modal face-attendance-modal"
             >
                 {faceStep === 'capture' && (
                     <FaceCapture
@@ -928,7 +930,7 @@ export default function Attendance() {
                         <CloseCircleOutlined style={{ fontSize: 64, color: '#f5222d' }} />
                         <Typography.Title level={3} style={{ marginTop: 24 }}>{t('faceVerificationFailed')}</Typography.Title>
                         <Typography.Paragraph type="danger">{faceError || t('faceNotRecognized')}</Typography.Paragraph>
-                        <Space style={{ marginTop: 16 }}>
+                        <Space style={{ marginTop: 16 }} wrap className="modal-action-stack">
                             <Button type="primary" size="large" onClick={handleFaceRetry} className="primary-action">
                                 {t('tryAgain')}
                             </Button>
