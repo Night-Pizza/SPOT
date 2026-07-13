@@ -1,11 +1,14 @@
 package com.example.SPOT.controller;
 
 import java.net.URI;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 
 import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.response.UserDTO;
+import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.service.MyUniversitySsoService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +33,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/auth")
 @CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
+    static final String SSO_STATE_SESSION_ATTRIBUTE = "MY_UNIVERSITY_SSO_STATE";
+    private static final int SSO_STATE_BYTES = 32;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final MyUniversitySsoService myUniversitySsoService;
     private final SecurityContextRepository securityContextRepository;
 
@@ -46,17 +53,23 @@ public class AuthController {
     }
 
     @GetMapping("/my-university/login")
-    public ResponseEntity<Void> myUniversityLogin() {
+    public ResponseEntity<Void> myUniversityLogin(HttpServletRequest request) {
+        String state = generateState();
+        request.getSession(true).setAttribute(SSO_STATE_SESSION_ATTRIBUTE, state);
+
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(myUniversitySsoService.buildAuthorizationUri())
+                .location(myUniversitySsoService.buildAuthorizationUri(state))
                 .build();
     }
 
     @GetMapping("/my-university/callback")
     public ResponseEntity<Void> myUniversityCallback(
-            @RequestParam String code,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String state,
             HttpServletRequest request,
             HttpServletResponse responseHttp) {
+        validateState(request, state);
+
         UserDTO response = myUniversitySsoService.redeemCode(code);
 
         HttpSession existingSession = request.getSession(false);
@@ -83,5 +96,29 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(redirectUri)
                 .build();
+    }
+
+    private String generateState() {
+        byte[] bytes = new byte[SSO_STATE_BYTES];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private void validateState(HttpServletRequest request, String receivedState) {
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            throw new CustomException("SSO_STATE_INVALID", "SSO state is invalid");
+        }
+
+        Object expectedState = session.getAttribute(SSO_STATE_SESSION_ATTRIBUTE);
+        session.removeAttribute(SSO_STATE_SESSION_ATTRIBUTE);
+
+        if (!(expectedState instanceof String expected)
+                || expected.isBlank()
+                || receivedState == null
+                || receivedState.isBlank()
+                || !expected.equals(receivedState)) {
+            throw new CustomException("SSO_STATE_INVALID", "SSO state is invalid");
+        }
     }
 }
