@@ -16,7 +16,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<CustomExceptionDTO> handleCustomException(CustomException ex) {
         CustomExceptionDTO error = new CustomExceptionDTO(ex.getErrorCode(), ex.getMessage());
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        HttpStatus status = "RATE_LIMIT_EXCEEDED".equals(ex.getErrorCode())
+                ? HttpStatus.TOO_MANY_REQUESTS
+                : HttpStatus.BAD_REQUEST;
+
+        return new ResponseEntity<>(error, status);
     }
 
     @ExceptionHandler(Exception.class)

@@ -68,12 +68,12 @@ services:
       - "traefik.http.routers.backend-login.middlewares=login-ratelimit,strip-api"
 
       - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=60"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=3000"
       - "traefik.http.middlewares.api-ratelimit.ratelimit.period=1m"
-      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=20"
-      - "traefik.http.middlewares.login-ratelimit.ratelimit.average=5"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=1000"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.average=1000"
       - "traefik.http.middlewares.login-ratelimit.ratelimit.period=1m"
-      - "traefik.http.middlewares.login-ratelimit.ratelimit.burst=5"
+      - "traefik.http.middlewares.login-ratelimit.ratelimit.burst=300"
     env_file:
       - .env
     networks:

@@ -32,6 +32,9 @@ import java.util.Map;
 @RequestMapping("/attendance")
 @CrossOrigin(origins = "http://localhost:5173")
 public class AttendanceController {
+    private static final long STUDENT_ATTENDANCE_ATTEMPT_LIMIT = 1;
+    private static final Duration STUDENT_ATTENDANCE_ATTEMPT_WINDOW = Duration.ofSeconds(10);
+
     private final AttendanceService attendanceService;
     private final KafkaRepository kafkaRepository;
     private final QRTokenService qrTokenService;
@@ -51,6 +54,7 @@ public class AttendanceController {
             Authentication authentication) {
         requireSsoAuthentication(authentication);
         Long userId = Long.valueOf(userIdStr);
+        enforceStudentAttendanceRateLimit(userId);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
     }
 
@@ -61,12 +65,8 @@ public class AttendanceController {
             Authentication authentication){
         requireSsoAuthentication(authentication);
         Long userId = Long.valueOf(userIdStr);
+        enforceStudentAttendanceRateLimit(userId);
         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
-        String key = "attendance-scan:" + userId + ":" + sessionId;
-
-        if (!rateLimitService.tryConsume(key, 10, Duration.ofMinutes(1))) {
-            throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many scan attempts");
-        }
 
         AttendanceCreateDTO createDTO = new AttendanceCreateDTO(
                 sessionId,
@@ -123,6 +123,14 @@ public class AttendanceController {
                 request.getStatus().name(),
                 request.getErrorMessage() != null ? request.getErrorMessage() : ""
         ));
+    }
+
+    private void enforceStudentAttendanceRateLimit(Long userId) {
+        String key = "attendance-student:" + userId;
+
+        if (!rateLimitService.tryConsume(key, STUDENT_ATTENDANCE_ATTEMPT_LIMIT, STUDENT_ATTENDANCE_ATTEMPT_WINDOW)) {
+            throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many attendance attempts");
+        }
     }
 
     private void requireSsoAuthentication(Authentication authentication) {
