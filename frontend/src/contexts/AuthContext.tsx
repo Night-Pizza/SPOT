@@ -1,5 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getCurrentUser } from '../api/User';
 import type { UserDTO } from '../types/Authentification';
 
@@ -8,6 +7,7 @@ export type User = {
     email: string;
     attendedSessions: number;
     faceRegistered: boolean;
+    webauthRegistered: boolean;
 };
 
 interface AuthContextType {
@@ -26,6 +26,7 @@ const defaultUser: User = {
     email: '',
     attendedSessions: 0,
     faceRegistered: false,
+    webauthRegistered: false,
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             id: data.id,
             email: data.email,
             faceRegistered: data.faceRegistered ?? false,
+            webauthRegistered: data.webauthRegistered ?? false,
         }));
         setError(null);
     }, []);

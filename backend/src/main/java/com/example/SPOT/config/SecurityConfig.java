@@ -53,7 +53,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/docs").permitAll()
-                        .requestMatchers("/api/ws-spot/**", "/ws-spot/**").permitAll()
+                        .requestMatchers("/api/ws-spot/**", "/ws-spot/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .headers(headers -> headers
@@ -81,7 +81,8 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "https://localhost",
                 "http://localhost:5173",
-                "https://10.93.27.37"
+                "https://10.93.27.37",
+                "https://innospot.duckdns.org"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         

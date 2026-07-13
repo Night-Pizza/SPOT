@@ -102,7 +102,11 @@ jobs:
                 DB_PASSWORD=${{ secrets.DB_PASSWORD }}
                 DB_NAME=${{ secrets.DB_NAME }}
                 KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
-                APP_HOST=${{ secrets.APP_HOST}}
+                APP_HOST=${{ secrets.APP_HOST }}
+                WEBAUTH_RP_ID=${{ secrets.WEBAUTH_RP_ID }}
+                WEBAUTH_RP_NAME=${{ secrets.WEBAUTH_RP_NAME }}
+                DUCKDNS_TOKEN=${{ secrets.DUCKDNS_TOKEN }}
+                ACME_EMAIL=${{ secrets.ACME_EMAIL }}
                 EOF
 
             - name: Deploy to Server

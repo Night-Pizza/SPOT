@@ -19,7 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws-spot").setAllowedOriginPatterns("*").withSockJS();
+        registry.addEndpoint("/ws-spot").setAllowedOriginPatterns("https://localhost", "https://innospot.duckdns.org").withSockJS();
     }
 
 }

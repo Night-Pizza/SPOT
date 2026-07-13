@@ -60,6 +60,9 @@ export default function RegisterPage() {
         try {
             const user = await registerUser({ email, password });
             setAuthenticatedUser(user);
+
+            // Set flag to auto-trigger biometric device registration on dashboard
+            localStorage.setItem('trigger_device_registration', 'true');
             navigate('/dashboard');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : 'Registration failed');

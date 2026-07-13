@@ -93,9 +93,9 @@ class SessionServiceTest {
 
     @Test
     void deleteSession_Success() {
-        when(sessionRepository.existsById(SESSION_ID)).thenReturn(true);
+        when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
-        sessionService.deleteSession(SESSION_ID);
+        sessionService.deleteSession(SESSION_ID, USER_ID);
 
         verify(attendanceRepository, times(1)).deleteBySessionId(SESSION_ID);
         verify(sessionRepository, times(1)).deleteById(SESSION_ID);
@@ -103,10 +103,10 @@ class SessionServiceTest {
 
     @Test
     void deleteSession_WhenSessionDoesNotExist_ThrowsException() {
-        when(sessionRepository.existsById(SESSION_ID)).thenReturn(false);
+        when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.empty());
 
         CustomException exception = assertThrows(CustomException.class, 
-                () -> sessionService.deleteSession(SESSION_ID));
+                () -> sessionService.deleteSession(SESSION_ID, USER_ID));
         assertEquals("ID_NOT_EXIST", exception.getErrorCode());
         verify(attendanceRepository, never()).deleteBySessionId(anyLong());
     }
@@ -116,7 +116,7 @@ class SessionServiceTest {
         SessionUpdateDTO request = new SessionUpdateDTO("New Title");
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
-        sessionService.updateSessionName(SESSION_ID, request);
+        sessionService.updateSessionName(SESSION_ID, USER_ID, request);
 
 
         assertEquals("New Title", session.getTitle());
@@ -126,7 +126,7 @@ class SessionServiceTest {
     void closeSession_Success() {
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
-        sessionService.closeSession(SESSION_ID);
+        sessionService.closeSession(SESSION_ID, USER_ID);
 
         assertFalse(session.isActive());
     }
@@ -137,7 +137,7 @@ class SessionServiceTest {
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
         CustomException exception = assertThrows(CustomException.class, 
-                () -> sessionService.closeSession(SESSION_ID));
+                () -> sessionService.closeSession(SESSION_ID, USER_ID));
         assertEquals("SESSION_ALREADY_CLOSE", exception.getErrorCode());
     }
 }

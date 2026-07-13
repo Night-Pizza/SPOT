@@ -8,10 +8,9 @@ import {
     UserOutlined,
     MoonOutlined,
 } from '@ant-design/icons';
-import { Button, Dropdown, Space, Typography } from 'antd';
+import { Button, Dropdown, Space, Typography, type MenuProps } from 'antd';
 import { type ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { MenuProps } from 'antd';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 

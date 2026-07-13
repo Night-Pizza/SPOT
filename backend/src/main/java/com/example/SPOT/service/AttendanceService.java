@@ -7,6 +7,7 @@ import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
+import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.kafka.KafkaMessagingService;
 import com.example.SPOT.model.AttendanceModel;
 import com.example.SPOT.model.EmbeddingStatus;
@@ -22,9 +23,18 @@ import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.repository.SessionRepository;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.PrintWriter;
+import java.io.IOException;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AttendanceService {
@@ -34,15 +44,17 @@ public class AttendanceService {
     private final KafkaMessagingService kafka;
     private final KafkaRepository kafkaRepository;
     private final QRTokenService qrTokenService;
+    private final SessionService sessionService;
 
     public AttendanceService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository,
-                             KafkaMessagingService kafka, KafkaRepository kafkaRepository, QRTokenService qrTokenService) {
+                             KafkaMessagingService kafka, KafkaRepository kafkaRepository, QRTokenService qrTokenService, SessionService sessionService) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
         this.kafka = kafka;
         this.kafkaRepository = kafkaRepository;
         this.qrTokenService = qrTokenService;
+        this.sessionService = sessionService;
     }
 
     public AttendDTO createAttendance(Long userId, AttendanceCreateDTO request){
@@ -78,7 +90,8 @@ public class AttendanceService {
     }
 
 
-public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request){
+    public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request, Long currentUserId){
+        SessionModel session = sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
 
@@ -87,7 +100,6 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
-        SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
         AttendanceModel attendanceModel = new AttendanceModel();
@@ -98,11 +110,10 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
         return mapToDTO(attendanceRepository.save(attendanceModel));
     }
 
-    public void deleteAttendance(DeleteAttendanceRequestDTO request){
+    public void deleteAttendance(DeleteAttendanceRequestDTO request, Long currentUserId){
+        sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("EMAIL_NOT_EXIST","Email does not exist");
-        if (!(sessionRepository.existsById(request.sessionId())))
-            throw new CustomException("SESSION_DOES_NOT_EXISTS", "Session with this id does not exists");
         UserModel user = userRepository.findByEmail(request.email());
         Long userId = user.getId();
         if (!(attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId())))
@@ -126,11 +137,74 @@ public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO r
                 .collect(Collectors.toList());
     }
 
+    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id){
+        return attendanceRepository.findAllBySessionId(id).stream().map(attendanceModel -> new UsersForSessionDTO(
+                        attendanceModel.getUser().getEmail()))
+                .collect(Collectors.toList());
+    }
+
     public List<AttendanceResponseDTO> getAllAttendance(){
         return attendanceRepository.findAll().stream().map(attendanceModel -> new AttendanceResponseDTO(
                         attendanceModel.getId(),
                         attendanceModel.getTimestamp()))
                 .collect(Collectors.toList());
+    }
+
+    public Long getAttendedSessionsCount(Long id){
+        return attendanceRepository.countByUserId(id);
+    }
+
+    @Transactional(readOnly = true)
+    public void exportAttendance(Long sessionId, String format, HttpServletResponse response) throws IOException {
+        SessionModel session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new CustomException("SESSION_NOT_FOUND", "Session not found"));
+        
+        response.setCharacterEncoding("UTF-8");
+        
+        try (PrintWriter writer = response.getWriter();
+             Stream<AttendanceModel> stream = attendanceRepository.streamBySessionId(sessionId)) {
+            
+            if ("csv".equalsIgnoreCase(format)) {
+                response.setContentType("text/csv");
+                response.setHeader("Content-Disposition", "attachment; filename=\"attendance_" + sessionId + ".csv\"");
+                
+                try (CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.builder().setHeader("email", "stage", "time", "manual").build())) {
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+                    stream.forEach(attendance -> {
+                        try {
+                            String email = attendance.getUser().getEmail();
+                            String time = attendance.getTimestamp() != null ? attendance.getTimestamp().format(formatter) : "";
+                            csvPrinter.printRecord(email, "0", time, "0");
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error writing CSV", e);
+                        }
+                    });
+                }
+            } else if ("moodle".equalsIgnoreCase(format)) {
+                response.setContentType("text/csv");
+                response.setHeader("Content-Disposition", "attachment; filename=\"attendance_moodle_" + sessionId + ".csv\"");
+                
+                try (CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.builder().setHeader("External user field", "status").build())) {
+                    stream.forEach(attendance -> {
+                        try {
+                            String email = attendance.getUser().getEmail();
+                            csvPrinter.printRecord(email, "P");
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error writing CSV", e);
+                        }
+                    });
+                }
+            } else if ("txt".equalsIgnoreCase(format)) {
+                response.setContentType("text/plain");
+                response.setHeader("Content-Disposition", "attachment; filename=\"attendance_" + sessionId + ".txt\"");
+                
+                stream.forEach(attendance -> {
+                    writer.println(attendance.getUser().getEmail());
+                });
+            } else {
+                throw new CustomException("INVALID_FORMAT", "Unsupported export format");
+            }
+        }
     }
 
     private AttendanceResponseDTO mapToDTO(AttendanceModel attendanceModel) {
