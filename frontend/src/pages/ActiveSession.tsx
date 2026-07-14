@@ -40,7 +40,6 @@ import { subscribeToQrToken } from '../api/Qr';
 import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
 import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
 import { searchUsers } from '../api/User';
-import type { UserDTO } from '../types/Authentification';
 
 type Attendee = {
     id: string;
