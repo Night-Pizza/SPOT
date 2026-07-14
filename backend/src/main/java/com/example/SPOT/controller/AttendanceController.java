@@ -24,8 +24,10 @@ import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.response.AttendDTO;
 import com.example.SPOT.dto.response.AttendanceResponseDTO;
 import com.example.SPOT.dto.response.PollingStatusDTO;
+import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.exception.CustomException;
+import java.util.List;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.AttendanceService;
@@ -95,6 +97,12 @@ public class AttendanceController {
     public ResponseEntity<Long> getAttendedSessionsCount(@AuthenticationPrincipal String userIdStr) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok().body(attendanceService.getAttendedSessionsCount(userId));
+    }
+
+    @GetMapping("")
+    public ResponseEntity<List<UserAttendanceDTO>> getAttendedSessions(@AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        return ResponseEntity.ok(attendanceService.getAllUserAttendance(userId));
     }
 
     @PostMapping("/create/email")
