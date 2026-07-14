@@ -37,9 +37,11 @@ public class WebAuthController {
     @PostMapping("/register/verify")
     public ResponseEntity<Void> verifyRegister(
             @AuthenticationPrincipal String userIdStr,
-            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto) {
+            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto,
+            HttpServletRequest request) {
         Long userId = Long.valueOf(userIdStr);
         webAuthService.verifyRegisterResponse(userId, requestDto);
+        request.getSession().setAttribute("webauth_verified", true);
         return ResponseEntity.ok().build();
     }
 

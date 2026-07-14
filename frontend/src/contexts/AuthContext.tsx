@@ -73,6 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const clearWebauthVerification = useCallback(() => {
+        setIsWebauthVerified(false);
         localStorage.removeItem('spot_webauth_verified');
     }, []);
 

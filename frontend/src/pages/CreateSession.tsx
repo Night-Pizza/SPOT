@@ -138,7 +138,7 @@ export default function CreateSessionPage() {
                 <Form
                     form={form}
                     layout="vertical"
-                    initialValues={{ geolocationEnabled: false, faceRecognitionEnabled: false, radius: 100 }}
+                    initialValues={{ sessionMode: 'QR', geolocationEnabled: false, faceRecognitionEnabled: false, radius: 100 }}
                     onFinish={handleSubmit}
                     requiredMark={false}
                     autoComplete="off"
@@ -297,7 +297,7 @@ export default function CreateSessionPage() {
                             ]}
                             extra={t('codeExtra') || 'Participants can use this code to join.'}
                         >
-                            <Input.Password placeholder={t('codePlaceholder') || 'Enter password'} size="large" autoComplete="new-password" />
+                            <Input placeholder={t('codePlaceholder') || 'Enter password'} size="large" autoComplete="off" data-lpignore="true" />
                         </Form.Item>
                     )}
 

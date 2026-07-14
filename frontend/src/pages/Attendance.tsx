@@ -165,7 +165,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading, refreshCurrentUser, markWebauthVerified } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -340,7 +340,11 @@ export default function Attendance() {
             } else if (error instanceof GeolocationPositionError) {
                 void messageApi.error(t('locationPermissionError'));
             } else {
-                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+                if (error instanceof Error && error.message.includes('WebAuthn verification is required')) {
+                    clearWebauthVerification();
+                } else {
+                    void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+                }
             }
         } finally {
             setSubmitting(false);
@@ -419,8 +423,12 @@ export default function Attendance() {
                 setFaceStep('capture');
                 setFaceModalOpen(true);
             } else {
-                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
-                setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                if (error instanceof Error && error.message.includes('WebAuthn verification is required')) {
+                    clearWebauthVerification();
+                } else {
+                    void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                    setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                }
             }
         } finally {
             setScanLoading(false);
