@@ -297,12 +297,13 @@ body {
 .ant-input,
 .ant-input-number,
 .ant-input-affix-wrapper {
-  border-radius: 16px;
+  border-radius: 8px;
 }
 
 .ant-input-lg,
 .ant-input-number-lg,
 .ant-input-affix-wrapper-lg {
+  border-radius: 16px;
   min-height: 58px;
   font-size: 18px;
 }
@@ -1523,26 +1524,23 @@ body {
   }
 
   .responsive-modal {
+    width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
   }
 
   .responsive-modal .ant-modal-content {
     max-height: calc(100dvh - 24px);
-    padding: 20px;
+    overflow-y: auto;
   }
 
-  .responsive-modal .ant-modal-footer .ant-btn {
-    flex: 1 1 160px;
-    min-height: 44px;
+  .responsive-modal.map-modal .ant-modal-body {
+    height: auto;
   }
 
-  .map-modal-frame {
-    height: 68vh;
-    min-height: 300px;
-  }
-
-  .face-camera-frame {
+  .scanned-card .ant-table-wrapper,
+  .active-session-grid .ant-table-wrapper {
     max-width: 100%;
+    overflow-x: auto;
   }
 }
 
@@ -2303,6 +2301,14 @@ h4.ant-typography,
 }
 .sidebar-brand-text strong {
   font-weight: 700 !important;
+}
+
+.ant-select-selector {
+  border-radius: 8px !important;
+}
+
+.ant-select-lg .ant-select-selector {
+  border-radius: 16px !important;
 }
 
 .session-grid-card {

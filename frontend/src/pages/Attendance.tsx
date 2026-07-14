@@ -838,11 +838,13 @@ export default function Attendance() {
 
 
             <section className="attendance-history-section">
-                <Flex justify="space-between" align="center" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
-                    <Typography.Title level={2} className="section-kicker" style={{ margin: 0 }}>
-                        Attended Sessions
-                    </Typography.Title>
-                    <Space size="middle" wrap>
+                <Flex justify="space-between" align="start" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
+                    <div style={{ width: '100%' }}>
+                        <Typography.Title level={2} className="section-kicker" style={{ margin: 0 }}>
+                            Attended Sessions
+                        </Typography.Title>
+                    </div>
+                    <Space size="middle" wrap style={{ marginTop: 8 }}>
                         <Input.Search 
                             placeholder="Search sessions..." 
                             allowClear 
