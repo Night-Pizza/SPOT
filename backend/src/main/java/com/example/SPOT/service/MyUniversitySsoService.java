@@ -42,12 +42,17 @@ public class MyUniversitySsoService {
         this.postLoginRedirectUri = postLoginRedirectUri;
     }
 
-    public URI buildAuthorizationUri() {
+    public URI buildAuthorizationUri(String state) {
         ensureConfigured();
+
+        if (state == null || state.isBlank()) {
+            throw new CustomException("SSO_STATE_MISSING", "SSO state is missing");
+        }
 
         return UriComponentsBuilder.fromUriString(origin)
                 .pathSegment("services", "enter", clientId)
                 .queryParam("redirect_uri", redirectUri)
+                .queryParam("state", state)
                 .encode()
                 .build()
                 .toUri();

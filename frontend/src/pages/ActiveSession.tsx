@@ -41,6 +41,8 @@ import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers }
 import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
 import { searchUsers } from '../api/User';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 type Attendee = {
     id: string;
     name: string;
@@ -61,7 +63,6 @@ function isValidEmail(email: string) {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
 async function readErrorMessage(response: Response, fallback: string) {
     try {
         const data = await response.json() as { message?: string; error?: string; status?: string };

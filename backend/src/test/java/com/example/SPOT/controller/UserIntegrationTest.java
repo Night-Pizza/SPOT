@@ -29,7 +29,7 @@ public class UserIntegrationTest {
 
     @Test
     void shouldRegisterAndAccessMe() {
-        String email = "test_" + UUID.randomUUID() + "@innopolis.ru";
+        String email = "test_" + UUID.randomUUID() + "@example.com";
                 var regDto = new UserCreateDTO(email, "Password123!");
 
         String cookie = given()
@@ -52,7 +52,7 @@ public class UserIntegrationTest {
 
     @Test
     void shouldLoginAndLogout() {
-        String email = "login_" + UUID.randomUUID() + "@innopolis.ru";
+        String email = "login_" + UUID.randomUUID() + "@example.com";
 
         given().contentType(ContentType.JSON)
                 .body(new UserCreateDTO(email, "Password123!"))

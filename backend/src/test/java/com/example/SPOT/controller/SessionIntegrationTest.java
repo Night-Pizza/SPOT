@@ -36,7 +36,7 @@ public class SessionIntegrationTest {
 
     @Test
     void shouldCreateAndGetAllSessions() {
-        String email = "session_" + UUID.randomUUID() + "@innopolis.ru";
+        String email = "session_" + UUID.randomUUID() + "@example.com";
 
         given()
             .contentType(ContentType.JSON)
@@ -82,7 +82,7 @@ public class SessionIntegrationTest {
         given()
             .cookie("JSESSIONID", cookie)
             .when()
-            .get("/session/all")
+            .get("/session")
             .then()
             .statusCode(200)
             .body("title", hasItem("Integration Test Session"));

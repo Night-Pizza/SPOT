@@ -38,7 +38,7 @@ public class AttendanceIntegrationTest {
     @Test
     void shouldRejectAttendanceRequestForLocalLogin() {
         SessionFilter sessionFilter = new SessionFilter();
-        String uniqueEmail = "student_" + UUID.randomUUID() + "@innopolis.ru";
+        String uniqueEmail = "student_" + UUID.randomUUID() + "@example.com";
 
         var regDto = new UserCreateDTO(uniqueEmail, "123456Ab!");
 

@@ -147,7 +147,8 @@ public class AttendanceService {
                 .collect(Collectors.toList());
     }
 
-    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id){
+    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id, Long currentUserId){
+        sessionService.getSessionOwnedByUser(id, currentUserId);
         return attendanceRepository.findAllBySessionId(id).stream().map(attendanceModel -> new UsersForSessionDTO(
                         attendanceModel.getUser().getEmail()))
                 .collect(Collectors.toList());
@@ -165,9 +166,8 @@ public class AttendanceService {
     }
 
     @Transactional(readOnly = true)
-    public void exportAttendance(Long sessionId, String format, HttpServletResponse response) throws IOException {
-        SessionModel session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new CustomException("SESSION_NOT_FOUND", "Session not found"));
+    public void exportAttendance(Long sessionId, String format, Long currentUserId, HttpServletResponse response) throws IOException {
+        sessionService.getSessionOwnedByUser(sessionId, currentUserId);
         
         response.setCharacterEncoding("UTF-8");
         
