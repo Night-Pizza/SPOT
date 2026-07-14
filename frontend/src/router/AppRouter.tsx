@@ -30,7 +30,8 @@ export default function AppRouter() {
         return <Navigate to="/dashboard" replace />;
     }
 
-    const needsWebauth = user.id && user.webauthRegistered && !isWebauthVerified;
+    const skippedWebauth = sessionStorage.getItem('spot_webauth_skipped') === 'true';
+    const needsWebauth = user.id && user.webauthRegistered && !isWebauthVerified && !skippedWebauth;
     if (needsWebauth && location.pathname !== '/webauth-verify') {
         return <Navigate to="/webauth-verify" state={{ from: location }} replace />;
     }
