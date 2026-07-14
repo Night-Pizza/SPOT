@@ -15,10 +15,14 @@
             }
         }
 
+        function isSafeMethod(method?: string): boolean {
+            return !method || ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+        }
+
         export async function converter(endpoint: string, options: RequestInit = {}): Promise<Response> {
             let token = getCookie('XSRF-TOKEN');
 
-            if (!token) {
+            if (!token && !isSafeMethod(options.method)) {
                 await refreshCsrfToken();
                 token = getCookie('XSRF-TOKEN');
             }
@@ -34,7 +38,7 @@
             });
 
             
-            if (response.status === 403 && options.method !== undefined && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
+            if (response.status === 403 && !isSafeMethod(options.method)) {
                 console.warn('CSRF token might be expired, attempting refresh and retry...');
                 await refreshCsrfToken();
                 const newToken = getCookie('XSRF-TOKEN');

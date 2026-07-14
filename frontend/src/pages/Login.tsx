@@ -1,12 +1,12 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginUser } from '../api/Authentification';
+import { loginUser, startMyUniversityLogin } from '../api/Authentification';
 import { useAuth } from '../contexts/AuthContext';
 
 function validateEmail(email: string): string | null {
     if (!email) return 'Email cannot be empty';
     if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
-    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+    if (email.endsWith('@innopolis.ru') || email.endsWith('@innopolis.university')) return 'Innopolis emails must use SSO to log in or register';
     return null;
 }
 
@@ -42,11 +42,14 @@ export default function LoginPage() {
             <div className="auth-inner">
                 <img src="/iu-logo.png" alt="Innopolis University" className="iu-logo" />
                 <h1 className="auth-heading">Login</h1>
+                <button className="auth-sso-button" type="button" onClick={startMyUniversityLogin}>
+                    Continue with My.University
+                </button>
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <input
                         className="auth-input"
                         type="email"
-                        placeholder="name@innopolis.university"
+                        placeholder="name@example.com"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
                         required

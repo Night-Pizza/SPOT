@@ -1,4 +1,4 @@
-import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
@@ -10,19 +10,25 @@ import {
     Typography,
     message,
     Alert,
-    Spin
+    Spin,
+    Flex,
+    Select,
+    DatePicker
 } from 'antd';
+import type { Dayjs } from 'dayjs';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createAttendance, scanQrAttendance, ApiError, getAttendedSessions, type AttendancePayload, type AttendedSessionHistoryItem } from '../api/Attendance';
+import { getSessionPublicDetails, getSessionPublicDetailsByQrToken, type SessionPublicDetails } from '../api/Session';
+import SessionMap from '../components/SessionMap';
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 import { useAuth } from '../contexts/AuthContext';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import FaceCapture from '../components/face/FaceCapture';
 import { fileToBase64, checkAttendanceStatus } from '../api/Face';
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
-import { getAssertionOptions, verifyAssertion, getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+import { startRegistration } from '@simplewebauthn/browser';
+import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 
 type CodeFormValues = {
     sessionId: number;
@@ -162,7 +168,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading, refreshCurrentUser } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -191,6 +197,15 @@ export default function Attendance() {
     const [historyLoading, setHistoryLoading] = useState(true);
     const [historyError, setHistoryError] = useState('');
 
+    const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+
+    const [currentSessionDetails, setCurrentSessionDetails] = useState<SessionPublicDetails | null>(null);
+    const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [fetchingDetails, setFetchingDetails] = useState(false);
+    const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
+
     const loadHistory = useCallback(async () => {
         setHistoryLoading(true);
         setHistoryError('');
@@ -208,6 +223,78 @@ export default function Attendance() {
     useEffect(() => {
         void loadHistory();
     }, [loadHistory]);
+
+    const filteredAndSortedHistory = [...history]
+        .filter(s => {
+            if (searchQuery && !s.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+                return false;
+            }
+            if (dateRange && dateRange[0] && dateRange[1]) {
+                const sessionTime = new Date(s.timestamp).getTime();
+                const start = dateRange[0].startOf('day').valueOf();
+                const end = dateRange[1].endOf('day').valueOf();
+                if (sessionTime < start || sessionTime > end) {
+                    return false;
+                }
+            }
+            return true;
+        })
+        .sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            if (sortBy === 'newest') {
+                return timeB - timeA;
+            } else {
+                return timeA - timeB;
+            }
+        });
+
+    useEffect(() => {
+        if (!sessionId || typeof sessionId !== 'number' || sessionId <= 0) {
+            setCurrentSessionDetails(null);
+            setUserCoords(null);
+            return;
+        }
+
+        const fetchDetails = async () => {
+            setFetchingDetails(true);
+            try {
+                const details = await getSessionPublicDetails(sessionId);
+                setCurrentSessionDetails(details);
+            } catch (err) {
+                console.error('Failed to fetch session public details:', err);
+                setCurrentSessionDetails(null);
+                setUserCoords(null);
+            } finally {
+                setFetchingDetails(false);
+            }
+        };
+
+        const timer = setTimeout(fetchDetails, 500); // Debounce typing
+        return () => clearTimeout(timer);
+    }, [sessionId]);
+
+    useEffect(() => {
+        if (currentSessionDetails?.validationTypes.includes('GPS')) {
+            const fetchUserLocation = async () => {
+                try {
+                    const loc = await getBrowserLocation();
+                    setUserCoords(loc);
+                } catch (err) {
+                    console.error('Failed to get user location:', err);
+                }
+            };
+            void fetchUserLocation();
+        }
+    }, [currentSessionDetails]);
+
+    useEffect(() => {
+        if (isGeoModalOpen && !userCoords) {
+            getBrowserLocation()
+                .then(setUserCoords)
+                .catch(err => console.error('Failed to get user location on modal open:', err));
+        }
+    }, [isGeoModalOpen, userCoords]);
 
     const handleRegisterDevice = async () => {
         setRegisteringDevice(true);
@@ -229,6 +316,7 @@ export default function Attendance() {
 
             await verifyRegistration(JSON.stringify(attestationResponse));
             void messageApi.success('Biometric device registered successfully!');
+            markWebauthVerified();
             await refreshCurrentUser();
         } catch (err: any) {
             console.error('Device registration failed:', err);
@@ -242,56 +330,24 @@ export default function Attendance() {
         }
     };
 
-    const handleDeviceAuthentication = async (): Promise<boolean> => {
-        try {
-            const { optionsJson } = await getAssertionOptions();
-            const parsedOptions = JSON.parse(optionsJson);
-            const authOptions = parsedOptions.publicKeyCredentialRequestOptions || parsedOptions.publicKey || parsedOptions;
-
-            if (authOptions && authOptions.extensions) {
-                delete authOptions.extensions.appidExclude;
-                delete authOptions.extensions.appid;
-            }
-
-            authOptions.hints = ['client-device'];
-
-            const assertionResponse = await startAuthentication({
-                optionsJSON: authOptions,
-                useBrowserAutofill: false,
-            });
-
-            await verifyAssertion(JSON.stringify(assertionResponse));
-            return true;
-        } catch (err: any) {
-            console.error('Device biometric check failed:', err);
-            let errorMsg = err.message || 'Device biometric verification failed.';
-            
-            if (errorMsg.toLowerCase().includes('no credential') || errorMsg.toLowerCase().includes('not allowed')) {
-                errorMsg = 'Passkey not found on this device. Please use the exact device you originally registered with.';
-            }
-            
-            void messageApi.error(errorMsg);
-            return false;
-        }
-    };
-
-
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
-            // Trigger biometrics check automatically before submitting session code
-            const biometricsOk = await handleDeviceAuthentication();
-            if (!biometricsOk) {
-                setSubmitting(false);
-                return;
-            }
 
             let locationData: { latitude?: number, longitude?: number } = {};
-            try {
-                const loc = await getBrowserLocation();
-                locationData = { latitude: loc.latitude, longitude: loc.longitude };
-            } catch (err) {
-                console.warn('Geolocation skipped or denied:', err);
+            if (currentSessionDetails?.validationTypes.includes('GPS')) {
+                let loc = userCoords;
+                if (!loc) {
+                    try {
+                        loc = await getBrowserLocation();
+                        setUserCoords(loc);
+                    } catch (err) {
+                        console.warn('Geolocation skipped or denied:', err);
+                    }
+                }
+                if (loc) {
+                    locationData = { latitude: loc.latitude, longitude: loc.longitude };
+                }
             }
 
             const payload: AttendancePayload = {
@@ -303,15 +359,15 @@ export default function Attendance() {
 
             void messageApi.success(t('attendanceSubmitted'));
             form.resetFields();
+            setCurrentSessionDetails(null);
+            setUserCoords(null);
             void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 let locData: { latitude?: number, longitude?: number } = {};
-                try {
-                    const loc = await getBrowserLocation();
+                if (currentSessionDetails?.validationTypes.includes('GPS')) {
+                    const loc = userCoords || { latitude: undefined, longitude: undefined };
                     locData = { latitude: loc.latitude, longitude: loc.longitude };
-                } catch (err) {
-                    // Ignore
                 }
                 setPendingAttendance({
                     sessionId: values.sessionId,
@@ -325,7 +381,11 @@ export default function Attendance() {
             } else if (error instanceof GeolocationPositionError) {
                 void messageApi.error(t('locationPermissionError'));
             } else {
-                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+                if (error instanceof Error && error.message.includes('WebAuthn verification is required')) {
+                    clearWebauthVerification();
+                } else {
+                    void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+                }
             }
         } finally {
             setSubmitting(false);
@@ -360,42 +420,56 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
-            // Trigger biometrics check automatically after successful QR scan
-            const biometricsOk = await handleDeviceAuthentication();
-            if (!biometricsOk) {
-                setScanLoading(false);
-                return;
-            }
+            // Fetch session public details associated with the token first
+            const details = await getSessionPublicDetailsByQrToken(token);
+            setCurrentSessionDetails(details);
 
             let payload: AttendancePayload = {};
-            try {
-                payload = await getBrowserLocation();
-            } catch {
-                payload = {};
+            let fetchedLoc = null;
+            if (details.validationTypes.includes('GPS')) {
+                try {
+                    fetchedLoc = await getBrowserLocation();
+                    setUserCoords(fetchedLoc);
+                    payload = { latitude: fetchedLoc.latitude, longitude: fetchedLoc.longitude };
+                } catch (err) {
+                    console.warn('Geolocation skipped or denied:', err);
+                }
             }
 
             await scanQrAttendance(token, payload);
             void messageApi.success(t('qrAttendanceSubmitted'));
             setScanOpen(false);
+            setCurrentSessionDetails(null);
+            setUserCoords(null);
             void loadHistory();
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 setScanOpen(false);
-                let payload: AttendancePayload = {};
+                let locPayload: AttendancePayload = {};
+                // If we got the details earlier and fetched location, use it
                 try {
-                    payload = await getBrowserLocation();
-                } catch {
-                    payload = {};
+                    const details = await getSessionPublicDetailsByQrToken(token);
+                    if (details.validationTypes.includes('GPS')) {
+                        const loc = await getBrowserLocation();
+                        setUserCoords(loc);
+                        locPayload = { latitude: loc.latitude, longitude: loc.longitude };
+                    }
+                } catch (err) {
+                    // ignore
                 }
                 setPendingAttendance({
                     token,
-                    payload
+                    payload: locPayload
                 });
                 setFaceStep('capture');
                 setFaceModalOpen(true);
             } else {
-                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
-                setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                if (error instanceof Error && error.message.includes('WebAuthn verification is required')) {
+                    clearWebauthVerification();
+                } else {
+                    void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                    setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+                }
             }
         } finally {
             setScanLoading(false);
@@ -556,14 +630,14 @@ export default function Attendance() {
             {contextHolder}
             
             {/* Show Face Registration Warning only AFTER device key is set up */}
-            {!loading && user.webauthRegistered && !user.faceRegistered && (
+            {!loading && user.isSsoUser && user.webauthRegistered && !user.faceRegistered && (
                 <Alert
                     message={t('faceRegistrationRequired')}
                     description={t('faceRegistrationRequiredDescription')}
                     type="warning"
                     showIcon
                     action={
-                        <Button size="small" type="primary" onClick={() => setRegisterModalOpen(true)}>
+                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => setRegisterModalOpen(true)}>
                             {t('registerFace')}
                         </Button>
                     }
@@ -571,8 +645,22 @@ export default function Attendance() {
                 />
             )}
 
-            {!loading && !user.webauthRegistered ? (
-                <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center' }}>
+            {!loading && !user.isSsoUser ? (
+                <div className="attendance-blocked-card">
+                    <Card style={{ borderRadius: 16 }}>
+                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
+                            <CloseCircleOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />
+                            <div>
+                                <Typography.Title level={3}>Access Denied</Typography.Title>
+                                <Typography.Paragraph type="secondary">
+                                    Only students (SSO users) can mark their own attendance. You can only create sessions to collect attendance.
+                                </Typography.Paragraph>
+                            </div>
+                        </Space>
+                    </Card>
+                </div>
+            ) : !loading && !user.webauthRegistered ? (
+                <div className="attendance-blocked-card">
                     <Card style={{ borderRadius: 16 }}>
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>
                             <SafetyCertificateOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
@@ -604,7 +692,7 @@ export default function Attendance() {
                             <div className="centered-copy">
                                 <Typography.Title level={2}>{t('scanQRCode')}</Typography.Title>
                                 <Typography.Paragraph>
-                                    {t('scanQRDesc')}
+                                    Scan a session QR code to mark your attendance.
                                 </Typography.Paragraph>
                             </div>
                             <Button
@@ -661,8 +749,11 @@ export default function Attendance() {
                                         { required: true, whitespace: true, message: 'Please enter a session code.' },
                                     ]}
                                 >
-                                    <Input.Password size="large" placeholder="Session password" autoComplete="new-password" />
+                                    <Input size="large" placeholder="Session code" autoComplete="off" />
                                 </Form.Item>
+                                <Button type="dashed" block style={{ marginBottom: 24 }} onClick={() => setIsGeoModalOpen(true)}>
+                                    <EnvironmentOutlined /> View Geolocation Map
+                                </Button>
                                 <Button
                                     type="primary"
                                     htmlType="submit"
@@ -679,10 +770,101 @@ export default function Attendance() {
                 </div>
             )}
 
+            <Modal
+                className="attendance-map-modal"
+                title={
+                    <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%', paddingRight: 24 }}>
+                        <span>{t('sessionLocation') || 'Session Location'}{currentSessionDetails ? `: ${currentSessionDetails.title}` : ''}</span>
+                            <Space size={8}>
+                                <Button
+                                    size="small"
+                                    icon={<EnvironmentOutlined />}
+                                    onClick={async () => {
+                                        try {
+                                            const loc = await getBrowserLocation();
+                                            setUserCoords(loc);
+                                            void messageApi.success('Location updated!');
+                                        } catch (e) {
+                                            void messageApi.error(t('locationPermissionError') || 'Failed to get location');
+                                        }
+                                    }}
+                                >
+                                    {t('getLocation') || 'Get Location'}
+                                </Button>
+                                {fetchingDetails && <Spin size="small" />}
+                            </Space>
+                        </Flex>
+                    }
+                    open={isGeoModalOpen}
+                    onCancel={() => setIsGeoModalOpen(false)}
+                    footer={[
+                        <Button key="ok" type="primary" onClick={() => setIsGeoModalOpen(false)}>
+                            OK
+                        </Button>
+                    ]}
+                    width={800}
+                    destroyOnClose
+                >
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                    {currentSessionDetails 
+                        ? (currentSessionDetails.validationTypes.includes('GPS') 
+                            ? 'This session requires geolocation check-in. You must be inside the designated radius.'
+                            : 'This session does not require geolocation check-in, but you can still view the session location.')
+                        : 'You can check your current location here.'}
+                </Typography.Paragraph>
+                <div style={{ height: 350, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+                    {currentSessionDetails && currentSessionDetails.latitude !== undefined && currentSessionDetails.longitude !== undefined && userCoords ? (
+                        <SessionMap
+                            center={[currentSessionDetails.latitude, currentSessionDetails.longitude]}
+                            radius={currentSessionDetails.allowedRadius || 100}
+                            userLocation={[userCoords.latitude, userCoords.longitude]}
+                        />
+                    ) : userCoords ? (
+                        <SessionMap
+                            center={[userCoords.latitude, userCoords.longitude]}
+                            radius={20}
+                            userLocation={[userCoords.latitude, userCoords.longitude]}
+                        />
+                    ) : (
+                        <Flex align="center" justify="center" style={{ height: '100%', background: '#f5f5f5' }}>
+                            <Space direction="vertical" align="center">
+                                <Spin />
+                                <Typography.Text type="secondary">Acquiring your location...</Typography.Text>
+                            </Space>
+                        </Flex>
+                    )}
+                </div>
+            </Modal>
+
+
             <section className="attendance-history-section">
-                <Typography.Title level={2} className="section-kicker">
-                    {t('attendanceHistory')}
-                </Typography.Title>
+                <Flex justify="space-between" align="start" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
+                    <div style={{ width: '100%' }}>
+                        <Typography.Title level={2} className="section-kicker" style={{ margin: 0 }}>
+                            Attended Sessions
+                        </Typography.Title>
+                    </div>
+                    <Space size="middle" wrap style={{ marginTop: 8 }}>
+                        <Input.Search 
+                            placeholder="Search sessions..." 
+                            allowClear 
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ width: 200 }}
+                        />
+                        <DatePicker.RangePicker 
+                            onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                        />
+                        <Select
+                            value={sortBy}
+                            onChange={(value) => setSortBy(value as any)}
+                            style={{ width: 140 }}
+                            options={[
+                                { value: 'newest', label: 'Newest First' },
+                                { value: 'oldest', label: 'Oldest First' },
+                            ]}
+                        />
+                    </Space>
+                </Flex>
 
                 {historyLoading ? (
                     <Card className="attendance-history-card">
@@ -707,26 +889,30 @@ export default function Attendance() {
                     </Card>
                 ) : (
                     <div className="attendance-history-grid">
-                        {history.map((session) => (
-                            <Card key={session.id} className="session-grid-card">
-                                <div>
-                                    <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
-                                        {session.title}
-                                    </Typography.Title>
-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Owner: {session.ownerEmail}
-                                    </Typography.Text>
-                                </div>
-                                <div style={{ marginTop: 18 }}>
-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Attended
-                                    </Typography.Text>
-                                    <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
-                                        {formatAttendanceDate(session.timestamp)}
-                                    </Typography.Paragraph>
-                                </div>
-                            </Card>
-                        ))}
+                        {filteredAndSortedHistory.length === 0 ? (
+                            <Typography.Text type="secondary">No sessions match your search criteria.</Typography.Text>
+                        ) : (
+                            filteredAndSortedHistory.map((session) => (
+                                <Card key={session.id} className="session-grid-card">
+                                    <div>
+                                        <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
+                                            {session.title}
+                                        </Typography.Title>
+                                        <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                            Owner: {session.ownerEmail}
+                                        </Typography.Text>
+                                    </div>
+                                    <div style={{ marginTop: 18 }}>
+                                        <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                            Attended
+                                        </Typography.Text>
+                                        <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
+                                            {formatAttendanceDate(session.timestamp)}
+                                        </Typography.Paragraph>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
                     </div>
                 )}
             </section>
@@ -738,6 +924,7 @@ export default function Attendance() {
                 afterOpenChange={handleScannerModalOpenChange}
                 footer={null}
                 centered
+                className="responsive-modal camera-modal"
             >
                 <Space direction="vertical" size={16} className="full-width-space">
                     <video
@@ -770,6 +957,7 @@ export default function Attendance() {
                 maskClosable={false}
                 width={600}
                 onCancel={() => setFaceModalOpen(false)}
+                className="responsive-modal face-attendance-modal"
             >
                 {faceStep === 'capture' && (
                     <FaceCapture
@@ -802,7 +990,7 @@ export default function Attendance() {
                         <CloseCircleOutlined style={{ fontSize: 64, color: '#f5222d' }} />
                         <Typography.Title level={3} style={{ marginTop: 24 }}>{t('faceVerificationFailed')}</Typography.Title>
                         <Typography.Paragraph type="danger">{faceError || t('faceNotRecognized')}</Typography.Paragraph>
-                        <Space style={{ marginTop: 16 }}>
+                        <Space style={{ marginTop: 16 }} wrap className="modal-action-stack">
                             <Button type="primary" size="large" onClick={handleFaceRetry} className="primary-action">
                                 {t('tryAgain')}
                             </Button>

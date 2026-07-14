@@ -5,5 +5,6 @@ public record UserAttendanceDTO (
         Long id,
         String title,
         String ownerEmail,
-        LocalDateTime timestamp
+        LocalDateTime timestamp,
+        Boolean isActive
 ){}

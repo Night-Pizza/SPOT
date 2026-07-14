@@ -8,10 +8,11 @@ import CreateSessionPage from '../pages/CreateSession';
 import ActiveSessionPage from '../pages/ActiveSession';
 import ProfilePage from '../pages/Profile';
 import VerificationPage from '../pages/Verification';
+import WebAuthVerificationPage from '../pages/WebAuthVerification';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AppRouter() {
-    const { user, loading } = useAuth();
+    const { user, loading, isWebauthVerified } = useAuth();
     const location = useLocation();
 
     if (loading) {
@@ -29,11 +30,17 @@ export default function AppRouter() {
         return <Navigate to="/dashboard" replace />;
     }
 
+    const needsWebauth = user.id && user.webauthRegistered && !isWebauthVerified;
+    if (needsWebauth && location.pathname !== '/webauth-verify') {
+        return <Navigate to="/webauth-verify" state={{ from: location }} replace />;
+    }
+
     return (
         <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/webauth-verify" element={<WebAuthVerificationPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/attendance/verify" element={<VerificationPage />} />

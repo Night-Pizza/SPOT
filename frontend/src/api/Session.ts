@@ -20,9 +20,26 @@ export type CreatedSessionHistoryItem = {
     title: string;
     ownerEmail: string;
     timestamp: string;
+    isActive: boolean;
 };
 
 export type SessionAttendee = {
+    email: string;
+};
+
+export type SessionDetails = {
+    id: number;
+    title: string;
+    password: string | null;
+    validationTypes: string[] | null;
+    latitude: number | null;
+    longitude: number | null;
+    allowedRadius: number | null;
+    createdAt: string;
+    isActive: boolean;
+};
+
+export type SessionUser = {
     email: string;
 };
 
@@ -85,6 +102,30 @@ export async function getSessionAttendees(sessionId: number): Promise<SessionAtt
     return response.json() as Promise<SessionAttendee[]>;
 }
 
+export async function getSessionDetails(sessionId: number): Promise<SessionDetails> {
+    const response = await converter(`/session/${sessionId}/details`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load session details.'));
+    }
+
+    return response.json() as Promise<SessionDetails>;
+}
+
+export async function getSessionUsers(sessionId: number): Promise<SessionUser[]> {
+    const response = await converter(`/session/${sessionId}`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load checked-in users.'));
+    }
+
+    return response.json() as Promise<SessionUser[]>;
+}
+
 export async function closeSession(sessionId: number): Promise<void> {
     const response = await converter(`/session/close/${sessionId}`, {
         method: 'PATCH',
@@ -106,3 +147,58 @@ export async function getActiveSessionIds(): Promise<number[]> {
 
     return response.json() as Promise<number[]>;
 }
+
+export type SessionPublicDetails = {
+    id: number;
+    title: string;
+    validationTypes: string[];
+    latitude?: number;
+    longitude?: number;
+    allowedRadius?: number;
+    isActive: boolean;
+};
+
+export async function getSessionPublicDetails(id: number): Promise<SessionPublicDetails> {
+    const response = await converter(`/session/${id}/public`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, `Failed to load details for session ${id}`));
+    }
+
+    return response.json() as Promise<SessionPublicDetails>;
+}
+
+export async function getSessionPublicDetailsByQrToken(token: string): Promise<SessionPublicDetails> {
+    const response = await converter(`/session/qr/${token}/public`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load session details from QR code.'));
+    }
+
+    return response.json() as Promise<SessionPublicDetails>;
+}
+
+export async function exportSessionAttendance(sessionId: number, format: string = 'csv'): Promise<void> {
+    const response = await converter(`/attendance/export/${sessionId}?format=${format}`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to export attendance.'));
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_${sessionId}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+}
+

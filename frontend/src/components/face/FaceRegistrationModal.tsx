@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Typography } from 'antd';
 import FaceCapture from './FaceCapture';
 import FaceVerificationResult from './VerificationResult';
@@ -19,6 +19,15 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [verified, setVerified] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setStep('capture');
+            setLoading(false);
+            setError(null);
+            setVerified(false);
+        }
+    }, [visible]);
 
     const handleCapture = async (photos: File[]) => {
         if (!user.id) return;
@@ -79,6 +88,7 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible, 
             closable={false}
             maskClosable={false}
             width={600}
+            className="responsive-modal face-registration-modal"
         >
             {step === 'capture' && (
                 <Typography.Paragraph type="secondary">

@@ -61,6 +61,11 @@ public class AttendanceService {
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
+        UserModel user = userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist"));
+        if (user.getAuthProvider() != com.example.SPOT.model.AuthProvider.MY_UNIVERSITY_SSO) {
+            throw new CustomException("ATTENDANCE_NOT_ALLOWED", "Only students (SSO users) can mark their own attendance.");
+        }
+
         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
 
@@ -92,6 +97,10 @@ public class AttendanceService {
 
     public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request, Long currentUserId){
         SessionModel session = sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
+        if (!(request.email().endsWith("@innopolis.ru") || request.email().endsWith("@innopolis.university"))) {
+            throw new CustomException("INVALID_EMAIL_DOMAIN", "Only innopolis.ru and innopolis.university users can be added to a session");
+        }
+
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
 
@@ -133,11 +142,13 @@ public class AttendanceService {
                         attendanceModel.getId(),
                         attendanceModel.getSession().getTitle(),
                         attendanceModel.getSession().getOwner().getEmail(),
-                        attendanceModel.getTimestamp()))
+                        attendanceModel.getTimestamp(),
+                        attendanceModel.getSession().isActive()))
                 .collect(Collectors.toList());
     }
 
-    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id){
+    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id, Long currentUserId){
+        sessionService.getSessionOwnedByUser(id, currentUserId);
         return attendanceRepository.findAllBySessionId(id).stream().map(attendanceModel -> new UsersForSessionDTO(
                         attendanceModel.getUser().getEmail()))
                 .collect(Collectors.toList());
@@ -155,9 +166,8 @@ public class AttendanceService {
     }
 
     @Transactional(readOnly = true)
-    public void exportAttendance(Long sessionId, String format, HttpServletResponse response) throws IOException {
-        SessionModel session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new CustomException("SESSION_NOT_FOUND", "Session not found"));
+    public void exportAttendance(Long sessionId, String format, Long currentUserId, HttpServletResponse response) throws IOException {
+        sessionService.getSessionOwnedByUser(sessionId, currentUserId);
         
         response.setCharacterEncoding("UTF-8");
         

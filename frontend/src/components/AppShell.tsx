@@ -1,5 +1,4 @@
 import {
-    MenuOutlined,
     GlobalOutlined,
     SunOutlined,
     AppstoreOutlined,
@@ -8,8 +7,8 @@ import {
     UserOutlined,
     MoonOutlined,
 } from '@ant-design/icons';
-import { Button, Dropdown, Space, Typography, type MenuProps } from 'antd';
-import { type ReactNode, useState } from 'react';
+import { Button, Space, Typography } from 'antd';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -35,18 +34,35 @@ export default function AppShell({
     const { user, loading } = useAuth();
     const { theme, toggleTheme, language, setLanguage, t } = useTheme();
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [logoOpensDrawer, setLogoOpensDrawer] = useState(() =>
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(max-width: 1180px)').matches
+    );
 
     const isActive = (path: string) => location.pathname === path;
     const toggleDrawer = () => setDrawerOpen(!drawerOpen);
-
-    const languageItems: MenuProps['items'] = [
-        { key: 'en', label: 'English' },
-        { key: 'ru', label: 'Русский' },
-    ];
-
-    const handleLanguageChange: MenuProps['onClick'] = ({ key }) => {
-        setLanguage(key as 'en' | 'ru');
+    const openDrawerFromLogo = () => {
+        if (logoOpensDrawer) {
+            setDrawerOpen(true);
+        }
     };
+
+    useEffect(() => {
+        if (typeof window.matchMedia !== 'function') return undefined;
+
+        const breakpoint = window.matchMedia('(max-width: 1180px)');
+        const updateLogoTrigger = () => setLogoOpensDrawer(breakpoint.matches);
+
+        updateLogoTrigger();
+        breakpoint.addEventListener('change', updateLogoTrigger);
+
+        return () => {
+            breakpoint.removeEventListener('change', updateLogoTrigger);
+        };
+    }, []);
+
+
 
     const navItems = [
         { key: '/dashboard', icon: <AppstoreOutlined />, labelKey: 'dashboard' },
@@ -95,19 +111,20 @@ export default function AppShell({
             <div className="app-layout">
                 <header className="app-header">
                     <div className="brand-lockup">
-                        <Button
-                            className="mobile-menu-button"
-                            type="text"
-                            icon={<MenuOutlined />}
-                            onClick={toggleDrawer}
-                        />
-                        <div className="brand-lockup header-brand">
+                        <button
+                            type="button"
+                            className="brand-lockup header-brand header-logo-trigger"
+                            onClick={openDrawerFromLogo}
+                            aria-label={logoOpensDrawer ? 'Open navigation' : undefined}
+                            title={logoOpensDrawer ? 'Open navigation' : undefined}
+                            tabIndex={logoOpensDrawer ? 0 : -1}
+                        >
                             <img src="/baam-logo.svg" alt="IU" className="brand-mark" />
                             <span className="header-university">INNOPOLIS UNIVERSITY</span>
-                        </div>
+                        </button>
                     </div>
 
-                    <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="header-actions">
                         <Button
                             type="text"
                             icon={themeIcon}
@@ -116,17 +133,16 @@ export default function AppShell({
                             style={{ fontSize: 20 }}
                         />
 
-                        <Dropdown
-                            menu={{ items: languageItems, onClick: handleLanguageChange }}
-                            trigger={['click']}
+                        <Button
+                            className="language-button"
+                            icon={<GlobalOutlined />}
+                            onClick={() => setLanguage(language === 'en' ? 'ru' : 'en')}
                         >
-                            <Button className="language-button" icon={<GlobalOutlined />}>
-                                {language.toUpperCase()}
-                            </Button>
-                        </Dropdown>
+                            {language.toUpperCase()}
+                        </Button>
 
 
-                        <Space size={10} align="center" style={{ cursor: 'pointer' }} onClick={goToProfile}>
+                        <Space size={10} align="center" className="header-profile-shortcut" onClick={goToProfile}>
                             <div
                                 className="user-avatar"
                                 style={{

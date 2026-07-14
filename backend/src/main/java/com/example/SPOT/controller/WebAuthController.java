@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 
 import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.model.UserModel;
@@ -36,9 +37,11 @@ public class WebAuthController {
     @PostMapping("/register/verify")
     public ResponseEntity<Void> verifyRegister(
             @AuthenticationPrincipal String userIdStr,
-            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto) {
+            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto,
+            HttpServletRequest request) {
         Long userId = Long.valueOf(userIdStr);
         webAuthService.verifyRegisterResponse(userId, requestDto);
+        request.getSession().setAttribute("webauth_verified", true);
         return ResponseEntity.ok().build();
     }
 
@@ -52,9 +55,11 @@ public class WebAuthController {
     @PostMapping("/attendance/verify")
     public ResponseEntity<Void> verifyAttendance(
             @AuthenticationPrincipal String userIdStr,
-            @Valid @RequestBody WebAuthAssertionVerifyDTO requestDto) {
+            @Valid @RequestBody WebAuthAssertionVerifyDTO requestDto,
+            HttpServletRequest request) {
         Long userId = Long.valueOf(userIdStr);
         webAuthService.verifyAttendanceResponse(userId, requestDto);
+        request.getSession().setAttribute("webauth_verified", true);
         return ResponseEntity.ok().build();
     }
 }

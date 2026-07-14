@@ -3,8 +3,6 @@ import {
     EnvironmentOutlined,
     ExpandOutlined,
     StopOutlined,
-    EditOutlined,
-    SaveOutlined,
     ReloadOutlined,
     PlusOutlined,
     DeleteOutlined,
@@ -22,11 +20,11 @@ import {
     Typography,
     message,
     Modal,
-    InputNumber,
     Input,
     Alert,
     Spin,
     Dropdown,
+    AutoComplete,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -39,17 +37,15 @@ import { useApp, type Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
-import { closeSession, getActiveSessionIds } from '../api/Session';
+import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
+import { searchUsers } from '../api/User';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 type Attendee = {
     id: string;
     name: string;
-    email: string;
-};
-
-type SessionUserResponse = {
     email: string;
 };
 
@@ -62,6 +58,11 @@ function getDisplayName(email: string) {
         .join(' ') || email;
 }
 
+function isValidEmail(email: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+
 async function readErrorMessage(response: Response, fallback: string) {
     try {
         const data = await response.json() as { message?: string; error?: string; status?: string };
@@ -71,10 +72,6 @@ async function readErrorMessage(response: Response, fallback: string) {
     }
 }
 
-function isValidEmail(email: string) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
 export default function ActiveSessionPage() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -82,7 +79,6 @@ export default function ActiveSessionPage() {
     const {
         getSessionById,
         endSession,
-        updateSession,
     } = useApp();
     const { t } = useTheme();
     const [messageApi, contextHolder] = message.useMessage();
@@ -98,14 +94,13 @@ export default function ActiveSessionPage() {
     const [sessionEnded, setSessionEnded] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
-    const [isEditingRadius, setIsEditingRadius] = useState(false);
-    const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
-    const [mapKey, setMapKey] = useState(0);
+    const mapKey = 0;
     const [isMounted, setIsMounted] = useState(false); //
     const [qrToken, setQrToken] = useState('');
     const [qrError, setQrError] = useState('');
     const [backendSessionActive, setBackendSessionActive] = useState<boolean | null>(null);
     const [fetchedSession, setFetchedSession] = useState<Session | null>(null);
+    const [searchOptions, setSearchOptions] = useState<{ value: string; label: React.ReactNode }[]>([]);
     const attendeesRequestInFlightRef = useRef(false);
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
@@ -122,30 +117,25 @@ export default function ActiveSessionPage() {
     const loadSessionDetails = useCallback(async () => {
         if (numericSessionId === null) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}/details`, {
-                method: 'GET',
-                credentials: 'include',
+            const data = await getSessionDetails(numericSessionId);
+            const validationTypes = data.validationTypes ?? [];
+            const hasPassword = validationTypes.includes('PASSWORD');
+            const sessionMode = hasPassword ? 'CODE' : 'QR';
+            setFetchedSession({
+                id: String(data.id),
+                title: data.title,
+                mode: sessionMode,
+                password: data.password || '',
+                geolocationEnabled: validationTypes.includes('GPS'),
+                radius: data.allowedRadius ?? undefined,
+                lat: data.latitude ?? undefined,
+                lng: data.longitude ?? undefined,
+                createdAt: data.createdAt,
+                isActive: data.isActive,
+                validationTypes,
             });
-            if (response.ok) {
-                const data = await response.json();
-                const hasPassword = data.validationTypes?.includes('PASSWORD');
-                const sessionMode = hasPassword ? 'CODE' : 'QR';
-                setFetchedSession({
-                    id: String(data.id),
-                    title: data.title,
-                    mode: sessionMode,
-                    password: data.password || '',
-                    geolocationEnabled: data.validationTypes?.includes('GPS') || false,
-                    radius: data.allowedRadius,
-                    lat: data.latitude,
-                    lng: data.longitude,
-                    createdAt: data.createdAt,
-                    isActive: data.isActive,
-                    validationTypes: data.validationTypes,
-                });
-            }
-        } catch (error) {
-            console.error('Failed to load session details:', error);
+        } catch {
+            // Keep fallback route state/context details if the backend details request fails.
         }
     }, [numericSessionId]);
 
@@ -196,13 +186,6 @@ export default function ActiveSessionPage() {
         setIsMounted(true);
     }, []);
 
-    // Инициализация editRadius из активной сессии
-    useEffect(() => {
-        if (activeSession) {
-            setEditRadius(activeSession.radius);
-        }
-    }, [activeSession]);
-
     const isQrSession = activeSession?.mode !== 'CODE';
     const shouldSubscribeQr = isActive && isQrSession;
 
@@ -244,16 +227,7 @@ export default function ActiveSessionPage() {
         setAttendeesLoading(true);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/session/${numericSessionId}`, {
-                method: 'GET',
-                credentials: 'include',
-            });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to load checked-in users.'));
-            }
-
-            const users = await response.json() as SessionUserResponse[];
+            const users = await getSessionUsers(numericSessionId);
             setAttendees(
                 users.map((user) => ({
                     id: user.email,
@@ -294,36 +268,53 @@ export default function ActiveSessionPage() {
         };
     }, [isActive, loadSessionUsers, numericSessionId]);
 
+    const handleSearchUser = async (query: string) => {
+        setAttendeeEmail(query);
+        if (!query || query.length < 2) {
+            setSearchOptions([]);
+            return;
+        }
+        try {
+            const results = await searchUsers(query);
+            const innopolisUsers = results.filter(u => u.email.endsWith('@innopolis.ru') || u.email.endsWith('@innopolis.university'));
+            setSearchOptions(innopolisUsers.map(u => ({
+                value: u.email,
+                label: (
+                    <Space>
+                        <span className="attendee-avatar" style={{ transform: 'scale(0.8)' }}>{u.email.charAt(0).toUpperCase()}</span>
+                        {u.email}
+                    </Space>
+                )
+            })));
+        } catch {
+            // Ignore search errors silently
+        }
+    };
+
     const handleAddAttendee = useCallback(async () => {
         if (numericSessionId === null) {
             void messageApi.error('Session ID must be a positive number.');
             return;
         }
 
-        const email = attendeeEmail.trim();
+        const email = attendeeEmail.trim().toLowerCase();
 
         if (!isValidEmail(email)) {
             void messageApi.error('Enter a valid email address.');
             return;
         }
 
+        if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) {
+            void messageApi.error('Only @innopolis.ru or @innopolis.university emails are allowed.');
+            return;
+        }
+
         setAddingAttendee(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/attendance/create/email`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sessionId: numericSessionId,
-                    email,
-                }),
+            await addAttendeeByEmail({
+                sessionId: numericSessionId,
+                email,
             });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to add attendee.'));
-            }
 
             void messageApi.success(t('attendeeAdded'));
             setAddAttendeeOpen(false);
@@ -344,21 +335,10 @@ export default function ActiveSessionPage() {
 
         setRemovingAttendeeEmail(email);
         try {
-            const response = await fetch(`${API_BASE_URL}/attendance/delete`, {
-                method: 'DELETE',
-                credentials: 'include',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sessionId: numericSessionId,
-                    email,
-                }),
+            await removeAttendeeByEmail({
+                sessionId: numericSessionId,
+                email,
             });
-
-            if (!response.ok) {
-                throw new Error(await readErrorMessage(response, 'Failed to remove attendee.'));
-            }
 
             void messageApi.success('Attendee removed.');
             await loadSessionUsers();
@@ -442,20 +422,6 @@ export default function ActiveSessionPage() {
             void messageApi.error(error instanceof Error ? error.message : 'Failed to end session.');
         } finally {
             setEndingSession(false);
-        }
-    };
-
-    const handleSaveRadius = () => {
-        const nextRadius = editRadius ?? activeSession?.radius;
-
-        if (activeSession && nextRadius !== undefined && nextRadius > 0) {
-            updateSession(activeSession.id, { radius: nextRadius });
-            setEditRadius(nextRadius);
-            setIsEditingRadius(false);
-            setMapKey((prev) => prev + 1); // 👈 обновляем карту
-            void messageApi.success('Radius updated');
-        } else {
-            void messageApi.error('Please enter a valid radius');
         }
     };
 
@@ -558,7 +524,7 @@ export default function ActiveSessionPage() {
                 />
                 <div>
                     <Typography.Title level={1}>{displayTitle}</Typography.Title>
-                    <Space size={12}>
+                    <Space size={12} wrap className="active-session-meta">
                         <Tag color={isActive ? 'success' : 'default'}>
                             {isActive ? t('active') : 'Ended'}
                         </Tag>
@@ -619,7 +585,7 @@ export default function ActiveSessionPage() {
 
                     <div className="session-detail-list">
                         {!isQrSession && (
-                            <Flex justify="space-between" gap={16}>
+                            <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
                                 <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
                             </Flex>
@@ -627,7 +593,7 @@ export default function ActiveSessionPage() {
 
                         {activeSession?.validationTypes &&
                             activeSession.validationTypes.length > 0 && (
-                                <Flex justify="space-between" gap={16}>
+                                <Flex className="session-detail-row" justify="space-between" gap={16}>
                                     <Typography.Text type="secondary">
                                         Validation Methods
                                     </Typography.Text>
@@ -637,7 +603,7 @@ export default function ActiveSessionPage() {
                                 </Flex>
                             )}
 
-                        <Flex justify="space-between" gap={16}>
+                        <Flex className="session-detail-row" justify="space-between" gap={16}>
                             <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
                             <Typography.Text
                                 strong
@@ -655,7 +621,7 @@ export default function ActiveSessionPage() {
                             </Typography.Text>
                         </Flex>
                         {hasLocation && (
-                            <Flex justify="space-between" gap={16}>
+                            <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('location')}</Typography.Text>
                                 <Typography.Text strong>
                                     {activeSession?.lat?.toFixed(5)}, {activeSession?.lng?.toFixed(5)}
@@ -663,53 +629,12 @@ export default function ActiveSessionPage() {
                             </Flex>
                         )}
                         {hasLocation && isActive && (
-                            <Flex justify="space-between" gap={16} align="center">
+                            <Flex className="session-detail-row radius-edit-row" justify="space-between" gap={16} align="center">
                                 <Typography.Text type="secondary">Radius</Typography.Text>
-                                {isEditingRadius ? (
-                                    <Space>
-                                        <InputNumber
-                                            min={1}
-                                            value={editRadius ?? activeSession?.radius}
-                                            onChange={(val) => setEditRadius(val ?? undefined)}
-                                            addonAfter="m"
-                                            size="small"
-                                        />
-                                        <Button
-                                            type="primary"
-                                            size="small"
-                                            icon={<SaveOutlined />}
-                                            onClick={handleSaveRadius}
-                                        >
-                                            Save
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            onClick={() => {
-                                                setIsEditingRadius(false);
-                                                setEditRadius(undefined);
-                                            }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </Space>
-                                ) : (
-                                    <Space>
-                                        <Typography.Text strong>
-                                            {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
-                                        </Typography.Text>
-                                        {isActive && (
-                                            <Button
-                                                type="text"
-                                                icon={<EditOutlined />}
-                                                onClick={() => {
-                                                    setEditRadius(activeSession?.radius);
-                                                    setIsEditingRadius(true);
-                                                }}
-                                                size="small"
-                                            />
-                                        )}
-                                    </Space>
-                                )}
+                                <Typography.Text strong>
+                                    {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
+                                </Typography.Text>
+                                {/* TODO: re-enable editing when PATCH /session/{id} accepts allowedRadius. */}
                             </Flex>
                         )}
                     </div>
@@ -743,9 +668,8 @@ export default function ActiveSessionPage() {
 
                 <Card
                     title={
-                        <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-                            <span>{t('scannedStudents')}</span>
-                            <Space wrap>
+                        <Flex justify="center" align="center" gap={12} wrap="wrap">
+                            <Space wrap className="session-card-actions">
                                 <Tag color="success">{attendees.length}</Tag>
                                 <Button
                                     size="small"
@@ -808,6 +732,7 @@ export default function ActiveSessionPage() {
                         dataSource={attendees}
                         rowKey="id"
                         pagination={false}
+                        showHeader={false}
                         locale={{ emptyText: <Empty description={t('noAttendees')} /> }}
                         size="middle"
                         style={{ overflow: 'auto' }}
@@ -824,6 +749,7 @@ export default function ActiveSessionPage() {
                 style={{ maxWidth: 600 }}
                 centered
                 closable
+                className="responsive-modal qr-modal"
             >
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
                     {qrFullUrl ? (
@@ -848,18 +774,27 @@ export default function ActiveSessionPage() {
                 onCancel={() => {
                     setAddAttendeeOpen(false);
                     setAttendeeEmail('');
+                    setSearchOptions([]);
                 }}
                 destroyOnHidden
+                className="responsive-modal"
             >
-                <Input
+                <AutoComplete
                     value={attendeeEmail}
-                    onChange={(event) => setAttendeeEmail(event.target.value)}
-                    onPressEnter={() => void handleAddAttendee()}
+                    options={searchOptions}
+                    onSearch={handleSearchUser}
+                    onChange={(val) => setAttendeeEmail(val)}
+                    onSelect={(val) => setAttendeeEmail(val)}
                     placeholder="student@example.com"
-                    type="email"
-                    autoComplete="off"
+                    style={{ width: '100%' }}
                     autoFocus
-                />
+                >
+                    <Input
+                        onPressEnter={() => void handleAddAttendee()}
+                        type="email"
+                        autoComplete="off"
+                    />
+                </AutoComplete>
             </Modal>
 
             <Modal
@@ -868,7 +803,7 @@ export default function ActiveSessionPage() {
                 okText="End Session"
                 cancelText="Cancel"
                 confirmLoading={endingSession}
-                okButtonProps={{ disabled: endingSession }}
+                okButtonProps={{ danger: true, disabled: endingSession }}
                 cancelButtonProps={{ disabled: endingSession }}
                 onOk={() => void handleEndSession()}
                 onCancel={() => {
@@ -878,6 +813,7 @@ export default function ActiveSessionPage() {
                 }}
                 centered
                 destroyOnHidden
+                className="responsive-modal end-session-modal"
             >
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
                     QR/code attendance will stop after ending the session. Participants will no longer be able to check in using this session.
@@ -891,11 +827,11 @@ export default function ActiveSessionPage() {
                 width="90%"
                 style={{ maxWidth: 1200 }}
                 centered
-                className="map-modal"
+                className="responsive-modal map-modal"
                 closable
                 title="Session Location"
             >
-                <div style={{ height: '80vh' }}>
+                <div className="map-modal-frame">
                     {isMounted && (
                         <SessionMap
                             key={mapKey + 1000}

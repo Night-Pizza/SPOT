@@ -1,10 +1,10 @@
-import { BarChartOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, BarChartOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { Card, Typography, Alert, Button, message, Modal } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type KeyboardEvent } from 'react';
 import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
 import { startRegistration } from '@simplewebauthn/browser';
 import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
@@ -13,7 +13,7 @@ import { getAttendedSessionsCount } from '../api/Attendance';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { user, loading, refreshCurrentUser } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified } = useAuth();
     const { t } = useTheme();
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
 
@@ -29,7 +29,7 @@ export default function Dashboard() {
             },
             onCancel() {
                 // If they choose to register device later, trigger face registration popup
-                if (!user.faceRegistered) {
+                if (!user.faceRegistered && user.isSsoUser) {
                     setRegisterModalOpen(true);
                 }
             }
@@ -55,10 +55,11 @@ export default function Dashboard() {
 
             await verifyRegistration(JSON.stringify(attestationResponse));
             void message.success('Biometric device registered successfully!');
+            markWebauthVerified();
             await refreshCurrentUser();
             
             // Auto trigger face registration after successful device registration
-            if (!user.faceRegistered) {
+            if (!user.faceRegistered && user.isSsoUser) {
                 setRegisterModalOpen(true);
             }
         } catch (err: any) {
@@ -81,12 +82,13 @@ export default function Dashboard() {
     useEffect(() => {
         if (!loading && user) {
             const triggerDevice = localStorage.getItem('trigger_device_registration');
-            if (triggerDevice === 'true') {
+            if (triggerDevice === 'true' && user.isSsoUser) {
                 localStorage.removeItem('trigger_device_registration');
                 void handleRegisterDevice();
             } else {
+                localStorage.removeItem('trigger_device_registration'); // Clean up if it was set incorrectly
                 const triggerFace = localStorage.getItem('trigger_face_registration');
-                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered) {
+                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered && user.isSsoUser) {
                     localStorage.removeItem('trigger_face_registration');
                     setRegisterModalOpen(true);
                 }
@@ -96,6 +98,17 @@ export default function Dashboard() {
     const [stats, setStats] = useState({ created: 0, attended: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
     const [statsError, setStatsError] = useState('');
+
+    const openAction = (path: string) => {
+        navigate(path);
+    };
+
+    const handleActionKeyDown = (event: KeyboardEvent<HTMLElement>, path: string) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openAction(path);
+        }
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -137,33 +150,33 @@ export default function Dashboard() {
                 {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
             </Typography.Title>
 
-            {!loading && !user.webauthRegistered && (
+            {!loading && !user.webauthRegistered && user.isSsoUser && (
                 <Alert
                     message="Biometric Device Required"
                     description="You have not registered your biometric device yet. Please register your device to enable biometric verification."
                     type="warning"
                     showIcon
+                    className="dashboard-alert"
                     action={
-                        <Button size="small" type="primary" className="primary-action" onClick={handleRegisterDevice} style={{ width: 140 }}>
+                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => void handleRegisterDevice()}>
                             Register Device
                         </Button>
                     }
-                    style={{ marginBottom: 24 }}
                 />
             )}
 
-            {!loading && !user.faceRegistered && (
+            {!loading && !user.faceRegistered && user.isSsoUser && (
                 <Alert
                     message="Face Registration Required"
                     description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
                     type="warning"
                     showIcon
+                    className="dashboard-alert"
                     action={
-                        <Button size="small" type="primary" className="primary-action" onClick={() => setRegisterModalOpen(true)} style={{ width: 140 }}>
+                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => setRegisterModalOpen(true)}>
                             Register Face
                         </Button>
                     }
-                    style={{ marginBottom: 24 }}
                 />
             )}
 
@@ -176,49 +189,73 @@ export default function Dashboard() {
                     hoverable
                     className="quick-action-card"
                     role="button"
-                    onClick={() => navigate('/sessions/create')}>
+                    tabIndex={0}
+                    onClick={() => openAction('/sessions/create')}
+                    onKeyDown={(event) => handleActionKeyDown(event, '/sessions/create')}
+                >
                     <span className="quick-action-icon green-icon">
                         <PlusOutlined />
                     </span>
                     <Typography.Title level={3}>{t('createSession')}</Typography.Title>
                     <Typography.Paragraph>
-                        {t('newSession')}
+                        Start a session
                     </Typography.Paragraph>
+                    <span className="quick-action-cta">
+                        Create <ArrowRightOutlined />
+                    </span>
                 </Card>
 
-                <Card className="quick-action-card"
-                      onClick={() => navigate('/attendance')}>
+                <Card
+                    hoverable
+                    className="quick-action-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openAction('/attendance')}
+                    onKeyDown={(event) => handleActionKeyDown(event, '/attendance')}
+                >
                     <span className="quick-action-icon blue-icon">
                         <QrcodeOutlined />
                     </span>
                     <Typography.Title level={3}>{t('scanQR')}</Typography.Title>
                     <Typography.Paragraph>
-                        {t('scanQRDesc')}
+                        Mark attendance
                     </Typography.Paragraph>
+                    <span className="quick-action-cta">
+                        Open <ArrowRightOutlined />
+                    </span>
                 </Card>
 
-                <Card className="quick-action-card"
-                      onClick={() => navigate('/sessions')}>
+                <Card
+                    hoverable
+                    className="quick-action-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openAction('/sessions')}
+                    onKeyDown={(event) => handleActionKeyDown(event, '/sessions')}
+                >
                     <span className="quick-action-icon purple-icon">
                         <BarChartOutlined />
                     </span>
-                    <Typography.Title level={3}>{t('viewAttendance')}</Typography.Title>
+                    <Typography.Title level={3}>View History</Typography.Title>
                     <Typography.Paragraph>
-                        {t('manageSessions')}
+                        Review records
                     </Typography.Paragraph>
+                    <span className="quick-action-cta">
+                        View <ArrowRightOutlined />
+                    </span>
                 </Card>
             </div>
 
-            <div style={{ marginTop: 48, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                <Card style={{ flex: 1, minWidth: 200 }}>
+            <div className="dashboard-stats-grid">
+                <Card className="dashboard-stat-card">
                     <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
-                    <Typography.Title level={2} style={{ margin: 0 }}>
+                    <Typography.Title level={2} className="dashboard-stat-number">
                         {statsLoading ? 'Loading...' : stats.created}
                     </Typography.Title>
                 </Card>
-                <Card style={{ flex: 1, minWidth: 200 }}>
+                <Card className="dashboard-stat-card">
                     <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
-                    <Typography.Title level={2} style={{ margin: 0 }}>
+                    <Typography.Title level={2} className="dashboard-stat-number">
                         {statsLoading ? 'Loading...' : stats.attended}
                     </Typography.Title>
                 </Card>

@@ -20,7 +20,6 @@ import com.example.SPOT.model.ValidationType;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
@@ -37,9 +36,9 @@ public class AttendanceIntegrationTest {
     }
 
     @Test
-    void shouldAcceptAttendanceRequest() {
+    void shouldRejectAttendanceRequestForLocalLogin() {
         SessionFilter sessionFilter = new SessionFilter();
-        String uniqueEmail = "student_" + UUID.randomUUID() + "@innopolis.ru";
+        String uniqueEmail = "student_" + UUID.randomUUID() + "@example.com";
 
         var regDto = new UserCreateDTO(uniqueEmail, "123456Ab!");
 
@@ -97,7 +96,7 @@ public class AttendanceIntegrationTest {
         }
         Long sessionId = sessionIdNumber.longValue();
 
-        // 3. Create Attendance
+        // 3. Local login users cannot create attendance. They must authenticate through SSO first.
         var attendance = new AttendanceCreateDTO(sessionId, Map.of("password", "secret"));
 
         given()
@@ -110,7 +109,7 @@ public class AttendanceIntegrationTest {
                 .post("/attendance/create")
                 .then()
                 .log().body()
-             .statusCode(202)
-             .body("payload.attendanceId", notNullValue());
+             .statusCode(403)
+             .body("status", equalTo("ACCESS_DENIED"));
     }
 }

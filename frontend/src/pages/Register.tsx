@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 function validateEmail(email: string): string | null {
     if (!email) return 'Email cannot be empty';
     if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
-    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+    if (email.endsWith('@innopolis.ru') || email.endsWith('@innopolis.university')) return 'Innopolis emails must use SSO to log in or register';
     return null;
 }
 
@@ -23,11 +23,11 @@ function validatePassword(password: string): string | null {
         return 'Password must contain at least one digit';
     }
 
-    if (!/[a-z]/.test(password)) {
+    if (!/[a-zа-яё]/.test(password)) {
         return 'Password must contain at least one lowercase letter';
     }
 
-    if (!/[A-Z]/.test(password)) {
+    if (!/[A-ZА-ЯЁ]/.test(password)) {
         return 'Password must contain at least one uppercase letter';
     }
 
@@ -61,8 +61,6 @@ export default function RegisterPage() {
             const user = await registerUser({ email, password });
             setAuthenticatedUser(user);
 
-            // Set flag to auto-trigger biometric device registration on dashboard
-            localStorage.setItem('trigger_device_registration', 'true');
             navigate('/dashboard');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : 'Registration failed');
@@ -80,7 +78,7 @@ export default function RegisterPage() {
                     <input
                         className="auth-input"
                         type="email"
-                        placeholder="name@innopolis.university"
+                        placeholder="name@example.com"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
                         required

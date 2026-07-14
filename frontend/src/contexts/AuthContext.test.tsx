@@ -36,6 +36,7 @@ describe('AuthContext', () => {
             attendedSessions: 0,
             faceRegistered: true,
             webauthRegistered: false,
+            isSsoUser: false,
         });
         expect(result.current.error).toBeNull();
     });

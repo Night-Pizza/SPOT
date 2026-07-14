@@ -6,6 +6,7 @@ import com.example.SPOT.dto.request.UserUpdateDTO;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.kafka.KafkaMessagingService;
+import com.example.SPOT.model.AuthProvider;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.repository.UserRepository;
@@ -45,7 +46,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", null, null, null, null, null);
+        testUser = new UserModel(1L, "test@example.com", "encodedPassword", AuthProvider.LOCAL, null, null, null, null, null, null);
     }
 
     @Test
@@ -69,7 +70,7 @@ class UserServiceTest {
 
     @Test
     void createUser_ShouldSaveUser_WhenValidData() {
-        UserCreateDTO dto = new UserCreateDTO("new@innopolis.ru", "Password123!");
+        UserCreateDTO dto = new UserCreateDTO("new@example.com", "Password123!");
         when(userRepository.existsByEmail(dto.email())).thenReturn(false);
         when(passwordEncoder.encode(dto.password())).thenReturn("encoded");
         when(userRepository.save(any(UserModel.class))).thenReturn(testUser);
@@ -82,15 +83,15 @@ class UserServiceTest {
 
     @Test
     void createUser_ShouldThrowException_WhenEmailInvalid() {
-        UserCreateDTO dto = new UserCreateDTO("bad-email", "Password123!");
+        UserCreateDTO dto = new UserCreateDTO("Bad Email", "Password123!");
 
         CustomException exception = assertThrows(CustomException.class, () -> userService.createUser(dto));
-        assertEquals("INVALID_EMAIL_DOMAIN", exception.getErrorCode());
+        assertEquals("INVALID_EMAIL_FORMAT", exception.getErrorCode());
     }
 
     @Test
     void createUser_ShouldThrowException_WhenPasswordWeak() {
-        UserCreateDTO dto = new UserCreateDTO("valid@innopolis.ru", "123");
+        UserCreateDTO dto = new UserCreateDTO("valid@example.com", "123");
 
         CustomException exception = assertThrows(CustomException.class, () -> userService.createUser(dto));
         assertEquals("WEAK_PASSWORD", exception.getErrorCode());
@@ -98,7 +99,7 @@ class UserServiceTest {
 
     @Test
     void loginUser_ShouldReturnDTO_WhenCredentialsAreCorrect() {
-        UserLoginDTO loginDTO = new UserLoginDTO("test@innopolis.university", "password123");
+        UserLoginDTO loginDTO = new UserLoginDTO("test@example.com", "password123");
         when(userRepository.findByEmail(loginDTO.email())).thenReturn(testUser);
         when(passwordEncoder.matches(loginDTO.password(), testUser.getPassword())).thenReturn(true);
 
@@ -110,7 +111,7 @@ class UserServiceTest {
 
     @Test
     void loginUser_ShouldThrowException_WhenPasswordIncorrect() {
-        UserLoginDTO loginDTO = new UserLoginDTO("test@innopolis.university", "wrong");
+        UserLoginDTO loginDTO = new UserLoginDTO("test@example.com", "wrong");
         when(userRepository.findByEmail(loginDTO.email())).thenReturn(testUser);
         when(passwordEncoder.matches("wrong", testUser.getPassword())).thenReturn(false);
 

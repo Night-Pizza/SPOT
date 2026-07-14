@@ -1,5 +1,7 @@
 package com.example.SPOT.service;
 
+import java.util.UUID;
+
 import com.example.SPOT.dto.request.AddFaceDTO;
 import com.example.SPOT.dto.request.UserCreateDTO;
 import com.example.SPOT.dto.request.UserLoginDTO;
@@ -9,6 +11,7 @@ import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.kafka.KafkaMessagingService;
 import com.example.SPOT.model.EmbeddingStatus;
+import com.example.SPOT.model.AuthProvider;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.KafkaRepository;
@@ -44,6 +47,7 @@ public class UserService {
         }
 
         validateEmail(userLoginDTO.email());
+        validateLocalEmailDomain(userLoginDTO.email());
 
         UserModel user = userRepository.findByEmail(userLoginDTO.email());
 
@@ -55,11 +59,14 @@ public class UserService {
             throw new CustomException("WRONG_PASSWORD", "Password does not match");
         }
 
+        normalizeMissingAuthProvider(user, AuthProvider.LOCAL);
+
         return mapToDTO(user);
     }
 
     public UserDTO createUser(UserCreateDTO userCreateDTO) {
         validateEmail(userCreateDTO.email());
+        validateLocalEmailDomain(userCreateDTO.email());
 
         if (userRepository.existsByEmail(userCreateDTO.email()))
             throw new CustomException("EMAIL_ALREADY_EXISTS", "User with this email is already exists");
@@ -70,6 +77,8 @@ public class UserService {
                 null,
                 userCreateDTO.email(),
                 passwordEncoder.encode(userCreateDTO.password()),
+                AuthProvider.LOCAL,
+                null,
                 null,
                 null,
                 null,
@@ -79,10 +88,53 @@ public class UserService {
         return mapToDTO(userRepository.save(newUser));
     }
 
+    public UserDTO findOrCreateSsoUser(String email) {
+        validateEmail(email);
+        validateSsoEmailDomain(email);
+
+        UserModel existingUser = userRepository.findByEmail(email);
+        if (existingUser != null) {
+            normalizeMissingAuthProvider(existingUser, AuthProvider.LOCAL);
+            return mapToDTO(existingUser);
+        }
+
+        UserModel newUser = new UserModel(
+                null,
+                email,
+                passwordEncoder.encode(UUID.randomUUID().toString()),
+                AuthProvider.MY_UNIVERSITY_SSO,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        return mapToDTO(userRepository.save(newUser));
+    }
+
+    private void normalizeMissingAuthProvider(UserModel user, AuthProvider defaultProvider) {
+        if (user.getAuthProvider() == null) {
+            user.setAuthProvider(defaultProvider);
+            userRepository.save(user);
+        }
+    }
+
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id))
             throw new CustomException("ID_NOT_EXIST", "User id does not exist");
         userRepository.deleteById(id);
+    }
+
+    public java.util.List<UserDTO> searchUsers(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return userRepository.findTop10ByEmailContainingIgnoreCase(query.trim())
+                .stream()
+                .map(this::mapToDTO)
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Transactional
@@ -140,7 +192,9 @@ public class UserService {
                 userModel.getId(),
                 userModel.getEmail(),
                 userModel.getEmbedding() != null,
-                userModel.getWebauthCredentialId() != null
+                userModel.getWebauthCredentialId() != null,
+                false,
+                userModel.getAuthProvider() == AuthProvider.MY_UNIVERSITY_SSO
         );
     }
 
@@ -152,9 +206,17 @@ public class UserService {
         if (email.contains(" ") || !email.equals(email.toLowerCase())) {
             throw new CustomException("INVALID_EMAIL_FORMAT", "Email must be in lowercase and contain no spaces");
         }
+    }
 
+    private void validateLocalEmailDomain(String email) {
+        if (email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university")) {
+            throw new CustomException("SSO_REQUIRED", "Innopolis emails must use SSO to log in or register");
+        }
+    }
+
+    private void validateSsoEmailDomain(String email) {
         if (!(email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university"))) {
-            throw new CustomException("INVALID_EMAIL_DOMAIN", "Email must belong to @innopolis.ru or @innopolis.university");
+            throw new CustomException("INVALID_EMAIL_DOMAIN", "SSO is only for @innopolis.ru or @innopolis.university domains");
         }
     }
 
@@ -163,7 +225,7 @@ public class UserService {
             throw new CustomException("WEAK_PASSWORD", "Password must be at least 8 characters long");
         }
 
-        if (!password.matches("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
+        if (!password.matches("^(?=.*[0-9])(?=.*[a-zа-яё])(?=.*[A-ZА-ЯЁ])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
             throw new CustomException("WEAK_PASSWORD", "Password must contain at least one digit, one lowercase, one uppercase letter and one special character");
         }
     }

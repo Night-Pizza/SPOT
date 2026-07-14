@@ -47,6 +47,7 @@ class AttendanceServiceTest {
 
         user = new UserModel();
         user.setId(USER_ID);
+        user.setAuthProvider(AuthProvider.MY_UNIVERSITY_SSO);
     }
 
     @Test
@@ -66,6 +67,7 @@ class AttendanceServiceTest {
         AttendanceCreateDTO request = new AttendanceCreateDTO(SESSION_ID, null);
         
         when(attendanceRepository.existsByUserIdAndSessionId(USER_ID, SESSION_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
         CustomException exception = assertThrows(CustomException.class, 
@@ -82,6 +84,7 @@ class AttendanceServiceTest {
         AttendanceCreateDTO request = new AttendanceCreateDTO(SESSION_ID, payload);
 
         when(attendanceRepository.existsByUserIdAndSessionId(USER_ID, SESSION_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
@@ -107,6 +110,7 @@ class AttendanceServiceTest {
         AttendanceCreateDTO request = new AttendanceCreateDTO(SESSION_ID, payload);
 
         when(attendanceRepository.existsByUserIdAndSessionId(USER_ID, SESSION_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
 
@@ -127,6 +131,7 @@ class AttendanceServiceTest {
         AttendanceCreateDTO request = new AttendanceCreateDTO(SESSION_ID, payload);
 
         when(attendanceRepository.existsByUserIdAndSessionId(USER_ID, SESSION_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
@@ -152,6 +157,7 @@ class AttendanceServiceTest {
         AttendanceCreateDTO request = new AttendanceCreateDTO(SESSION_ID, payload);
 
         when(attendanceRepository.existsByUserIdAndSessionId(USER_ID, SESSION_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
         CustomException exception = assertThrows(CustomException.class, 
@@ -168,6 +174,7 @@ class AttendanceServiceTest {
         AttendanceCreateDTO request = new AttendanceCreateDTO(SESSION_ID, payload);
 
         when(attendanceRepository.existsByUserIdAndSessionId(USER_ID, SESSION_ID)).thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
 
         when(kafkaRepository.save(any(KafkaModel.class))).thenAnswer(invocation -> {

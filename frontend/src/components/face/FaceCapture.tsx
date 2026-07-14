@@ -49,6 +49,10 @@ function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | '
 }
 
 type LivenessAction = 'mouth';
+type FaceBlendshapeCategory = {
+    categoryName: string;
+    score: number;
+};
 
 const LIVENESS_ACTIONS: { type: LivenessAction; label: string }[] = [
     { type: 'mouth', label: 'Please open your mouth' }
@@ -64,19 +68,25 @@ async function getFaceLandmarker(): Promise<FaceLandmarker> {
     if (loadingPromise) return loadingPromise;
 
     loadingPromise = (async () => {
-        const vision = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
-        );
-        sharedLandmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: {
-                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-                delegate: "GPU"
-            },
-            outputFaceBlendshapes: true,
-            runningMode: "VIDEO",
-            numFaces: 1
-        });
-        return sharedLandmarker;
+        try {
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
+            );
+            sharedLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                    delegate: "GPU"
+                },
+                outputFaceBlendshapes: true,
+                runningMode: "VIDEO",
+                numFaces: 1
+            });
+            return sharedLandmarker;
+        } catch (error) {
+            loadingPromise = null;
+            sharedLandmarker = null;
+            throw error;
+        }
     })();
 
     return loadingPromise;
@@ -215,7 +225,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                 try {
                     const results = landmarker.detectForVideo(video, performance.now());
                     if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-                        const blendshapes = results.faceBlendshapes[0].categories;
+                        const blendshapes = results.faceBlendshapes[0].categories as FaceBlendshapeCategory[];
                         const jawOpen = blendshapes.find(c => c.categoryName === 'jawOpen')?.score || 0;
 
                         let success = false;
@@ -301,7 +311,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
     };
 
     return (
-        <div style={{ textAlign: 'center' }}>
+        <div className="face-capture">
             {(error || livenessError) && (
                 <Alert
                     type="error"
@@ -320,7 +330,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
                 </div>
             ) : (
                 <>
-                    <div style={{ position: 'relative', display: 'inline-block', width: '100%', maxWidth: 500 }}>
+                    <div className="face-camera-frame">
                         <Webcam
                             ref={webcamRef}
                             audio={false}
@@ -438,8 +448,8 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
 
                     {/* Previews while loading/verifying (without manual buttons) */}
                     {photos.length > 0 && (
-                        <div style={{ marginTop: 16 }}>
-                            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <div className="face-preview-section">
+                            <div className="face-preview-grid">
                                 {photos.map((file, index) => (
                                     <img
                                         key={index}
