@@ -11,7 +11,7 @@ import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 import { updatePassword } from '../api/User';
 
 export default function Profile() {
-    const { user, loading, error, refreshCurrentUser, clearWebauthVerification, markWebauthVerified } = useAuth();
+    const { user, loading, error, refreshCurrentUser, markWebauthVerified } = useAuth();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
@@ -29,7 +29,8 @@ export default function Profile() {
         } catch (error) {
             console.error("Error while logout:", error);
         } finally {
-            clearWebauthVerification();
+            localStorage.removeItem('spot_webauth_verified');
+            sessionStorage.removeItem('spot_webauth_skipped');
             window.location.href = '/login';
         }
     };

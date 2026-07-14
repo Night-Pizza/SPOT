@@ -54,6 +54,18 @@ export default function WebAuthVerificationPage() {
                     >
                         {verifying ? 'Verifying...' : 'Verify Biometrics'}
                     </Button>
+                    <Button 
+                        type="default" 
+                        size="large" 
+                        onClick={() => {
+                            sessionStorage.setItem('spot_webauth_skipped', 'true');
+                            navigate(from, { replace: true });
+                        }}
+                        disabled={verifying}
+                        style={{ width: '100%' }}
+                    >
+                        Skip for now
+                    </Button>
                 </Space>
             </Card>
         </div>
