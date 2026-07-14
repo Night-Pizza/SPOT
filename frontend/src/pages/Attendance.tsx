@@ -197,6 +197,7 @@ export default function Attendance() {
     const [currentSessionDetails, setCurrentSessionDetails] = useState<SessionPublicDetails | null>(null);
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [fetchingDetails, setFetchingDetails] = useState(false);
+    const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
 
     const loadHistory = useCallback(async () => {
         setHistoryLoading(true);
@@ -228,6 +229,10 @@ export default function Attendance() {
             try {
                 const details = await getSessionPublicDetails(sessionId);
                 setCurrentSessionDetails(details);
+                if (details.validationTypes.includes('GPS')) {
+                    setIsGeoModalOpen(true);
+                    void messageApi.info('Geolocation verification is required for this session.');
+                }
             } catch (err) {
                 console.error('Failed to fetch session public details:', err);
                 setCurrentSessionDetails(null);
@@ -694,8 +699,13 @@ export default function Attendance() {
                                         { required: true, whitespace: true, message: 'Please enter a session code.' },
                                     ]}
                                 >
-                                    <Input.Password size="large" placeholder="Session password" autoComplete="new-password" />
+                                    <Input size="large" placeholder="Session code" autoComplete="off" />
                                 </Form.Item>
+                                {currentSessionDetails?.validationTypes.includes('GPS') && (
+                                    <Button type="dashed" block style={{ marginBottom: 24 }} onClick={() => setIsGeoModalOpen(true)}>
+                                        <EnvironmentOutlined /> View Geolocation Map
+                                    </Button>
+                                )}
                                 <Button
                                     type="primary"
                                     htmlType="submit"
@@ -713,15 +723,10 @@ export default function Attendance() {
             )}
 
             {currentSessionDetails && currentSessionDetails.validationTypes.includes('GPS') && (
-                <Card
-                    className="attendance-map-card"
-                    style={{
-                        maxWidth: 1180,
-                        margin: '28px auto 0',
-                        borderRadius: 16,
-                    }}
+                <Modal
+                    className="attendance-map-modal"
                     title={
-                        <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%' }}>
+                        <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%', paddingRight: 24 }}>
                             <span>{t('sessionLocation') || 'Session Location'}: {currentSessionDetails.title}</span>
                             <Space size={8}>
                                 <Button
@@ -743,6 +748,15 @@ export default function Attendance() {
                             </Space>
                         </Flex>
                     }
+                    open={isGeoModalOpen}
+                    onCancel={() => setIsGeoModalOpen(false)}
+                    footer={[
+                        <Button key="ok" type="primary" onClick={() => setIsGeoModalOpen(false)}>
+                            OK
+                        </Button>
+                    ]}
+                    width={800}
+                    destroyOnClose
                 >
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
                         This session requires geolocation check-in. You must be inside the designated radius.
@@ -763,7 +777,7 @@ export default function Attendance() {
                             </Flex>
                         )}
                     </div>
-                </Card>
+                </Modal>
             )}
 
 
