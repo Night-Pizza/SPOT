@@ -598,7 +598,7 @@ export default function Attendance() {
             {contextHolder}
             
             {/* Show Face Registration Warning only AFTER device key is set up */}
-            {!loading && user.webauthRegistered && !user.faceRegistered && (
+            {!loading && user.isSsoUser && user.webauthRegistered && !user.faceRegistered && (
                 <Alert
                     message={t('faceRegistrationRequired')}
                     description={t('faceRegistrationRequiredDescription')}
@@ -613,7 +613,21 @@ export default function Attendance() {
                 />
             )}
 
-            {!loading && !user.webauthRegistered ? (
+            {!loading && !user.isSsoUser ? (
+                <div className="attendance-blocked-card">
+                    <Card style={{ borderRadius: 16 }}>
+                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
+                            <CloseCircleOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />
+                            <div>
+                                <Typography.Title level={3}>Access Denied</Typography.Title>
+                                <Typography.Paragraph type="secondary">
+                                    Only students (SSO users) can mark their own attendance. You can only create sessions to collect attendance.
+                                </Typography.Paragraph>
+                            </div>
+                        </Space>
+                    </Card>
+                </div>
+            ) : !loading && !user.webauthRegistered ? (
                 <div className="attendance-blocked-card">
                     <Card style={{ borderRadius: 16 }}>
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>

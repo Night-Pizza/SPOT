@@ -29,7 +29,7 @@ export default function Dashboard() {
             },
             onCancel() {
                 // If they choose to register device later, trigger face registration popup
-                if (!user.faceRegistered) {
+                if (!user.faceRegistered && user.isSsoUser) {
                     setRegisterModalOpen(true);
                 }
             }
@@ -59,7 +59,7 @@ export default function Dashboard() {
             await refreshCurrentUser();
             
             // Auto trigger face registration after successful device registration
-            if (!user.faceRegistered) {
+            if (!user.faceRegistered && user.isSsoUser) {
                 setRegisterModalOpen(true);
             }
         } catch (err: any) {
@@ -87,7 +87,7 @@ export default function Dashboard() {
                 void handleRegisterDevice();
             } else {
                 const triggerFace = localStorage.getItem('trigger_face_registration');
-                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered) {
+                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered && user.isSsoUser) {
                     localStorage.removeItem('trigger_face_registration');
                     setRegisterModalOpen(true);
                 }
@@ -149,7 +149,7 @@ export default function Dashboard() {
                 {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
             </Typography.Title>
 
-            {!loading && !user.webauthRegistered && (
+            {!loading && !user.webauthRegistered && user.isSsoUser && (
                 <Alert
                     message="Biometric Device Required"
                     description="You have not registered your biometric device yet. Please register your device to enable biometric verification."
@@ -157,14 +157,14 @@ export default function Dashboard() {
                     showIcon
                     className="dashboard-alert"
                     action={
-                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={handleRegisterDevice}>
+                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => void handleRegisterDevice()}>
                             Register Device
                         </Button>
                     }
                 />
             )}
 
-            {!loading && !user.faceRegistered && (
+            {!loading && !user.faceRegistered && user.isSsoUser && (
                 <Alert
                     message="Face Registration Required"
                     description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."

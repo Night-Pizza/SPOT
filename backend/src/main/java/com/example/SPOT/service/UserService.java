@@ -47,6 +47,7 @@ public class UserService {
         }
 
         validateEmail(userLoginDTO.email());
+        validateLocalEmailDomain(userLoginDTO.email());
 
         UserModel user = userRepository.findByEmail(userLoginDTO.email());
 
@@ -65,6 +66,7 @@ public class UserService {
 
     public UserDTO createUser(UserCreateDTO userCreateDTO) {
         validateEmail(userCreateDTO.email());
+        validateLocalEmailDomain(userCreateDTO.email());
 
         if (userRepository.existsByEmail(userCreateDTO.email()))
             throw new CustomException("EMAIL_ALREADY_EXISTS", "User with this email is already exists");
@@ -88,6 +90,7 @@ public class UserService {
 
     public UserDTO findOrCreateSsoUser(String email) {
         validateEmail(email);
+        validateSsoEmailDomain(email);
 
         UserModel existingUser = userRepository.findByEmail(email);
         if (existingUser != null) {
@@ -190,7 +193,8 @@ public class UserService {
                 userModel.getEmail(),
                 userModel.getEmbedding() != null,
                 userModel.getWebauthCredentialId() != null,
-                false
+                false,
+                userModel.getAuthProvider() == AuthProvider.MY_UNIVERSITY_SSO
         );
     }
 
@@ -202,9 +206,17 @@ public class UserService {
         if (email.contains(" ") || !email.equals(email.toLowerCase())) {
             throw new CustomException("INVALID_EMAIL_FORMAT", "Email must be in lowercase and contain no spaces");
         }
+    }
 
+    private void validateLocalEmailDomain(String email) {
+        if (email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university")) {
+            throw new CustomException("SSO_REQUIRED", "Innopolis emails must use SSO to log in or register");
+        }
+    }
+
+    private void validateSsoEmailDomain(String email) {
         if (!(email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university"))) {
-            throw new CustomException("INVALID_EMAIL_DOMAIN", "Email must belong to @innopolis.ru or @innopolis.university");
+            throw new CustomException("INVALID_EMAIL_DOMAIN", "SSO is only for @innopolis.ru or @innopolis.university domains");
         }
     }
 
@@ -213,7 +225,7 @@ public class UserService {
             throw new CustomException("WEAK_PASSWORD", "Password must be at least 8 characters long");
         }
 
-        if (!password.matches("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
+        if (!password.matches("^(?=.*[0-9])(?=.*[a-zа-яё])(?=.*[A-ZА-ЯЁ])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
             throw new CustomException("WEAK_PASSWORD", "Password must contain at least one digit, one lowercase, one uppercase letter and one special character");
         }
     }

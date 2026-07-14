@@ -5,5 +5,6 @@ public record UserDTO(
         String email,
         boolean faceRegistered,
         boolean webauthRegistered,
-        boolean webauthVerified
+        boolean webauthVerified,
+        boolean isSsoUser
 ){}

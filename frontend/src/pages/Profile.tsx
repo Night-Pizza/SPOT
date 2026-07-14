@@ -135,26 +135,30 @@ export default function Profile() {
                             {t('changePassword')}
                         </Button>
 
-                        <Button
-                            block
-                            size="large"
-                            type="primary"
-                            className="profile-action-button primary-action"
-                            onClick={() => setIsFaceModalOpen(true)}
-                        >
-                            Update Face Recognition
-                        </Button>
+                        {user.isSsoUser && (
+                            <>
+                                <Button
+                                    block
+                                    size="large"
+                                    type="primary"
+                                    className="profile-action-button primary-action"
+                                    onClick={() => setIsFaceModalOpen(true)}
+                                >
+                                    Update Face Recognition
+                                </Button>
 
-                        <Button
-                            block
-                            size="large"
-                            className="profile-action-button change-password-btn"
-                            onClick={handleRegisterDevice}
-                            loading={registeringDevice}
-                            icon={<SafetyCertificateOutlined />}
-                        >
-                            {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
-                        </Button>
+                                <Button
+                                    block
+                                    size="large"
+                                    className="profile-action-button change-password-btn"
+                                    onClick={() => void handleRegisterDevice()}
+                                    loading={registeringDevice}
+                                    icon={<SafetyCertificateOutlined />}
+                                >
+                                    {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
+                                </Button>
+                            </>
+                        )}
 
                         <button className="profile-logout-btn" onClick={handleLogout}>
                             {t('logout')}

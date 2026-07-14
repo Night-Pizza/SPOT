@@ -14,4 +14,5 @@ export type UserDTO = {
     faceRegistered?: boolean;
     webauthRegistered?: boolean;
     webauthVerified?: boolean;
+    isSsoUser?: boolean;
 };
