@@ -30,6 +30,7 @@ export default function Profile() {
             console.error("Error while logout:", error);
         } finally {
             clearWebauthVerification();
+            sessionStorage.removeItem('spot_webauth_skipped');
             window.location.href = '/login';
         }
     };

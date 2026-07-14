@@ -29,6 +29,7 @@ export default function LoginPage() {
         try {
             const user = await loginUser({ email, password });
             setAuthenticatedUser(user);
+            sessionStorage.removeItem('spot_webauth_skipped');
             navigate('/dashboard');
         } catch (error: unknown) {
             setErrorMessage(error instanceof Error ? error.message : 'Login failed');

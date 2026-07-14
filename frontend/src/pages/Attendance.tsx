@@ -19,6 +19,7 @@ import type { Dayjs } from 'dayjs';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createAttendance, scanQrAttendance, ApiError, getAttendedSessions, type AttendancePayload, type AttendedSessionHistoryItem } from '../api/Attendance';
 import { getSessionPublicDetails, getSessionPublicDetailsByQrToken, type SessionPublicDetails } from '../api/Session';
 import SessionMap from '../components/SessionMap';
@@ -168,7 +169,9 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification, isWebauthVerified } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
     const [submitting, setSubmitting] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
@@ -678,6 +681,31 @@ export default function Attendance() {
                                 className="primary-action wide-button"
                             >
                                 Register Device
+                            </Button>
+                        </Space>
+                    </Card>
+                </div>
+            ) : !loading && !isWebauthVerified ? (
+                <div className="attendance-blocked-card">
+                    <Card style={{ borderRadius: 16 }}>
+                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
+                            <SafetyCertificateOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
+                            <div>
+                                <Typography.Title level={3}>Biometric Verification Required</Typography.Title>
+                                <Typography.Paragraph type="secondary">
+                                    You skipped biometric verification at login. You must verify your identity to mark attendance.
+                                </Typography.Paragraph>
+                            </div>
+                            <Button
+                                type="primary"
+                                size="large"
+                                onClick={() => {
+                                    sessionStorage.removeItem('spot_webauth_skipped');
+                                    navigate('/webauth-verify', { state: { from: location } });
+                                }}
+                                className="primary-action wide-button"
+                            >
+                                Verify Now
                             </Button>
                         </Space>
                     </Card>
