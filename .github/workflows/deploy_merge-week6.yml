@@ -99,6 +99,11 @@ jobs:
                 DB_NAME=${{ secrets.DB_NAME }}
                 KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
                 APP_HOST=${{ secrets.APP_HOST }}
+                MY_UNIVERSITY_ORIGIN=${{ secrets.MY_UNIVERSITY_ORIGIN }}
+                MY_UNIVERSITY_CLIENT_ID=${{ secrets.MY_UNIVERSITY_CLIENT_ID }}
+                MY_UNIVERSITY_CLIENT_SECRET=${{ secrets.MY_UNIVERSITY_CLIENT_SECRET }}
+                MY_UNIVERSITY_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_REDIRECT_URI }}
+                MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI }}
                 WEBAUTH_RP_ID=${{ secrets.WEBAUTH_RP_ID }}
                 WEBAUTH_RP_NAME=${{ secrets.WEBAUTH_RP_NAME }}
                 DUCKDNS_TOKEN=${{ secrets.DUCKDNS_TOKEN }}
