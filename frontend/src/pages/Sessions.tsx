@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useEffect, useState } from 'react';
-import { getCreatedSessions, getSessionAttendees, exportSessionAttendance, type CreatedSessionHistoryItem } from '../api/Session';
+import { getCreatedSessions, getSessionUsers, exportSessionAttendance, type CreatedSessionHistoryItem } from '../api/Session';
 
 type ParticipantCountState = {
     count: number;
@@ -84,7 +84,7 @@ export default function SessionsPage() {
                 const counts = await Promise.all(
                     createdSessions.map(async (session) => {
                         try {
-                            const attendees = await getSessionAttendees(session.id);
+                            const attendees = await getSessionUsers(session.id);
                             return [session.id, { count: attendees.length, failed: false }] as const;
                         } catch {
                             return [session.id, { count: 0, failed: true }] as const;
