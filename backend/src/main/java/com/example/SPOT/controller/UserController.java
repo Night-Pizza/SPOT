@@ -83,10 +83,23 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal String userIdStr) {
+    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal String userIdStr, HttpServletRequest request) {
         Long userId = Long.valueOf(userIdStr);
+        UserDTO userDTO = userService.getUser(userId);
         
-        return ResponseEntity.ok(userService.getUser(userId));
+        HttpSession session = request.getSession(false);
+        boolean webauthVerified = false;
+        if (session != null && session.getAttribute("webauth_verified") != null) {
+            webauthVerified = (Boolean) session.getAttribute("webauth_verified");
+        }
+        
+        return ResponseEntity.ok(new UserDTO(
+                userDTO.id(),
+                userDTO.email(),
+                userDTO.faceRegistered(),
+                userDTO.webauthRegistered(),
+                webauthVerified
+        ));
     }
 
     @PostMapping("/login")

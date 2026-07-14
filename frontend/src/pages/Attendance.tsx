@@ -229,10 +229,6 @@ export default function Attendance() {
             try {
                 const details = await getSessionPublicDetails(sessionId);
                 setCurrentSessionDetails(details);
-                if (details.validationTypes.includes('GPS')) {
-                    setIsGeoModalOpen(true);
-                    void messageApi.info('Geolocation verification is required for this session.');
-                }
             } catch (err) {
                 console.error('Failed to fetch session public details:', err);
                 setCurrentSessionDetails(null);
@@ -259,6 +255,14 @@ export default function Attendance() {
             void fetchUserLocation();
         }
     }, [currentSessionDetails]);
+
+    useEffect(() => {
+        if (isGeoModalOpen && !userCoords) {
+            getBrowserLocation()
+                .then(setUserCoords)
+                .catch(err => console.error('Failed to get user location on modal open:', err));
+        }
+    }, [isGeoModalOpen, userCoords]);
 
     const handleRegisterDevice = async () => {
         setRegisteringDevice(true);
@@ -701,11 +705,9 @@ export default function Attendance() {
                                 >
                                     <Input size="large" placeholder="Session code" autoComplete="off" />
                                 </Form.Item>
-                                {currentSessionDetails?.validationTypes.includes('GPS') && (
-                                    <Button type="dashed" block style={{ marginBottom: 24 }} onClick={() => setIsGeoModalOpen(true)}>
-                                        <EnvironmentOutlined /> View Geolocation Map
-                                    </Button>
-                                )}
+                                <Button type="dashed" block style={{ marginBottom: 24 }} onClick={() => setIsGeoModalOpen(true)}>
+                                    <EnvironmentOutlined /> View Geolocation Map
+                                </Button>
                                 <Button
                                     type="primary"
                                     htmlType="submit"
@@ -722,12 +724,11 @@ export default function Attendance() {
                 </div>
             )}
 
-            {currentSessionDetails && currentSessionDetails.validationTypes.includes('GPS') && (
-                <Modal
-                    className="attendance-map-modal"
-                    title={
-                        <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%', paddingRight: 24 }}>
-                            <span>{t('sessionLocation') || 'Session Location'}: {currentSessionDetails.title}</span>
+            <Modal
+                className="attendance-map-modal"
+                title={
+                    <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%', paddingRight: 24 }}>
+                        <span>{t('sessionLocation') || 'Session Location'}{currentSessionDetails ? `: ${currentSessionDetails.title}` : ''}</span>
                             <Space size={8}>
                                 <Button
                                     size="small"
@@ -758,27 +759,36 @@ export default function Attendance() {
                     width={800}
                     destroyOnClose
                 >
-                    <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                        This session requires geolocation check-in. You must be inside the designated radius.
-                    </Typography.Paragraph>
-                    <div style={{ height: 350, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
-                        {currentSessionDetails.latitude !== undefined && currentSessionDetails.longitude !== undefined && userCoords ? (
-                            <SessionMap
-                                center={[currentSessionDetails.latitude, currentSessionDetails.longitude]}
-                                radius={currentSessionDetails.allowedRadius || 100}
-                                userLocation={[userCoords.latitude, userCoords.longitude]}
-                            />
-                        ) : (
-                            <Flex align="center" justify="center" style={{ height: '100%', background: '#f5f5f5' }}>
-                                <Space direction="vertical" align="center">
-                                    <Spin />
-                                    <Typography.Text type="secondary">Acquiring your location...</Typography.Text>
-                                </Space>
-                            </Flex>
-                        )}
-                    </div>
-                </Modal>
-            )}
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                    {currentSessionDetails 
+                        ? (currentSessionDetails.validationTypes.includes('GPS') 
+                            ? 'This session requires geolocation check-in. You must be inside the designated radius.'
+                            : 'This session does not require geolocation check-in, but you can still view the session location.')
+                        : 'You can check your current location here.'}
+                </Typography.Paragraph>
+                <div style={{ height: 350, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+                    {currentSessionDetails && currentSessionDetails.latitude !== undefined && currentSessionDetails.longitude !== undefined && userCoords ? (
+                        <SessionMap
+                            center={[currentSessionDetails.latitude, currentSessionDetails.longitude]}
+                            radius={currentSessionDetails.allowedRadius || 100}
+                            userLocation={[userCoords.latitude, userCoords.longitude]}
+                        />
+                    ) : userCoords ? (
+                        <SessionMap
+                            center={[userCoords.latitude, userCoords.longitude]}
+                            radius={20}
+                            userLocation={[userCoords.latitude, userCoords.longitude]}
+                        />
+                    ) : (
+                        <Flex align="center" justify="center" style={{ height: '100%', background: '#f5f5f5' }}>
+                            <Space direction="vertical" align="center">
+                                <Spin />
+                                <Typography.Text type="secondary">Acquiring your location...</Typography.Text>
+                            </Space>
+                        </Flex>
+                    )}
+                </div>
+            </Modal>
 
 
             <section className="attendance-history-section">

@@ -93,6 +93,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             faceRegistered: data.faceRegistered ?? false,
             webauthRegistered: data.webauthRegistered ?? false,
         }));
+        if (data.webauthVerified !== undefined) {
+            if (data.webauthVerified) {
+                setIsWebauthVerified(true);
+                localStorage.setItem('spot_webauth_verified', 'true');
+            } else {
+                setIsWebauthVerified(false);
+                localStorage.removeItem('spot_webauth_verified');
+            }
+        }
         setError(null);
     }, []);
 

@@ -179,7 +179,8 @@ public class UserService {
                 userModel.getId(),
                 userModel.getEmail(),
                 userModel.getEmbedding() != null,
-                userModel.getWebauthCredentialId() != null
+                userModel.getWebauthCredentialId() != null,
+                false
         );
     }
 
