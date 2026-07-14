@@ -97,6 +97,10 @@ public class AttendanceService {
 
     public AttendanceResponseDTO createAttendanceByEmail(EmailAttendanceRequestDTO request, Long currentUserId){
         SessionModel session = sessionService.getSessionOwnedByUser(request.sessionId(), currentUserId);
+        if (!(request.email().endsWith("@innopolis.ru") || request.email().endsWith("@innopolis.university"))) {
+            throw new CustomException("INVALID_EMAIL_DOMAIN", "Only innopolis.ru and innopolis.university users can be added to a session");
+        }
+
         if (!(userRepository.existsByEmail(request.email())))
             throw new CustomException("NO_SUCH_USER", "User with this this email does not exists.");
 

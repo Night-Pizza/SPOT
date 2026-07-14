@@ -275,7 +275,8 @@ export default function ActiveSessionPage() {
         }
         try {
             const results = await searchUsers(query);
-            setSearchOptions(results.map(u => ({
+            const innopolisUsers = results.filter(u => u.email.endsWith('@innopolis.ru') || u.email.endsWith('@innopolis.university'));
+            setSearchOptions(innopolisUsers.map(u => ({
                 value: u.email,
                 label: (
                     <Space>
@@ -299,6 +300,11 @@ export default function ActiveSessionPage() {
 
         if (!isValidEmail(email)) {
             void messageApi.error('Enter a valid email address.');
+            return;
+        }
+
+        if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) {
+            void messageApi.error('Only @innopolis.ru or @innopolis.university emails are allowed.');
             return;
         }
 
