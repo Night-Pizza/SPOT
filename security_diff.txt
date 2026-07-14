@@ -1,0 +1,3827 @@
+﻿diff --git a/.env.example b/.env.example
+index 1503eaa..2d6377d 100644
+--- a/.env.example
++++ b/.env.example
+@@ -3,18 +3,7 @@ DB_PASSWORD=very_strong_password
+ DB_NAME=spot
+ APP_HOST=localhost
+ KAFKA_CLUSTER_ID=rAnDoMiD
+-
+-# WebAuthn Configuration
+ WEBAUTH_RP_ID=localhost
+ WEBAUTH_RP_NAME=SPOT
+-
+-# Traefik / SSL Configuration
+ ACME_EMAIL=admin@example.com
+-DUCKDNS_TOKEN=your_duckdns_token
+-
+-# My.University SSO Configuration
+-MY_UNIVERSITY_ORIGIN=https://my.university.example
+-MY_UNIVERSITY_CLIENT_ID=spot
+-MY_UNIVERSITY_CLIENT_SECRET=replace_me
+-MY_UNIVERSITY_REDIRECT_URI=https://localhost/api/auth/my-university/callback
+-MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI=/dashboard
+\ No newline at end of file
++DUCKDNS_TOKEN=your_duckdns_token
+\ No newline at end of file
+diff --git a/.github/workflows/deploy_merge-week6.yml b/.github/workflows/deploy_merge-week6.yml
+deleted file mode 100644
+index 88670e9..0000000
+--- a/.github/workflows/deploy_merge-week6.yml
++++ /dev/null
+@@ -1,120 +0,0 @@
+-name: SPOT Deploy Pipeline
+-
+-on:
+-    push:
+-        branches:
+-            - merge-week6
+-    workflow_dispatch:
+-
+-jobs:
+-    backend-build:
+-        runs-on: ubuntu-latest
+-        steps:
+-            - name: Code Clone
+-              uses: actions/checkout@v4
+-
+-            - name: GitHub Container Registry Login
+-              uses: docker/login-action@v3
+-              with:
+-                registry: ghcr.io
+-                username: ${{ github.actor }}
+-                password: ${{ secrets.GITHUB_TOKEN }}
+-
+-            - name: Lowercase Repository Name
+-              run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+-
+-            - name: Build and Push Backend Docker Image
+-              uses: docker/build-push-action@v5
+-              with:
+-                context: ./backend
+-                push: true
+-                tags: ghcr.io/${{ env.REPO_LC }}/spot-backend:latest
+-
+-    frontend-build:
+-        runs-on: ubuntu-latest
+-        steps:
+-            - name: Code Clone
+-              uses: actions/checkout@v4
+-
+-            - name: GitHub Container Registry Login
+-              uses: docker/login-action@v3
+-              with:
+-                registry: ghcr.io
+-                username: ${{ github.actor }}
+-                password: ${{ secrets.GITHUB_TOKEN }}
+-
+-            - name: Lowercase Repository Name
+-              run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+-
+-            - name: Build and Push Frontend Docker Image
+-              uses: docker/build-push-action@v5
+-              with:
+-                context: ./frontend
+-                push: true
+-                tags: ghcr.io/${{ env.REPO_LC }}/spot-frontend:latest
+-
+-    face-recognition-build:
+-        runs-on: ubuntu-latest
+-        steps:
+-            - name: Code Clone
+-              uses: actions/checkout@v4
+-
+-            - name: GitHub Container Registry Login
+-              uses: docker/login-action@v3
+-              with:
+-                registry: ghcr.io
+-                username: ${{ github.actor }}
+-                password: ${{ secrets.GITHUB_TOKEN }}
+-
+-            - name: Lowercase Repository Name
+-              run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+-
+-            - name: Build and Push Face Recognition Docker Image
+-              uses: docker/build-push-action@v5
+-              with:
+-                context: ./face_recognition
+-                push: true
+-                tags: ghcr.io/${{ env.REPO_LC }}/spot-face_recognition:latest
+-
+-    deploy:
+-        runs-on: self-hosted
+-        needs: [backend-build, frontend-build, face-recognition-build]
+-        steps:
+-            - name: Code Clone
+-              uses: actions/checkout@v4
+-
+-            - name: Update docker-compose file on server
+-              run: cp docker-compose.prod.yml /home/runner/spot/docker-compose.yml
+-
+-            - name: Update traefik configuration on server
+-              run: |
+-                mkdir -p /home/runner/spot/traefik
+-                cp traefik/traefik.yml traefik/dynamic.yml /home/runner/spot/traefik/
+-
+-            - name: Update .env file on server
+-              run: |
+-                cat << EOF > /home/runner/spot/.env
+-                DB_USER=${{ secrets.DB_USER }}
+-                DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+-                DB_NAME=${{ secrets.DB_NAME }}
+-                KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
+-                APP_HOST=${{ secrets.APP_HOST }}
+-                MY_UNIVERSITY_ORIGIN=${{ secrets.MY_UNIVERSITY_ORIGIN }}
+-                MY_UNIVERSITY_CLIENT_ID=${{ secrets.MY_UNIVERSITY_CLIENT_ID }}
+-                MY_UNIVERSITY_CLIENT_SECRET=${{ secrets.MY_UNIVERSITY_CLIENT_SECRET }}
+-                MY_UNIVERSITY_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_REDIRECT_URI }}
+-                MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI=${{ secrets.MY_UNIVERSITY_POST_LOGIN_REDIRECT_URI }}
+-                WEBAUTH_RP_ID=${{ secrets.WEBAUTH_RP_ID }}
+-                WEBAUTH_RP_NAME=${{ secrets.WEBAUTH_RP_NAME }}
+-                DUCKDNS_TOKEN=${{ secrets.DUCKDNS_TOKEN }}
+-                ACME_EMAIL=${{ secrets.ACME_EMAIL }}
+-                EOF
+-
+-            - name: Deploy to Server
+-              run: |
+-                cd /home/runner/spot
+-                docker compose pull
+-                docker compose up -d
+-
+-            - name: Clean Up Unused Docker Images and Containers
+-              run: docker system prune -f
+diff --git a/backend/src/main/java/com/example/SPOT/controller/AttendanceController.java b/backend/src/main/java/com/example/SPOT/controller/AttendanceController.java
+index 91a9ba0..8fd5cbe 100644
+--- a/backend/src/main/java/com/example/SPOT/controller/AttendanceController.java
++++ b/backend/src/main/java/com/example/SPOT/controller/AttendanceController.java
+@@ -1,6 +1,8 @@
+ package com.example.SPOT.controller;
+ 
++import java.io.IOException;
+ import java.time.Duration;
++import java.util.List;
+ 
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+@@ -16,27 +18,25 @@ import org.springframework.web.bind.annotation.RequestBody;
+ import org.springframework.web.bind.annotation.RequestMapping;
+ import org.springframework.web.bind.annotation.RequestParam;
+ import org.springframework.web.bind.annotation.RestController;
+-import jakarta.servlet.http.HttpServletResponse;
+-import java.io.IOException;
+ 
+ import com.example.SPOT.config.AuthConstants;
+ import com.example.SPOT.dto.request.AttendanceCreateDTO;
+-import com.example.SPOT.dto.request.QrScanRequestDTO;
+ import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
+ import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
++import com.example.SPOT.dto.request.QrScanRequestDTO;
+ import com.example.SPOT.dto.response.AttendDTO;
+ import com.example.SPOT.dto.response.AttendanceResponseDTO;
+ import com.example.SPOT.dto.response.PollingStatusDTO;
+ import com.example.SPOT.dto.response.UserAttendanceDTO;
+ import com.example.SPOT.dto.response.UsersForSessionDTO;
+ import com.example.SPOT.exception.CustomException;
+-import java.util.List;
+ import com.example.SPOT.model.KafkaModel;
+ import com.example.SPOT.repository.KafkaRepository;
+ import com.example.SPOT.service.AttendanceService;
+ import com.example.SPOT.service.QRTokenService;
+ import com.example.SPOT.service.RateLimitService;
+-import jakarta.servlet.http.HttpServletRequest;
++
++import jakarta.servlet.http.HttpServletResponse;
+ import jakarta.validation.Valid;
+ 
+ @RestController
+@@ -62,13 +62,8 @@ public class AttendanceController {
+     public ResponseEntity<AttendDTO> createAttendance(
+             @Valid @RequestBody AttendanceCreateDTO attendanceCreateDTO,
+             @AuthenticationPrincipal String userIdStr,
+-            Authentication authentication,
+-            HttpServletRequest request) {
++            Authentication authentication) {
+         requireSsoAuthentication(authentication);
+-        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+-        if (isVerified == null || !isVerified) {
+-            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
+-        }
+         Long userId = Long.valueOf(userIdStr);
+         enforceStudentAttendanceRateLimit(userId);
+         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
+@@ -78,13 +73,8 @@ public class AttendanceController {
+     public ResponseEntity<AttendDTO> scanQrCode(
+             @Valid @RequestBody QrScanRequestDTO qrScanRequestDTO,
+             @AuthenticationPrincipal String userIdStr,
+-            Authentication authentication,
+-            HttpServletRequest request){
++            Authentication authentication){
+         requireSsoAuthentication(authentication);
+-        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+-        if (isVerified == null || !isVerified) {
+-            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to scan QR code");
+-        }
+         Long userId = Long.valueOf(userIdStr);
+         enforceStudentAttendanceRateLimit(userId);
+         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());
+@@ -102,23 +92,8 @@ public class AttendanceController {
+         return ResponseEntity.ok().body(attendanceService.getAttendedSessionsCount(userId));
+     }
+ 
+-    @GetMapping("")
+-    public ResponseEntity<List<UserAttendanceDTO>> getAttendedSessions(@AuthenticationPrincipal String userIdStr) {
+-        Long userId = Long.valueOf(userIdStr);
+-        return ResponseEntity.ok(attendanceService.getAllUserAttendance(userId));
+-    }
+-
+-    @GetMapping("/export/{sessionId}")
+-    public void exportAttendance(@PathVariable Long sessionId, @RequestParam(defaultValue = "csv") String format, HttpServletResponse response) throws IOException {
+-        attendanceService.exportAttendance(sessionId, format, response);
+-    }
+-
+     @PostMapping("/create/email")
+-    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr, HttpServletRequest request) {
+-        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+-        if (isVerified == null || !isVerified) {
+-            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
+-        }
++    public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr) {
+         Long userId = Long.valueOf(userIdStr);
+ 
+         String key = "attendance-email:" + userId + ":" + emailAttendanceCreateDTO.sessionId();
+@@ -135,6 +110,30 @@ public class AttendanceController {
+         return ResponseEntity.noContent().build();
+     }
+ 
++    @GetMapping()
++    public ResponseEntity<List<UserAttendanceDTO>> getAllUserAttendance(@AuthenticationPrincipal String userIdStr) {
++        Long userId = Long.valueOf(userIdStr);
++        return ResponseEntity.ok().body(attendanceService.getAllUserAttendance(userId));
++    }
++
++    @GetMapping("/session/{sessionId}")
++    public ResponseEntity<List<UsersForSessionDTO>> getSessionAttendance(
++            @PathVariable Long sessionId,
++            @AuthenticationPrincipal String userIdStr) {
++        Long userId = Long.valueOf(userIdStr);
++        return ResponseEntity.ok().body(attendanceService.getAllAttendanceBySession(sessionId, userId));
++    }
++
++    @GetMapping("/export")
++    public void exportAttendance(
++            @RequestParam Long sessionId,
++            @RequestParam(defaultValue = "csv") String format,
++            @AuthenticationPrincipal String userIdStr,
++            HttpServletResponse response) throws IOException {
++        Long userId = Long.valueOf(userIdStr);
++        attendanceService.exportAttendance(sessionId, format, userId, response);
++    }
++
+     @GetMapping("/status/{requestId}")
+     public ResponseEntity<PollingStatusDTO> checkStatus(@PathVariable Long requestId, @AuthenticationPrincipal String userIdStr) {
+         KafkaModel request = kafkaRepository.findById(requestId)
+diff --git a/backend/src/main/java/com/example/SPOT/controller/AuthController.java b/backend/src/main/java/com/example/SPOT/controller/AuthController.java
+index 1d835ab..f6f1816 100644
+--- a/backend/src/main/java/com/example/SPOT/controller/AuthController.java
++++ b/backend/src/main/java/com/example/SPOT/controller/AuthController.java
+@@ -1,11 +1,14 @@
+ package com.example.SPOT.controller;
+ 
+ import java.net.URI;
++import java.security.SecureRandom;
+ import java.time.Instant;
++import java.util.Base64;
+ import java.util.List;
+ 
+ import com.example.SPOT.config.AuthConstants;
+ import com.example.SPOT.dto.response.UserDTO;
++import com.example.SPOT.exception.CustomException;
+ import com.example.SPOT.service.MyUniversitySsoService;
+ import jakarta.servlet.http.HttpServletRequest;
+ import jakarta.servlet.http.HttpServletResponse;
+@@ -30,6 +33,10 @@ import org.springframework.web.bind.annotation.RestController;
+ @RequestMapping("/auth")
+ @CrossOrigin(origins = "http://localhost:5173")
+ public class AuthController {
++    static final String SSO_STATE_SESSION_ATTRIBUTE = "MY_UNIVERSITY_SSO_STATE";
++    private static final int SSO_STATE_BYTES = 32;
++    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
++
+     private final MyUniversitySsoService myUniversitySsoService;
+     private final SecurityContextRepository securityContextRepository;
+ 
+@@ -46,17 +53,23 @@ public class AuthController {
+     }
+ 
+     @GetMapping("/my-university/login")
+-    public ResponseEntity<Void> myUniversityLogin() {
++    public ResponseEntity<Void> myUniversityLogin(HttpServletRequest request) {
++        String state = generateState();
++        request.getSession(true).setAttribute(SSO_STATE_SESSION_ATTRIBUTE, state);
++
+         return ResponseEntity.status(HttpStatus.FOUND)
+-                .location(myUniversitySsoService.buildAuthorizationUri())
++                .location(myUniversitySsoService.buildAuthorizationUri(state))
+                 .build();
+     }
+ 
+     @GetMapping("/my-university/callback")
+     public ResponseEntity<Void> myUniversityCallback(
+-            @RequestParam String code,
++            @RequestParam(required = false) String code,
++            @RequestParam(required = false) String state,
+             HttpServletRequest request,
+             HttpServletResponse responseHttp) {
++        validateState(request, state);
++
+         UserDTO response = myUniversitySsoService.redeemCode(code);
+ 
+         HttpSession existingSession = request.getSession(false);
+@@ -84,4 +97,28 @@ public class AuthController {
+                 .location(redirectUri)
+                 .build();
+     }
++
++    private String generateState() {
++        byte[] bytes = new byte[SSO_STATE_BYTES];
++        SECURE_RANDOM.nextBytes(bytes);
++        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
++    }
++
++    private void validateState(HttpServletRequest request, String receivedState) {
++        HttpSession session = request.getSession(false);
++        if (session == null) {
++            throw new CustomException("SSO_STATE_INVALID", "SSO state is invalid");
++        }
++
++        Object expectedState = session.getAttribute(SSO_STATE_SESSION_ATTRIBUTE);
++        session.removeAttribute(SSO_STATE_SESSION_ATTRIBUTE);
++
++        if (!(expectedState instanceof String expected)
++                || expected.isBlank()
++                || receivedState == null
++                || receivedState.isBlank()
++                || !expected.equals(receivedState)) {
++            throw new CustomException("SSO_STATE_INVALID", "SSO state is invalid");
++        }
++    }
+ }
+diff --git a/backend/src/main/java/com/example/SPOT/controller/SessionController.java b/backend/src/main/java/com/example/SPOT/controller/SessionController.java
+index 679aa1d..264d023 100644
+--- a/backend/src/main/java/com/example/SPOT/controller/SessionController.java
++++ b/backend/src/main/java/com/example/SPOT/controller/SessionController.java
+@@ -6,7 +6,6 @@ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.core.annotation.AuthenticationPrincipal;
+ import org.springframework.web.bind.annotation.CrossOrigin;
+-import org.springframework.web.bind.annotation.DeleteMapping;
+ import org.springframework.web.bind.annotation.GetMapping;
+ import org.springframework.web.bind.annotation.PatchMapping;
+ import org.springframework.web.bind.annotation.PathVariable;
+@@ -16,13 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
+ import org.springframework.web.bind.annotation.RestController;
+ 
+ import com.example.SPOT.dto.request.SessionCreateDTO;
+-import com.example.SPOT.dto.request.SessionUpdateDTO;
+ import com.example.SPOT.dto.response.SessionDetailsDTO;
+ import com.example.SPOT.dto.response.SessionResponseDTO;
+-import com.example.SPOT.dto.response.SessionPublicDetailsDTO;
+ import com.example.SPOT.dto.response.UserAttendanceDTO;
+ import com.example.SPOT.dto.response.UsersForSessionDTO;
+-import com.example.SPOT.repository.UserRepository;
+ import com.example.SPOT.service.SessionService;
+ 
+ import jakarta.validation.Valid;
+@@ -32,11 +28,9 @@ import jakarta.validation.Valid;
+ @CrossOrigin(origins = "http://localhost:5173")
+ public class SessionController {
+     private final SessionService sessionService;
+-    private final UserRepository userRepository;
+ 
+-    public SessionController(SessionService sessionService, UserRepository userRepository) {
++    public SessionController(SessionService sessionService) {
+         this.sessionService = sessionService;
+-        this.userRepository = userRepository;
+     }
+ 
+     @PostMapping("/create")
+@@ -45,14 +39,6 @@ public class SessionController {
+         return ResponseEntity.status(HttpStatus.CREATED).body(sessionService.createSession(sessionCreateDTO, userId));
+     }
+ 
+-    @DeleteMapping("/{id}")
+-    public ResponseEntity<Void> deleteSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+-        Long userId = Long.valueOf(userIdStr);
+-        sessionService.deleteSession(id, userId);
+-        return ResponseEntity.noContent().build();
+-
+-    }
+-
+     @GetMapping()
+     public ResponseEntity<List<UserAttendanceDTO>> getOwnedSessions(@AuthenticationPrincipal String userIdStr) {
+         Long userId = Long.valueOf(userIdStr);
+@@ -66,13 +52,6 @@ public class SessionController {
+         return ResponseEntity.ok().body(sessionService.getOwnedSessionsCount(userId));
+     }
+ 
+-    @PatchMapping("/{id}")
+-    public ResponseEntity<Void> updateSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr, @Valid @RequestBody SessionUpdateDTO sessionUpdateDTO) {
+-        Long userId = Long.valueOf(userIdStr);
+-        sessionService.updateSessionName(id, userId, sessionUpdateDTO);
+-        return ResponseEntity.noContent().build();
+-    }
+-
+     @PatchMapping("/close/{id}")
+     public ResponseEntity<Void> closeSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+         Long userId = Long.valueOf(userIdStr);
+@@ -80,14 +59,9 @@ public class SessionController {
+         return ResponseEntity.noContent().build();
+     }
+ 
+-    @GetMapping("/all")
+-    public ResponseEntity<List<SessionResponseDTO>> getAllSessions(){
+-        return ResponseEntity.ok().body(sessionService.getAllSessions());
+-    }
+-
+-    @GetMapping("/{id}")
+-    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
+-        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
++    @GetMapping("/alla")
++    public ResponseEntity<List<Long>> getAllaSessions(){
++        return ResponseEntity.ok().body(sessionService.getAllaSessions());
+     }
+ 
+     @GetMapping("/{id}/details")
+@@ -96,14 +70,9 @@ public class SessionController {
+         return ResponseEntity.ok(sessionService.getSessionDetails(id, userId));
+     }
+ 
+-
+-    @GetMapping("/{id}/public")
+-    public ResponseEntity<SessionPublicDetailsDTO> getSessionPublicDetails(@PathVariable Long id) {
+-        return ResponseEntity.ok(sessionService.getSessionPublicDetails(id));
++    @GetMapping("/{id}")
++    public ResponseEntity<List<UsersForSessionDTO>> getAllEmailsForThisSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr){
++        return ResponseEntity.ok().body(sessionService.getAllEmailsForThisSession(id, Long.valueOf(userIdStr)));
+     }
+ 
+-    @GetMapping("/qr/{token}/public")
+-    public ResponseEntity<SessionPublicDetailsDTO> getSessionPublicDetailsByQrToken(@PathVariable String token) {
+-        return ResponseEntity.ok(sessionService.getSessionPublicDetailsByQrToken(token));
+-    }
+ }
+diff --git a/backend/src/main/java/com/example/SPOT/controller/UserController.java b/backend/src/main/java/com/example/SPOT/controller/UserController.java
+index 3b5c41b..1e7e69e 100644
+--- a/backend/src/main/java/com/example/SPOT/controller/UserController.java
++++ b/backend/src/main/java/com/example/SPOT/controller/UserController.java
+@@ -83,24 +83,10 @@ public class UserController {
+     }
+ 
+     @GetMapping("/me")
+-    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal String userIdStr, HttpServletRequest request) {
++    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal String userIdStr) {
+         Long userId = Long.valueOf(userIdStr);
+-        UserDTO userDTO = userService.getUser(userId);
+         
+-        HttpSession session = request.getSession(false);
+-        boolean webauthVerified = false;
+-        if (session != null && session.getAttribute("webauth_verified") != null) {
+-            webauthVerified = (Boolean) session.getAttribute("webauth_verified");
+-        }
+-        
+-        return ResponseEntity.ok(new UserDTO(
+-                userDTO.id(),
+-                userDTO.email(),
+-                userDTO.faceRegistered(),
+-                userDTO.webauthRegistered(),
+-                webauthVerified,
+-                userDTO.isSsoUser()
+-        ));
++        return ResponseEntity.ok(userService.getUser(userId));
+     }
+ 
+     @PostMapping("/login")
+@@ -217,8 +203,4 @@ public class UserController {
+         ));
+     }
+ 
+-    @GetMapping("/search")
+-    public ResponseEntity<List<UserDTO>> searchUsers(@RequestParam("q") String query) {
+-        return ResponseEntity.ok(userService.searchUsers(query));
+-    }
+ }
+diff --git a/backend/src/main/java/com/example/SPOT/controller/WebAuthController.java b/backend/src/main/java/com/example/SPOT/controller/WebAuthController.java
+index db063ce..62bc037 100644
+--- a/backend/src/main/java/com/example/SPOT/controller/WebAuthController.java
++++ b/backend/src/main/java/com/example/SPOT/controller/WebAuthController.java
+@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.core.annotation.AuthenticationPrincipal;
+ import org.springframework.web.bind.annotation.*;
+-import jakarta.servlet.http.HttpServletRequest;
+ 
+ import com.example.SPOT.repository.UserRepository;
+ import com.example.SPOT.model.UserModel;
+@@ -37,11 +36,9 @@ public class WebAuthController {
+     @PostMapping("/register/verify")
+     public ResponseEntity<Void> verifyRegister(
+             @AuthenticationPrincipal String userIdStr,
+-            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto,
+-            HttpServletRequest request) {
++            @Valid @RequestBody WebAuthRegistrationVerifyDTO requestDto) {
+         Long userId = Long.valueOf(userIdStr);
+         webAuthService.verifyRegisterResponse(userId, requestDto);
+-        request.getSession().setAttribute("webauth_verified", true);
+         return ResponseEntity.ok().build();
+     }
+ 
+@@ -55,11 +52,9 @@ public class WebAuthController {
+     @PostMapping("/attendance/verify")
+     public ResponseEntity<Void> verifyAttendance(
+             @AuthenticationPrincipal String userIdStr,
+-            @Valid @RequestBody WebAuthAssertionVerifyDTO requestDto,
+-            HttpServletRequest request) {
++            @Valid @RequestBody WebAuthAssertionVerifyDTO requestDto) {
+         Long userId = Long.valueOf(userIdStr);
+         webAuthService.verifyAttendanceResponse(userId, requestDto);
+-        request.getSession().setAttribute("webauth_verified", true);
+         return ResponseEntity.ok().build();
+     }
+ }
+\ No newline at end of file
+diff --git a/backend/src/main/java/com/example/SPOT/dto/request/WebAuthAssertionVerifyDTO.java b/backend/src/main/java/com/example/SPOT/dto/request/WebAuthAssertionVerifyDTO.java
+index 5064210..d8a8ee9 100644
+--- a/backend/src/main/java/com/example/SPOT/dto/request/WebAuthAssertionVerifyDTO.java
++++ b/backend/src/main/java/com/example/SPOT/dto/request/WebAuthAssertionVerifyDTO.java
+@@ -4,8 +4,5 @@ import jakarta.validation.constraints.NotBlank;
+ 
+ public record WebAuthAssertionVerifyDTO(
+         @NotBlank(message = "Response JSON cannot be blank")
+-        String responseJson,
+-        
+-        @NotBlank(message = "Device fingerprint cannot be blank")
+-        String deviceFingerprint
++        String responseJson
+ ) {}
+diff --git a/backend/src/main/java/com/example/SPOT/dto/request/WebAuthRegistrationVerifyDTO.java b/backend/src/main/java/com/example/SPOT/dto/request/WebAuthRegistrationVerifyDTO.java
+index cd7502f..61116ed 100644
+--- a/backend/src/main/java/com/example/SPOT/dto/request/WebAuthRegistrationVerifyDTO.java
++++ b/backend/src/main/java/com/example/SPOT/dto/request/WebAuthRegistrationVerifyDTO.java
+@@ -4,8 +4,5 @@ import jakarta.validation.constraints.NotBlank;
+ 
+ public record WebAuthRegistrationVerifyDTO(
+         @NotBlank(message = "Response JSON cannot be blank")
+-        String responseJson,
+-        
+-        @NotBlank(message = "Device fingerprint cannot be blank")
+-        String deviceFingerprint
++        String responseJson
+ ) {}
+diff --git a/backend/src/main/java/com/example/SPOT/dto/response/SessionPublicDetailsDTO.java b/backend/src/main/java/com/example/SPOT/dto/response/SessionPublicDetailsDTO.java
+deleted file mode 100644
+index 5654fc5..0000000
+--- a/backend/src/main/java/com/example/SPOT/dto/response/SessionPublicDetailsDTO.java
++++ /dev/null
+@@ -1,14 +0,0 @@
+-package com.example.SPOT.dto.response;
+-
+-import java.util.List;
+-import com.example.SPOT.model.ValidationType;
+-
+-public record SessionPublicDetailsDTO(
+-    Long id,
+-    String title,
+-    List<ValidationType> validationTypes,
+-    Double latitude,
+-    Double longitude,
+-    Double allowedRadius,
+-    boolean isActive
+-) {}
+diff --git a/backend/src/main/java/com/example/SPOT/dto/response/UserAttendanceDTO.java b/backend/src/main/java/com/example/SPOT/dto/response/UserAttendanceDTO.java
+index 02e42fa..ed21218 100644
+--- a/backend/src/main/java/com/example/SPOT/dto/response/UserAttendanceDTO.java
++++ b/backend/src/main/java/com/example/SPOT/dto/response/UserAttendanceDTO.java
+@@ -5,6 +5,5 @@ public record UserAttendanceDTO (
+         Long id,
+         String title,
+         String ownerEmail,
+-        LocalDateTime timestamp,
+-        Boolean isActive
++        LocalDateTime timestamp
+ ){}
+diff --git a/backend/src/main/java/com/example/SPOT/dto/response/UserDTO.java b/backend/src/main/java/com/example/SPOT/dto/response/UserDTO.java
+index 7428ff9..b217da2 100644
+--- a/backend/src/main/java/com/example/SPOT/dto/response/UserDTO.java
++++ b/backend/src/main/java/com/example/SPOT/dto/response/UserDTO.java
+@@ -4,7 +4,5 @@ public record UserDTO(
+         Long id,
+         String email,
+         boolean faceRegistered,
+-        boolean webauthRegistered,
+-        boolean webauthVerified,
+-        boolean isSsoUser
++        boolean webauthRegistered
+ ){}
+\ No newline at end of file
+diff --git a/backend/src/main/java/com/example/SPOT/model/UserModel.java b/backend/src/main/java/com/example/SPOT/model/UserModel.java
+index 51b14df..fe74788 100644
+--- a/backend/src/main/java/com/example/SPOT/model/UserModel.java
++++ b/backend/src/main/java/com/example/SPOT/model/UserModel.java
+@@ -41,13 +41,11 @@ public class UserModel {
+     private Long webauthSignatureCount;
+ 
+     private LocalDateTime webauthLastModified;
+-    @Column(name = "webauth_device_fingerprint")
+-    private String webauthDeviceFingerprint;
+-
+     @PrePersist
+     public void prePersist() {
+         if (authProvider == null) {
+             authProvider = AuthProvider.LOCAL;
+         }
+     }
++
+ }
+diff --git a/backend/src/main/java/com/example/SPOT/repository/UserRepository.java b/backend/src/main/java/com/example/SPOT/repository/UserRepository.java
+index ff87800..661aa86 100644
+--- a/backend/src/main/java/com/example/SPOT/repository/UserRepository.java
++++ b/backend/src/main/java/com/example/SPOT/repository/UserRepository.java
+@@ -13,9 +13,5 @@ public interface UserRepository extends JpaRepository<UserModel, Long> {
+ 
+     UserModel findByEmail(String email);
+ 
+-    java.util.List<UserModel> findTop10ByEmailContainingIgnoreCase(String email);
+-
+     Optional<UserModel> findByWebauthCredentialId(byte[] webauthnCredentialId);
+-
+-    Optional<UserModel> findByWebauthDeviceFingerprint(String fingerprint);
+ }
+\ No newline at end of file
+diff --git a/backend/src/main/java/com/example/SPOT/service/AttendanceService.java b/backend/src/main/java/com/example/SPOT/service/AttendanceService.java
+index 9317ee1..0e31f99 100644
+--- a/backend/src/main/java/com/example/SPOT/service/AttendanceService.java
++++ b/backend/src/main/java/com/example/SPOT/service/AttendanceService.java
+@@ -61,11 +61,6 @@ public class AttendanceService {
+         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
+             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
+ 
+-        UserModel user = userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist"));
+-        if (user.getAuthProvider() != com.example.SPOT.model.AuthProvider.MY_UNIVERSITY_SSO) {
+-            throw new CustomException("ATTENDANCE_NOT_ALLOWED", "Only students (SSO users) can mark their own attendance.");
+-        }
+-
+         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
+         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");
+ 
+@@ -138,12 +133,12 @@ public class AttendanceService {
+                         attendanceModel.getId(),
+                         attendanceModel.getSession().getTitle(),
+                         attendanceModel.getSession().getOwner().getEmail(),
+-                        attendanceModel.getTimestamp(),
+-                        attendanceModel.getSession().isActive()))
++                        attendanceModel.getTimestamp()))
+                 .collect(Collectors.toList());
+     }
+ 
+-    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id){
++    public List<UsersForSessionDTO> getAllAttendanceBySession(Long id, Long currentUserId){
++        sessionService.getSessionOwnedByUser(id, currentUserId);
+         return attendanceRepository.findAllBySessionId(id).stream().map(attendanceModel -> new UsersForSessionDTO(
+                         attendanceModel.getUser().getEmail()))
+                 .collect(Collectors.toList());
+@@ -161,9 +156,8 @@ public class AttendanceService {
+     }
+ 
+     @Transactional(readOnly = true)
+-    public void exportAttendance(Long sessionId, String format, HttpServletResponse response) throws IOException {
+-        SessionModel session = sessionRepository.findById(sessionId)
+-                .orElseThrow(() -> new CustomException("SESSION_NOT_FOUND", "Session not found"));
++    public void exportAttendance(Long sessionId, String format, Long currentUserId, HttpServletResponse response) throws IOException {
++        sessionService.getSessionOwnedByUser(sessionId, currentUserId);
+         
+         response.setCharacterEncoding("UTF-8");
+         
+diff --git a/backend/src/main/java/com/example/SPOT/service/MyUniversitySsoService.java b/backend/src/main/java/com/example/SPOT/service/MyUniversitySsoService.java
+index 7dcee01..eed78e3 100644
+--- a/backend/src/main/java/com/example/SPOT/service/MyUniversitySsoService.java
++++ b/backend/src/main/java/com/example/SPOT/service/MyUniversitySsoService.java
+@@ -42,12 +42,17 @@ public class MyUniversitySsoService {
+         this.postLoginRedirectUri = postLoginRedirectUri;
+     }
+ 
+-    public URI buildAuthorizationUri() {
++    public URI buildAuthorizationUri(String state) {
+         ensureConfigured();
+ 
++        if (state == null || state.isBlank()) {
++            throw new CustomException("SSO_STATE_MISSING", "SSO state is missing");
++        }
++
+         return UriComponentsBuilder.fromUriString(origin)
+                 .pathSegment("services", "enter", clientId)
+                 .queryParam("redirect_uri", redirectUri)
++                .queryParam("state", state)
+                 .encode()
+                 .build()
+                 .toUri();
+diff --git a/backend/src/main/java/com/example/SPOT/service/SessionService.java b/backend/src/main/java/com/example/SPOT/service/SessionService.java
+index 063e3c4..6a80069 100644
+--- a/backend/src/main/java/com/example/SPOT/service/SessionService.java
++++ b/backend/src/main/java/com/example/SPOT/service/SessionService.java
+@@ -17,7 +17,6 @@ import com.example.SPOT.exception.CustomException;
+ import com.example.SPOT.model.SessionModel;
+ import com.example.SPOT.repository.SessionRepository;
+ import org.springframework.web.bind.annotation.GetMapping;
+-import com.example.SPOT.dto.response.SessionPublicDetailsDTO;
+ 
+ import java.time.LocalDateTime;
+ import java.util.ArrayList;
+@@ -29,13 +28,11 @@ public class SessionService {
+     private final SessionRepository sessionRepository;
+     private final UserRepository userRepository;
+     private final AttendanceRepository attendanceRepository;
+-    private final QRTokenService qrTokenService;
+ 
+-    public SessionService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository, QRTokenService qrTokenService) {
++    public SessionService(SessionRepository sessionRepository, UserRepository userRepository, AttendanceRepository attendanceRepository) {
+         this.sessionRepository = sessionRepository;
+         this.userRepository = userRepository;
+         this.attendanceRepository = attendanceRepository;
+-        this.qrTokenService = qrTokenService;
+     }
+ 
+     public SessionModel getSessionOwnedByUser(Long sessionId, Long userId) {
+@@ -82,8 +79,7 @@ public class SessionService {
+                         sessionModel.getId(),
+                         sessionModel.getTitle(),
+                         sessionModel.getOwner().getEmail(),
+-                        sessionModel.getCreateAt(),
+-                        sessionModel.isActive()))
++                        sessionModel.getCreateAt()))
+                 .collect(Collectors.toList());
+     }
+ 
+@@ -157,23 +153,4 @@ public class SessionService {
+                 sessionModel.getCreateAt()
+         );
+     }
+-
+-    public SessionPublicDetailsDTO getSessionPublicDetails(Long sessionId) {
+-        SessionModel session = sessionRepository.findById(sessionId)
+-                .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "Session id does not exist"));
+-        return new SessionPublicDetailsDTO(
+-                session.getId(),
+-                session.getTitle(),
+-                session.getValidationTypes(),
+-                session.getLatitude(),
+-                session.getLongitude(),
+-                session.getAllowedRadius(),
+-                session.isActive()
+-        );
+-    }
+-
+-    public SessionPublicDetailsDTO getSessionPublicDetailsByQrToken(String token) {
+-        Long sessionId = qrTokenService.validateTokenAndGetSesionId(token);
+-        return getSessionPublicDetails(sessionId);
+-    }
+ }
+diff --git a/backend/src/main/java/com/example/SPOT/service/UserService.java b/backend/src/main/java/com/example/SPOT/service/UserService.java
+index 1bb2045..23f9dc1 100644
+--- a/backend/src/main/java/com/example/SPOT/service/UserService.java
++++ b/backend/src/main/java/com/example/SPOT/service/UserService.java
+@@ -47,7 +47,6 @@ public class UserService {
+         }
+ 
+         validateEmail(userLoginDTO.email());
+-        validateLocalEmailDomain(userLoginDTO.email());
+ 
+         UserModel user = userRepository.findByEmail(userLoginDTO.email());
+ 
+@@ -66,7 +65,6 @@ public class UserService {
+ 
+     public UserDTO createUser(UserCreateDTO userCreateDTO) {
+         validateEmail(userCreateDTO.email());
+-        validateLocalEmailDomain(userCreateDTO.email());
+ 
+         if (userRepository.existsByEmail(userCreateDTO.email()))
+             throw new CustomException("EMAIL_ALREADY_EXISTS", "User with this email is already exists");
+@@ -82,7 +80,6 @@ public class UserService {
+                 null,
+                 null,
+                 null,
+-                null,
+                 null
+         );
+         return mapToDTO(userRepository.save(newUser));
+@@ -90,7 +87,6 @@ public class UserService {
+ 
+     public UserDTO findOrCreateSsoUser(String email) {
+         validateEmail(email);
+-        validateSsoEmailDomain(email);
+ 
+         UserModel existingUser = userRepository.findByEmail(email);
+         if (existingUser != null) {
+@@ -107,7 +103,6 @@ public class UserService {
+                 null,
+                 null,
+                 null,
+-                null,
+                 null
+         );
+ 
+@@ -127,16 +122,6 @@ public class UserService {
+         userRepository.deleteById(id);
+     }
+ 
+-    public java.util.List<UserDTO> searchUsers(String query) {
+-        if (query == null || query.trim().isEmpty()) {
+-            return java.util.Collections.emptyList();
+-        }
+-        return userRepository.findTop10ByEmailContainingIgnoreCase(query.trim())
+-                .stream()
+-                .map(this::mapToDTO)
+-                .collect(java.util.stream.Collectors.toList());
+-    }
+-
+     @Transactional
+     public UserDTO updatePassword(Long id, UserUpdateDTO userUpdateDTO) {
+         UserModel userEntity = userRepository.findById(id)
+@@ -192,9 +177,7 @@ public class UserService {
+                 userModel.getId(),
+                 userModel.getEmail(),
+                 userModel.getEmbedding() != null,
+-                userModel.getWebauthCredentialId() != null,
+-                false,
+-                userModel.getAuthProvider() == AuthProvider.MY_UNIVERSITY_SSO
++                userModel.getWebauthCredentialId() != null
+         );
+     }
+ 
+@@ -206,17 +189,9 @@ public class UserService {
+         if (email.contains(" ") || !email.equals(email.toLowerCase())) {
+             throw new CustomException("INVALID_EMAIL_FORMAT", "Email must be in lowercase and contain no spaces");
+         }
+-    }
+-
+-    private void validateLocalEmailDomain(String email) {
+-        if (email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university")) {
+-            throw new CustomException("SSO_REQUIRED", "Innopolis emails must use SSO to log in or register");
+-        }
+-    }
+ 
+-    private void validateSsoEmailDomain(String email) {
+         if (!(email.endsWith("@innopolis.ru") || email.endsWith("@innopolis.university"))) {
+-            throw new CustomException("INVALID_EMAIL_DOMAIN", "SSO is only for @innopolis.ru or @innopolis.university domains");
++            throw new CustomException("INVALID_EMAIL_DOMAIN", "Email must belong to @innopolis.ru or @innopolis.university");
+         }
+     }
+ 
+@@ -225,7 +200,7 @@ public class UserService {
+             throw new CustomException("WEAK_PASSWORD", "Password must be at least 8 characters long");
+         }
+ 
+-        if (!password.matches("^(?=.*[0-9])(?=.*[a-z╨░-╤П╤С])(?=.*[A-Z╨Р-╨п╨Б])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
++        if (!password.matches("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!*~_\\-?]).{8,}$")) {
+             throw new CustomException("WEAK_PASSWORD", "Password must contain at least one digit, one lowercase, one uppercase letter and one special character");
+         }
+     }
+diff --git a/backend/src/main/java/com/example/SPOT/service/WebAuthService.java b/backend/src/main/java/com/example/SPOT/service/WebAuthService.java
+index b1efcde..8014d42 100644
+--- a/backend/src/main/java/com/example/SPOT/service/WebAuthService.java
++++ b/backend/src/main/java/com/example/SPOT/service/WebAuthService.java
+@@ -18,6 +18,9 @@ import org.springframework.http.HttpStatus;
+ import org.springframework.stereotype.Service;
+ import org.springframework.web.server.ResponseStatusException;
+ 
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
+ import java.io.IOException;
+ import java.nio.ByteBuffer;
+ import java.util.Collections;
+@@ -29,6 +32,8 @@ import java.util.stream.Collectors;
+ @Service
+ public class WebAuthService implements CredentialRepository {
+ 
++    private static final Logger log = LoggerFactory.getLogger(WebAuthService.class);
++
+     private final UserRepository userRepository;
+     private final RelyingParty relyingParty;
+     private final Cache<String, String> challengeCache;
+@@ -45,7 +50,8 @@ public class WebAuthService implements CredentialRepository {
+     }
+ 
+     public WebAuthRegistrationOptionsDTO generateRegisterOptions(Long userId) {
+-        UserModel user = getUserOrThrow(userId);
++        UserModel user = userRepository.findById(userId)
++                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+ 
+         if (user.getWebauthLastModified() != null && 
+             user.getWebauthLastModified().isAfter(java.time.LocalDateTime.now().minusDays(1))) {
+@@ -63,12 +69,16 @@ public class WebAuthService implements CredentialRepository {
+                         .user(userIdentity)
+                         .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
+                                 .authenticatorAttachment(AuthenticatorAttachment.PLATFORM)
+-                                .residentKey(ResidentKeyRequirement.PREFERRED)
++                                .residentKey(ResidentKeyRequirement.DISCOURAGED)
+                                 .userVerification(UserVerificationRequirement.REQUIRED)
+                                 .build())
+                         .build()
+         );
+ 
++        // Populate excludeCredentials with ALL other users' credentials so the browser
++        // refuses to register the same physical device for a different account.
++        // (getCredentialIdsForUsername only returns the current user's credential,
++        //  which is correct for assertion but insufficient for this registration check.)
+         Set<PublicKeyCredentialDescriptor> otherCredentials = userRepository.findAll().stream()
+                 .filter(u -> u.getWebauthCredentialId() != null && !u.getId().equals(user.getId()))
+                 .map(u -> PublicKeyCredentialDescriptor.builder()
+@@ -86,6 +96,7 @@ public class WebAuthService implements CredentialRepository {
+ 
+         try {
+             String optionsJson = options.toJson();
++            log.info("Registration Options JSON: {}", optionsJson);
+             challengeCache.put("reg:" + user.getEmail(), optionsJson);
+             return new WebAuthRegistrationOptionsDTO(optionsJson);
+         } catch (JsonProcessingException e) {
+@@ -94,7 +105,8 @@ public class WebAuthService implements CredentialRepository {
+     }
+ 
+     public void verifyRegisterResponse(Long userId, WebAuthRegistrationVerifyDTO requestDto) {
+-        UserModel user = getUserOrThrow(userId);
++        UserModel user = userRepository.findById(userId)
++                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+ 
+         String cachedOptionsJson = challengeCache.getIfPresent("reg:" + user.getEmail());
+         if (cachedOptionsJson == null) {
+@@ -114,18 +126,17 @@ public class WebAuthService implements CredentialRepository {
+                             .build()
+             );
+ 
+-            byte[] newCredentialId = result.getKeyId().getId().getBytes();
+-            requireUniqueCredentialId(newCredentialId, user.getId());
+ 
+-            Optional<UserModel> deviceOwner = userRepository.findByWebauthDeviceFingerprint(requestDto.deviceFingerprint());
+-            if (deviceOwner.isPresent() && !deviceOwner.get().getId().equals(user.getId())) {
+-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This physical device is already registered to another user.");
++
++            byte[] newCredentialId = result.getKeyId().getId().getBytes();
++            Optional<UserModel> existingUser = userRepository.findByWebauthCredentialId(newCredentialId);
++            if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
++                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already in use by someone else");
+             }
+ 
+             user.setWebauthCredentialId(newCredentialId);
+             user.setWebauthPublicKey(result.getPublicKeyCose().getBytes());
+             user.setWebauthSignatureCount(result.getSignatureCount());
+-            user.setWebauthDeviceFingerprint(requestDto.deviceFingerprint());
+             user.setWebauthLastModified(java.time.LocalDateTime.now());
+             userRepository.save(user);
+ 
+@@ -137,7 +148,8 @@ public class WebAuthService implements CredentialRepository {
+     }
+ 
+     public WebAuthAssertionOptionsDTO generateAttendanceOptions(Long userId) {
+-        UserModel user = getUserOrThrow(userId);
++        UserModel user = userRepository.findById(userId)
++                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+ 
+         if (user.getWebauthCredentialId() == null) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please register your device first.");
+@@ -152,6 +164,7 @@ public class WebAuthService implements CredentialRepository {
+ 
+         try {
+             String requestJson = request.toJson();
++            log.info("Assertion Request JSON: {}", requestJson);
+             challengeCache.put("auth:" + user.getEmail(), requestJson);
+             return new WebAuthAssertionOptionsDTO(requestJson);
+         } catch (JsonProcessingException e) {
+@@ -160,7 +173,8 @@ public class WebAuthService implements CredentialRepository {
+     }
+ 
+     public void verifyAttendanceResponse(Long userId, WebAuthAssertionVerifyDTO requestDto) {
+-        UserModel user = getUserOrThrow(userId);
++        UserModel user = userRepository.findById(userId)
++                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+ 
+         String cachedRequestJson = challengeCache.getIfPresent("auth:" + user.getEmail());
+         if (cachedRequestJson == null) {
+@@ -186,14 +200,12 @@ public class WebAuthService implements CredentialRepository {
+                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The biometric key used does not belong to your account.");
+             }
+ 
+-            if (user.getWebauthDeviceFingerprint() != null &&
+-                !user.getWebauthDeviceFingerprint().equals(requestDto.deviceFingerprint())) {
+-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unrecognized physical device. Please use the device you originally registered.");
+-            }
+-
+             // Verify the same physical credential is not registered to a different account
+             // (catches cases where the same device was registered to multiple accounts before the excludeCredentials fix)
+-            requireUniqueCredentialId(pkc.getId().getBytes(), user.getId());
++            Optional<UserModel> otherOwner = userRepository.findByWebauthCredentialId(pkc.getId().getBytes());
++            if (otherOwner.isPresent() && !otherOwner.get().getId().equals(user.getId())) {
++                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already registered to a different account.");
++            }
+ 
+             if (result.isSuccess()) {
+                 if (result.getSignatureCount() > 0 && result.getSignatureCount() <= user.getWebauthSignatureCount()) {
+@@ -252,14 +264,37 @@ public class WebAuthService implements CredentialRepository {
+ 
+     @Override
+     public Optional<RegisteredCredential> lookup(ByteArray credentialId, ByteArray userHandle) {
+-        return createRegisteredCredential(credentialId, userHandle);
++        Optional<UserModel> userOpt = userRepository.findByWebauthCredentialId(credentialId.getBytes());
++        if (userOpt.isEmpty()) {
++            return Optional.empty();
++        }
++        UserModel user = userOpt.get();
++        return Optional.of(
++                RegisteredCredential.builder()
++                        .credentialId(credentialId)
++                        .userHandle(userHandle)
++                        .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
++                        .signatureCount(user.getWebauthSignatureCount())
++                        .build()
++        );
+     }
+ 
+     @Override
+     public Set<RegisteredCredential> lookupAll(ByteArray credentialId) {
+-        return createRegisteredCredential(credentialId, null)
+-                .map(Collections::singleton)
+-                .orElse(Collections.emptySet());
++        Optional<UserModel> userOpt = userRepository.findByWebauthCredentialId(credentialId.getBytes());
++        if (userOpt.isEmpty()) {
++            return Collections.emptySet();
++        }
++        UserModel user = userOpt.get();
++        byte[] userHandle = longToBytes(user.getId());
++        return Collections.singleton(
++                RegisteredCredential.builder()
++                        .credentialId(credentialId)
++                        .userHandle(new ByteArray(userHandle))
++                        .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
++                        .signatureCount(user.getWebauthSignatureCount())
++                        .build()
++        );
+     }
+ 
+     private byte[] longToBytes(long x) {
+@@ -274,30 +309,4 @@ public class WebAuthService implements CredentialRepository {
+         buffer.flip();
+         return buffer.getLong();
+     }
+-
+-    private UserModel getUserOrThrow(Long userId) {
+-        return userRepository.findById(userId)
+-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+-    }
+-
+-    private void requireUniqueCredentialId(byte[] credentialId, Long currentUserId) {
+-        userRepository.findByWebauthCredentialId(credentialId).ifPresent(existingUser -> {
+-            if (!existingUser.getId().equals(currentUserId)) {
+-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This device is already in use by someone else");
+-            }
+-        });
+-    }
+-
+-    private Optional<RegisteredCredential> createRegisteredCredential(ByteArray credentialId, ByteArray userHandleOpt) {
+-        return userRepository.findByWebauthCredentialId(credentialId.getBytes())
+-                .map(user -> {
+-                    ByteArray userHandle = userHandleOpt != null ? userHandleOpt : new ByteArray(longToBytes(user.getId()));
+-                    return RegisteredCredential.builder()
+-                            .credentialId(credentialId)
+-                            .userHandle(userHandle)
+-                            .publicKeyCose(new ByteArray(user.getWebauthPublicKey()))
+-                            .signatureCount(user.getWebauthSignatureCount())
+-                            .build();
+-                });
+-    }
+ }
+\ No newline at end of file
+diff --git a/backend/src/test/java/com/example/SPOT/controller/AuthControllerTest.java b/backend/src/test/java/com/example/SPOT/controller/AuthControllerTest.java
+new file mode 100644
+index 0000000..342e9e6
+--- /dev/null
++++ b/backend/src/test/java/com/example/SPOT/controller/AuthControllerTest.java
+@@ -0,0 +1,116 @@
++package com.example.SPOT.controller;
++
++import com.example.SPOT.dto.response.UserDTO;
++import com.example.SPOT.handler.GlobalExceptionHandler;
++import com.example.SPOT.service.MyUniversitySsoService;
++import jakarta.servlet.http.HttpServletRequest;
++import jakarta.servlet.http.HttpServletResponse;
++import java.net.URI;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++import org.mockito.ArgumentCaptor;
++import org.springframework.mock.web.MockHttpSession;
++import org.springframework.security.core.context.SecurityContext;
++import org.springframework.security.web.context.SecurityContextRepository;
++import org.springframework.test.web.servlet.MockMvc;
++import org.springframework.test.web.servlet.setup.MockMvcBuilders;
++
++import static org.hamcrest.Matchers.containsString;
++import static org.hamcrest.Matchers.not;
++import static org.hamcrest.Matchers.blankOrNullString;
++import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.Mockito.never;
++import static org.mockito.Mockito.verify;
++import static org.mockito.Mockito.when;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++class AuthControllerTest {
++    private MyUniversitySsoService myUniversitySsoService;
++    private SecurityContextRepository securityContextRepository;
++    private MockMvc mockMvc;
++
++    @BeforeEach
++    void setUp() {
++        myUniversitySsoService = org.mockito.Mockito.mock(MyUniversitySsoService.class);
++        securityContextRepository = org.mockito.Mockito.mock(SecurityContextRepository.class);
++
++        mockMvc = MockMvcBuilders
++                .standaloneSetup(new AuthController(myUniversitySsoService, securityContextRepository))
++                .setControllerAdvice(new GlobalExceptionHandler())
++                .build();
++    }
++
++    @Test
++    void loginStoresStateAndRedirectsWithState() throws Exception {
++        when(myUniversitySsoService.buildAuthorizationUri(any(String.class)))
++                .thenAnswer(invocation -> URI.create(
++                        "https://sso.example/login?state=" + invocation.getArgument(0, String.class)));
++
++        mockMvc.perform(get("/auth/my-university/login"))
++                .andExpect(status().isFound())
++                .andExpect(header().string("Location", containsString("https://sso.example/login?state=")))
++                .andExpect(request().sessionAttribute(
++                        AuthController.SSO_STATE_SESSION_ATTRIBUTE,
++                        not(blankOrNullString())));
++
++        ArgumentCaptor<String> stateCaptor = ArgumentCaptor.forClass(String.class);
++        verify(myUniversitySsoService).buildAuthorizationUri(stateCaptor.capture());
++    }
++
++    @Test
++    void callbackRejectsInvalidStateBeforeRedeemingCode() throws Exception {
++        MockHttpSession session = new MockHttpSession();
++        session.setAttribute(AuthController.SSO_STATE_SESSION_ATTRIBUTE, "expected-state");
++
++        mockMvc.perform(get("/auth/my-university/callback")
++                        .session(session)
++                        .param("code", "code-1")
++                        .param("state", "wrong-state"))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.status").value("SSO_STATE_INVALID"));
++
++        verify(myUniversitySsoService, never()).redeemCode(any(String.class));
++    }
++
++    @Test
++    void callbackRejectsMissingStateBeforeRedeemingCode() throws Exception {
++        MockHttpSession session = new MockHttpSession();
++        session.setAttribute(AuthController.SSO_STATE_SESSION_ATTRIBUTE, "expected-state");
++
++        mockMvc.perform(get("/auth/my-university/callback")
++                        .session(session)
++                        .param("code", "code-1"))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.status").value("SSO_STATE_INVALID"));
++
++        verify(myUniversitySsoService, never()).redeemCode(any(String.class));
++    }
++
++    @Test
++    void callbackAcceptsValidStateAndAuthenticatesUser() throws Exception {
++        MockHttpSession session = new MockHttpSession();
++        session.setAttribute(AuthController.SSO_STATE_SESSION_ATTRIBUTE, "expected-state");
++
++        when(myUniversitySsoService.redeemCode("code-1"))
++                .thenReturn(new UserDTO(7L, "teacher@innopolis.ru", false, false));
++        when(myUniversitySsoService.postLoginRedirectUri())
++                .thenReturn(URI.create("/dashboard"));
++
++        mockMvc.perform(get("/auth/my-university/callback")
++                        .session(session)
++                        .param("code", "code-1")
++                        .param("state", "expected-state"))
++                .andExpect(status().isFound())
++                .andExpect(header().string("Location", "/dashboard"));
++
++        verify(myUniversitySsoService).redeemCode("code-1");
++        verify(securityContextRepository).saveContext(
++                any(SecurityContext.class),
++                any(HttpServletRequest.class),
++                any(HttpServletResponse.class));
++    }
++}
+diff --git a/backend/src/test/java/com/example/SPOT/controller/SessionIntegrationTest.java b/backend/src/test/java/com/example/SPOT/controller/SessionIntegrationTest.java
+index 519f936..2656509 100644
+--- a/backend/src/test/java/com/example/SPOT/controller/SessionIntegrationTest.java
++++ b/backend/src/test/java/com/example/SPOT/controller/SessionIntegrationTest.java
+@@ -82,9 +82,9 @@ public class SessionIntegrationTest {
+         given()
+             .cookie("JSESSIONID", cookie)
+             .when()
+-            .get("/session/all")
++            .get("/session")
+             .then()
+             .statusCode(200)
+             .body("title", hasItem("Integration Test Session"));
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/backend/src/test/java/com/example/SPOT/service/UserServiceTest.java b/backend/src/test/java/com/example/SPOT/service/UserServiceTest.java
+index bd6a718..a8ca752 100644
+--- a/backend/src/test/java/com/example/SPOT/service/UserServiceTest.java
++++ b/backend/src/test/java/com/example/SPOT/service/UserServiceTest.java
+@@ -46,7 +46,7 @@ class UserServiceTest {
+ 
+     @BeforeEach
+     void setUp() {
+-        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", AuthProvider.LOCAL, null, null, null, null, null, null);
++        testUser = new UserModel(1L, "test@innopolis.university", "encodedPassword", AuthProvider.LOCAL, null, null, null, null, null);
+     }
+ 
+     @Test
+diff --git a/env.example b/env.example
+index 8ed8ae5..a5eeaad 100644
+--- a/env.example
++++ b/env.example
+@@ -3,16 +3,6 @@ DB_PASSWORD=very_strong_password
+ DB_NAME=spot
+ APP_HOST=localhost
+ KAFKA_CLUSTER_ID=rAnDoMiD
+-
+-# WebAuthn Configuration
+-WEBAUTH_RP_ID=localhost
+-WEBAUTH_RP_NAME=SPOT
+-
+-# Traefik / SSL Configuration
+-ACME_EMAIL=admin@example.com
+-DUCKDNS_TOKEN=your_duckdns_token
+-
+-# My.University SSO Configuration
+ MY_UNIVERSITY_ORIGIN=https://my.university.example
+ MY_UNIVERSITY_CLIENT_ID=spot
+ MY_UNIVERSITY_CLIENT_SECRET=replace_me
+diff --git a/frontend/package.json b/frontend/package.json
+index 4d0f9f4..44d6d3b 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -14,8 +14,8 @@
+   },
+   "dependencies": {
+     "@ant-design/icons": "^6.2.5",
+-    "@mediapipe/tasks-vision": "^0.10.35",
+     "@simplewebauthn/browser": "^13.3.0",
++    "@mediapipe/tasks-vision": "^0.10.35",
+     "@types/react-webcam": "^1.1.0",
+     "@zxing/browser": "^0.2.0",
+     "@zxing/library": "^0.22.0",
+diff --git a/frontend/src/api/Session.ts b/frontend/src/api/Session.ts
+index 8217fc1..7285abd 100644
+--- a/frontend/src/api/Session.ts
++++ b/frontend/src/api/Session.ts
+@@ -20,7 +20,6 @@ export type CreatedSessionHistoryItem = {
+     title: string;
+     ownerEmail: string;
+     timestamp: string;
+-    isActive: boolean;
+ };
+ 
+ export type SessionAttendee = {
+@@ -147,58 +146,3 @@ export async function getActiveSessionIds(): Promise<number[]> {
+ 
+     return response.json() as Promise<number[]>;
+ }
+-
+-export type SessionPublicDetails = {
+-    id: number;
+-    title: string;
+-    validationTypes: string[];
+-    latitude?: number;
+-    longitude?: number;
+-    allowedRadius?: number;
+-    isActive: boolean;
+-};
+-
+-export async function getSessionPublicDetails(id: number): Promise<SessionPublicDetails> {
+-    const response = await converter(`/session/${id}/public`, {
+-        method: 'GET',
+-    });
+-
+-    if (!response.ok) {
+-        throw new Error(await readErrorMessage(response, `Failed to load details for session ${id}`));
+-    }
+-
+-    return response.json() as Promise<SessionPublicDetails>;
+-}
+-
+-export async function getSessionPublicDetailsByQrToken(token: string): Promise<SessionPublicDetails> {
+-    const response = await converter(`/session/qr/${token}/public`, {
+-        method: 'GET',
+-    });
+-
+-    if (!response.ok) {
+-        throw new Error(await readErrorMessage(response, 'Failed to load session details from QR code.'));
+-    }
+-
+-    return response.json() as Promise<SessionPublicDetails>;
+-}
+-
+-export async function exportSessionAttendance(sessionId: number, format: string = 'csv'): Promise<void> {
+-    const response = await converter(`/attendance/export/${sessionId}?format=${format}`, {
+-        method: 'GET',
+-    });
+-
+-    if (!response.ok) {
+-        throw new Error(await readErrorMessage(response, 'Failed to export attendance.'));
+-    }
+-
+-    const blob = await response.blob();
+-    const url = window.URL.createObjectURL(blob);
+-    const a = document.createElement('a');
+-    a.href = url;
+-    a.download = `attendance_${sessionId}.${format}`;
+-    document.body.appendChild(a);
+-    a.click();
+-    a.remove();
+-    window.URL.revokeObjectURL(url);
+-}
+-
+diff --git a/frontend/src/api/User.ts b/frontend/src/api/User.ts
+index c2182c7..ed83937 100644
+--- a/frontend/src/api/User.ts
++++ b/frontend/src/api/User.ts
+@@ -40,16 +40,3 @@ export async function updatePassword(data: UpdatePasswordRequest): Promise<UserD
+ 
+     return response.json() as Promise<UserDTO>;
+ }
+-
+-export async function searchUsers(query: string): Promise<UserDTO[]> {
+-    if (!query) return [];
+-    const response = await converter(`/user/search?q=${encodeURIComponent(query)}`, {
+-        method: 'GET',
+-    });
+-
+-    if (!response.ok) {
+-        throw new Error(await readErrorMessage(response, 'Failed to search users'));
+-    }
+-
+-    return response.json() as Promise<UserDTO[]>;
+-}
+diff --git a/frontend/src/api/WebAuth.ts b/frontend/src/api/WebAuth.ts
+index aecb0ee..6edba64 100644
+--- a/frontend/src/api/WebAuth.ts
++++ b/frontend/src/api/WebAuth.ts
+@@ -1,12 +1,4 @@
+ import { converter } from './Converter';
+-async function getDeviceFingerprint(): Promise<string> {
+-    let deviceId = localStorage.getItem('spot_device_id');
+-    if (!deviceId) {
+-        deviceId = crypto.randomUUID();
+-        localStorage.setItem('spot_device_id', deviceId);
+-    }
+-    return deviceId;
+-}
+ 
+ async function readErrorMessage(response: Response, fallback: string) {
+     try {
+@@ -58,10 +50,9 @@ export async function getRegistrationOptions(): Promise<{ optionsJson: string }>
+ }
+ 
+ export async function verifyRegistration(responseJson: string): Promise<void> {
+-    const deviceFingerprint = await getDeviceFingerprint();
+     const response = await converter('/webauth/register/verify', {
+         method: 'POST',
+-        body: JSON.stringify({ responseJson, deviceFingerprint }),
++        body: JSON.stringify({ responseJson }),
+     });
+     if (!response.ok) {
+         throw new Error(await readErrorMessage(response, 'Registration verification failed'));
+@@ -96,10 +87,9 @@ export async function getAssertionOptions(): Promise<{ optionsJson: string }> {
+ }
+ 
+ export async function verifyAssertion(responseJson: string): Promise<void> {
+-    const deviceFingerprint = await getDeviceFingerprint();
+     const response = await converter('/webauth/attendance/verify', {
+         method: 'POST',
+-        body: JSON.stringify({ responseJson, deviceFingerprint }),
++        body: JSON.stringify({ responseJson }),
+     });
+     if (!response.ok) {
+         throw new Error(await readErrorMessage(response, 'Assertion verification failed'));
+diff --git a/frontend/src/components/AppShell.test.tsx b/frontend/src/components/AppShell.test.tsx
+index 03c6aea..ed340db 100644
+--- a/frontend/src/components/AppShell.test.tsx
++++ b/frontend/src/components/AppShell.test.tsx
+@@ -78,10 +78,20 @@ describe('AppShell', () => {
+     });
+ 
+     it('handles drawer toggle on mobile menu button and overlay click', () => {
++        window.matchMedia = vi.fn().mockImplementation((query) => ({
++            matches: query === '(max-width: 1180px)',
++            media: query,
++            onchange: null,
++            addEventListener: vi.fn(),
++            removeEventListener: vi.fn(),
++            addListener: vi.fn(),
++            removeListener: vi.fn(),
++            dispatchEvent: vi.fn(),
++        }));
+         const { container } = renderWithRouter(<AppShell title="Test">Content</AppShell>);
+ 
+         const overlay = container.querySelector('.drawer-overlay');
+-        const menuBtn = container.querySelector('.mobile-menu-button');
++        const menuBtn = container.querySelector('.header-logo-trigger');
+         const drawer = container.querySelector('.drawer-menu');
+ 
+         expect(drawer).not.toHaveClass('open');
+@@ -144,4 +154,4 @@ describe('AppShell', () => {
+         expect(screen.getByText('translated_profile', { selector: '.user-name' })).toBeInTheDocument();
+         expect(screen.getByText('?')).toBeInTheDocument();
+     });
+-});
+\ No newline at end of file
++});
+diff --git a/frontend/src/components/AppShell.tsx b/frontend/src/components/AppShell.tsx
+index 04ebf3c..8bb5f22 100644
+--- a/frontend/src/components/AppShell.tsx
++++ b/frontend/src/components/AppShell.tsx
+@@ -7,7 +7,7 @@ import {
+     UserOutlined,
+     MoonOutlined,
+ } from '@ant-design/icons';
+-import { Button, Space, Typography } from 'antd';
++import { Button, Dropdown, Space, Typography, type MenuProps } from 'antd';
+ import { type ReactNode, useEffect, useState } from 'react';
+ import { Link, useLocation, useNavigate } from 'react-router-dom';
+ import { useAuth } from '../contexts/AuthContext';
+@@ -62,7 +62,14 @@ export default function AppShell({
+         };
+     }, []);
+ 
++    const languageItems: MenuProps['items'] = [
++        { key: 'en', label: 'English' },
++        { key: 'ru', label: '╨а╤Г╤Б╤Б╨║╨╕╨╣' },
++    ];
+ 
++    const handleLanguageChange: MenuProps['onClick'] = ({ key }) => {
++        setLanguage(key as 'en' | 'ru');
++    };
+ 
+     const navItems = [
+         { key: '/dashboard', icon: <AppstoreOutlined />, labelKey: 'dashboard' },
+@@ -133,13 +140,14 @@ export default function AppShell({
+                             style={{ fontSize: 20 }}
+                         />
+ 
+-                        <Button
+-                            className="language-button"
+-                            icon={<GlobalOutlined />}
+-                            onClick={() => setLanguage(language === 'en' ? 'ru' : 'en')}
++                        <Dropdown
++                            menu={{ items: languageItems, onClick: handleLanguageChange }}
++                            trigger={['click']}
+                         >
+-                            {language.toUpperCase()}
+-                        </Button>
++                            <Button className="language-button" icon={<GlobalOutlined />}>
++                                {language.toUpperCase()}
++                            </Button>
++                        </Dropdown>
+ 
+ 
+                         <Space size={10} align="center" className="header-profile-shortcut" onClick={goToProfile}>
+diff --git a/frontend/src/components/SessionMap.tsx b/frontend/src/components/SessionMap.tsx
+index 0cf8b85..41dae27 100644
+--- a/frontend/src/components/SessionMap.tsx
++++ b/frontend/src/components/SessionMap.tsx
+@@ -5,11 +5,9 @@ import 'leaflet/dist/leaflet.css';
+ interface SessionMapProps {
+     center: [number, number];
+     radius: number;
+-    userLocation?: [number, number];
+-    onCenterChange?: (newCenter: [number, number]) => void;
+ }
+ 
+-export default function SessionMap({ center, radius, userLocation, onCenterChange }: SessionMapProps) {
++export default function SessionMap({ center, radius }: SessionMapProps) {
+     const mapRef = useRef<HTMLDivElement>(null);
+     const mapInstanceRef = useRef<L.Map | null>(null);
+ 
+@@ -35,58 +33,17 @@ export default function SessionMap({ center, radius, userLocation, onCenterChang
+             fillOpacity: 0.2,
+         }).addTo(map);
+ 
+-        const marker = (onCenterChange ? L.marker(center, { draggable: true }) : L.marker(center))
+-            .addTo(map)
+-            .bindPopup(onCenterChange ? 'Drag marker or click map to change center' : 'Session location')
++        L.marker(center).addTo(map)
++            .bindPopup('Session location')
+             .openPopup();
+ 
+-        if (onCenterChange && typeof marker.on === 'function') {
+-            marker.on('dragend', () => {
+-                const latLng = marker.getLatLng();
+-                onCenterChange([latLng.lat, latLng.lng]);
+-            });
+-        }
+-
+-        if (onCenterChange && typeof map.on === 'function') {
+-            map.on('click', (e: L.LeafletMouseEvent) => {
+-                onCenterChange([e.latlng.lat, e.latlng.lng]);
+-            });
+-        }
+-
+-        if (userLocation && typeof L.circleMarker === 'function') {
+-            const userMarker = L.circleMarker(userLocation, {
+-                radius: 8,
+-                fillColor: '#3388ff',
+-                color: '#fff',
+-                weight: 2,
+-                opacity: 1,
+-                fillOpacity: 0.8
+-            }).addTo(map).bindPopup('Your location');
+-
+-            if (typeof L.featureGroup === 'function' && typeof map.fitBounds === 'function') {
+-                const group = L.featureGroup([
+-                    L.marker(center),
+-                    userMarker
+-                ]);
+-                map.fitBounds(group.getBounds().pad(0.2));
+-            }
+-        }
+-
+-        // Persistent invalidation checks to avoid capricious rendering issues (e.g. grey tiles)
+-        const invalidateTimer = setTimeout(() => {
+-            if (mapInstanceRef.current && typeof mapInstanceRef.current.invalidateSize === 'function') {
+-                mapInstanceRef.current.invalidateSize();
+-            }
+-        }, 200);
+-
+         return () => {
+-            clearTimeout(invalidateTimer);
+             if (mapInstanceRef.current) {
+                 mapInstanceRef.current.remove();
+                 mapInstanceRef.current = null;
+             }
+         };
+-    }, [center, radius, userLocation, onCenterChange]);
++    }, [center, radius]);
+ 
+     return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />;
+ }
+\ No newline at end of file
+diff --git a/frontend/src/components/face/FaceCapture.tsx b/frontend/src/components/face/FaceCapture.tsx
+index 5914d68..ff8a5ac 100644
+--- a/frontend/src/components/face/FaceCapture.tsx
++++ b/frontend/src/components/face/FaceCapture.tsx
+@@ -49,6 +49,10 @@ function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | '
+ }
+ 
+ type LivenessAction = 'mouth';
++type FaceBlendshapeCategory = {
++    categoryName: string;
++    score: number;
++};
+ 
+ const LIVENESS_ACTIONS: { type: LivenessAction; label: string }[] = [
+     { type: 'mouth', label: 'Please open your mouth' }
+@@ -64,25 +68,19 @@ async function getFaceLandmarker(): Promise<FaceLandmarker> {
+     if (loadingPromise) return loadingPromise;
+ 
+     loadingPromise = (async () => {
+-        try {
+-            const vision = await FilesetResolver.forVisionTasks(
+-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
+-            );
+-            sharedLandmarker = await FaceLandmarker.createFromOptions(vision, {
+-                baseOptions: {
+-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+-                    delegate: "GPU"
+-                },
+-                outputFaceBlendshapes: true,
+-                runningMode: "VIDEO",
+-                numFaces: 1
+-            });
+-            return sharedLandmarker;
+-        } catch (error) {
+-            loadingPromise = null;
+-            sharedLandmarker = null;
+-            throw error;
+-        }
++        const vision = await FilesetResolver.forVisionTasks(
++            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
++        );
++        sharedLandmarker = await FaceLandmarker.createFromOptions(vision, {
++            baseOptions: {
++                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
++                delegate: "GPU"
++            },
++            outputFaceBlendshapes: true,
++            runningMode: "VIDEO",
++            numFaces: 1
++        });
++        return sharedLandmarker;
+     })();
+ 
+     return loadingPromise;
+@@ -221,7 +219,7 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
+                 try {
+                     const results = landmarker.detectForVideo(video, performance.now());
+                     if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+-                        const blendshapes = results.faceBlendshapes[0].categories;
++                        const blendshapes = results.faceBlendshapes[0].categories as FaceBlendshapeCategory[];
+                         const jawOpen = blendshapes.find(c => c.categoryName === 'jawOpen')?.score || 0;
+ 
+                         let success = false;
+diff --git a/frontend/src/components/face/FaceRegistrationModal.tsx b/frontend/src/components/face/FaceRegistrationModal.tsx
+index 47291e5..41f85a6 100644
+--- a/frontend/src/components/face/FaceRegistrationModal.tsx
++++ b/frontend/src/components/face/FaceRegistrationModal.tsx
+@@ -1,4 +1,4 @@
+-import React, { useState, useEffect } from 'react';
++import React, { useState } from 'react';
+ import { Modal, Typography } from 'antd';
+ import FaceCapture from './FaceCapture';
+ import FaceVerificationResult from './VerificationResult';
+@@ -20,15 +20,6 @@ const FaceRegistrationModal: React.FC<FaceRegistrationModalProps> = ({ visible,
+     const [error, setError] = useState<string | null>(null);
+     const [verified, setVerified] = useState(false);
+ 
+-    useEffect(() => {
+-        if (visible) {
+-            setStep('capture');
+-            setLoading(false);
+-            setError(null);
+-            setVerified(false);
+-        }
+-    }, [visible]);
+-
+     const handleCapture = async (photos: File[]) => {
+         if (!user.id) return;
+         setLoading(true);
+diff --git a/frontend/src/contexts/AuthContext.tsx b/frontend/src/contexts/AuthContext.tsx
+index 0f0a78c..ec85dde 100644
+--- a/frontend/src/contexts/AuthContext.tsx
++++ b/frontend/src/contexts/AuthContext.tsx
+@@ -1,8 +1,6 @@
+ import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+ import { getCurrentUser } from '../api/User';
+ import type { UserDTO } from '../types/Authentification';
+-import { startAuthentication } from '@simplewebauthn/browser';
+-import { getAssertionOptions, verifyAssertion } from '../api/WebAuth';
+ 
+ export type User = {
+     id: number | null;
+@@ -10,7 +8,6 @@ export type User = {
+     attendedSessions: number;
+     faceRegistered: boolean;
+     webauthRegistered: boolean;
+-    isSsoUser: boolean;
+ };
+ 
+ interface AuthContextType {
+@@ -20,10 +17,6 @@ interface AuthContextType {
+     updateUser: (data: Partial<User>) => void;
+     setAuthenticatedUser: (data: UserDTO) => void;
+     refreshCurrentUser: () => Promise<void>;
+-    isWebauthVerified: boolean;
+-    verifyWebauth: () => Promise<boolean>;
+-    markWebauthVerified: () => void;
+-    clearWebauthVerification: () => void;
+ }
+ 
+ const AuthContext = createContext<AuthContextType | undefined>(undefined);
+@@ -34,55 +27,12 @@ const defaultUser: User = {
+     attendedSessions: 0,
+     faceRegistered: false,
+     webauthRegistered: false,
+-    isSsoUser: false,
+ };
+ 
+ export const AuthProvider = ({ children }: { children: ReactNode }) => {
+     const [user, setUser] = useState<User>(defaultUser);
+     const [loading, setLoading] = useState(true);
+     const [error, setError] = useState<string | null>(null);
+-    const [isWebauthVerified, setIsWebauthVerified] = useState<boolean>(() => {
+-        return localStorage.getItem('spot_webauth_verified') === 'true';
+-    });
+-
+-    const verifyWebauth = useCallback(async (): Promise<boolean> => {
+-        try {
+-            const { optionsJson } = await getAssertionOptions();
+-            const parsedOptions = JSON.parse(optionsJson);
+-            const authOptions = parsedOptions.publicKeyCredentialRequestOptions || parsedOptions.publicKey || parsedOptions;
+-
+-            if (authOptions && authOptions.extensions) {
+-                delete authOptions.extensions.appidExclude;
+-                delete authOptions.extensions.appid;
+-            }
+-
+-            authOptions.hints = ['client-device'];
+-
+-            const assertionResponse = await startAuthentication({
+-                optionsJSON: authOptions,
+-                useBrowserAutofill: false,
+-            });
+-
+-            await verifyAssertion(JSON.stringify(assertionResponse));
+-            
+-            setIsWebauthVerified(true);
+-            localStorage.setItem('spot_webauth_verified', 'true');
+-            return true;
+-        } catch (err) {
+-            console.error('WebAuthn verification failed:', err);
+-            return false;
+-        }
+-    }, []);
+-
+-    const clearWebauthVerification = useCallback(() => {
+-        setIsWebauthVerified(false);
+-        localStorage.removeItem('spot_webauth_verified');
+-    }, []);
+-
+-    const markWebauthVerified = useCallback(() => {
+-        setIsWebauthVerified(true);
+-        localStorage.setItem('spot_webauth_verified', 'true');
+-    }, []);
+ 
+     const updateUser = (data: Partial<User>) =>
+         setUser((prev) => ({ ...prev, ...data }));
+@@ -94,17 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
+             email: data.email,
+             faceRegistered: data.faceRegistered ?? false,
+             webauthRegistered: data.webauthRegistered ?? false,
+-            isSsoUser: data.isSsoUser ?? false,
+         }));
+-        if (data.webauthVerified !== undefined) {
+-            if (data.webauthVerified) {
+-                setIsWebauthVerified(true);
+-                localStorage.setItem('spot_webauth_verified', 'true');
+-            } else {
+-                setIsWebauthVerified(false);
+-                localStorage.removeItem('spot_webauth_verified');
+-            }
+-        }
+         setError(null);
+     }, []);
+ 
+@@ -126,18 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
+     }, [refreshCurrentUser]);
+ 
+     return (
+-        <AuthContext.Provider value={{ 
+-            user, 
+-            loading, 
+-            error, 
+-            updateUser, 
+-            setAuthenticatedUser, 
+-            refreshCurrentUser,
+-            isWebauthVerified,
+-            verifyWebauth,
+-            markWebauthVerified,
+-            clearWebauthVerification
+-        }}>
++        <AuthContext.Provider value={{ user, loading, error, updateUser, setAuthenticatedUser, refreshCurrentUser }}>
+             {children}
+         </AuthContext.Provider>
+     );
+diff --git a/frontend/src/contexts/ThemeContext.tsx b/frontend/src/contexts/ThemeContext.tsx
+index 387f482..076096f 100644
+--- a/frontend/src/contexts/ThemeContext.tsx
++++ b/frontend/src/contexts/ThemeContext.tsx
+@@ -1,5 +1,4 @@
+ import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+-import { ConfigProvider, theme as antdTheme } from 'antd';
+ 
+ type Theme = 'light' | 'dark';
+ type Language = 'en' | 'ru';
+@@ -457,23 +456,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+ 
+     return (
+         <ThemeContext.Provider value={{ theme, toggleTheme, language, setLanguage, t }}>
+-            <ConfigProvider 
+-                theme={{ 
+-                    algorithm: theme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+-                    token: {
+-                        colorPrimary: '#5ec832',
+-                        ...(theme === 'dark' ? {
+-                            colorBgBase: '#0f172a',
+-                            colorBgElevated: '#1e293b',
+-                            colorTextBase: '#f1f5f9',
+-                            colorBorder: '#334155',
+-                            colorBgContainer: '#2d3748',
+-                        } : {})
+-                    }
+-                }}
+-            >
+-                {children}
+-            </ConfigProvider>
++            {children}
+         </ThemeContext.Provider>
+     );
+ };
+diff --git a/frontend/src/index.css b/frontend/src/index.css
+index d94fd45..9a11e86 100644
+--- a/frontend/src/index.css
++++ b/frontend/src/index.css
+@@ -166,7 +166,7 @@ body {
+   box-shadow: 0 3px 12px rgba(17, 24, 39, 0.13);
+   position: sticky;
+   top: 0;
+-  z-index: 1010;
++  z-index: 20;
+ }
+ 
+ .brand-lockup {
+@@ -349,7 +349,7 @@ body {
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.25s ease;
+-   z-index: 1020;
++   z-index: 50;
+  }
+ 
+ .drawer-overlay.open {
+@@ -367,7 +367,7 @@ body {
+   background: #ffffff;
+   transform: none;
+   transition: 0.25s ease;
+-  z-index: 1030;
++  z-index: 60;
+   padding: 28px 16px 24px;
+   border-right: 1px solid #eef0f3;
+   box-shadow: none;
+@@ -1735,7 +1735,8 @@ body {
+   background: var(--bg-primary);
+ }
+ [data-theme="dark"] .auth-inner {
+-  /* Removed background and border-radius to prevent weird column look */
++  background: var(--bg-secondary);
++  border-radius: 12px;
+ }
+ [data-theme="dark"] .auth-heading {
+   color: var(--text-primary);
+@@ -1776,41 +1777,104 @@ body {
+   background: var(--bg-card);
+   border-color: var(--border-color);
+ }
+-
+-
+-
++[data-theme="dark"] .quick-action-card .ant-typography {
++  color: var(--text-primary);
++}
++[data-theme="dark"] .quick-action-card .ant-typography-secondary {
++  color: var(--text-secondary);
++}
++[data-theme="dark"] .session-form-card .ant-form-item-label > label {
++  color: var(--text-primary);
++}
+ [data-theme="dark"] .field-helper {
+   color: var(--text-secondary);
+ }
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .ant-table {
++  background: var(--bg-card);
++  color: var(--text-primary);
++}
++[data-theme="dark"] .ant-table-thead > tr > th {
++  background: var(--bg-secondary);
++  color: var(--text-secondary);
++  border-bottom-color: var(--border-color);
++}
++[data-theme="dark"] .ant-table-tbody > tr > td {
++  border-bottom-color: var(--border-color);
++}
++[data-theme="dark"] .ant-table-tbody > tr:hover > td {
++  background: var(--hover-bg);
++}
++[data-theme="dark"] .ant-input,
++[data-theme="dark"] .ant-input-number,
++[data-theme="dark"] .ant-input-affix-wrapper {
++  background: #2d3748;
++  border-color: var(--border-color);
++  color: var(--text-primary);
++}
++[data-theme="dark"] .ant-input::placeholder {
++  color: var(--text-secondary);
++}
++[data-theme="dark"] .ant-btn {
++  color: var(--text-primary);
++  border-color: var(--border-color);
++}
++[data-theme="dark"] .ant-btn-primary.primary-action {
++  background: #5ec832;
++  border-color: #5ec832;
++  color: #fff;
++}
++[data-theme="dark"] .ant-btn-primary.primary-action:hover {
++  background: #4aad2a;
++  border-color: #4aad2a;
++}
++[data-theme="dark"] .ant-btn-text {
++  color: var(--text-primary);
++}
+ [data-theme="dark"] .manual-add-section {
+   border-top-color: var(--border-color);
+ }
+ [data-theme="dark"] .drawer-footer {
+   color: var(--text-secondary);
+ }
+-
++[data-theme="dark"] .scanned-card .ant-table-thead > tr > th {
++  background: var(--bg-secondary);
++}
+ [data-theme="dark"] .student-email-cell,
+ [data-theme="dark"] .student-time-cell {
+   color: var(--text-secondary);
+ }
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .student-name-cell .ant-typography {
++  color: var(--text-primary);
++}
++[data-theme="dark"] .active-session-header .ant-typography {
++  color: var(--text-primary);
++}
++[data-theme="dark"] .session-detail-list .ant-typography {
++  color: var(--text-primary);
++}
++[data-theme="dark"] .session-detail-list .ant-typography-secondary {
++  color: var(--text-secondary);
++}
++[data-theme="dark"] .ant-tag {
++  background: var(--bg-secondary);
++  color: var(--text-primary);
++  border-color: var(--border-color);
++}
++[data-theme="dark"] .ant-tag-success {
++  background: #1a3a2a;
++  color: #5ec832;
++  border-color: #5ec832;
++}
++[data-theme="dark"] .ant-tag-green {
++  background: #1a3a2a;
++  color: #5ec832;
++  border-color: #5ec832;
++}
++[data-theme="dark"] .ant-tag-blue {
++  background: #1a2a4a;
++  color: #60a5fa;
++  border-color: #60a5fa;
++}
+ [data-theme="dark"] .leaflet-control-attribution {
+   background: rgba(0,0,0,0.7) !important;
+   color: #ccc !important;
+@@ -1819,30 +1883,46 @@ body {
+   color: #8ab4f8 !important;
+ }
+ 
+-[data-theme="dark"] .language-button {
++[data-theme="dark"] .language-button,
++[data-theme="dark"] .theme-toggle {
+   background: #2d3748;
+   color: #f1f5f9;
+   border-color: #4a5568;
+ }
+-[data-theme="dark"] .language-button:hover {
++[data-theme="dark"] .language-button:hover,
++[data-theme="dark"] .theme-toggle:hover {
+   background: #3d4a5c;
+   border-color: #5ec832;
+   color: #5ec832;
+ }
+ 
+-[data-theme="dark"] .theme-toggle:hover {
+-  color: #5ec832;
++[data-theme="dark"] .attendance-action-card h2.ant-typography {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .attendance-action-card .ant-typography {
++  color: #94a3b8 !important;
++}
++[data-theme="dark"] .attendance-action-card .ant-typography-secondary {
++  color: #94a3b8 !important;
+ }
+ 
++[data-theme="dark"] .ant-empty-description {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-empty-image svg path {
++  fill: #4a5568;
++}
+ 
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .change-password-btn {
++  background: #e2e8f0;
++  color: #1a202c;
++  border-color: #cbd5e0;
++}
++[data-theme="dark"] .change-password-btn:hover {
++  background: #cbd5e0;
++  color: #1a202c;
++  border-color: #a0aec0;
++}
+ 
+ [data-theme="dark"] .profile-logout-btn {
+   color: #f87171;
+@@ -1851,99 +1931,234 @@ body {
+   color: #ef4444;
+ }
+ 
++[data-theme="dark"] .ant-input::placeholder,
++[data-theme="dark"] .ant-input-password input::placeholder {
++  color: #94a3b8 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-title {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-modal-content {
++  background: #1e293b;
++}
++[data-theme="dark"] .ant-modal-close-x {
++  color: #f1f5f9;
++}
++[data-theme="dark"] .ant-form-item-label > label {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .sessions-page .ant-card {
++  background: #1e293b;
++  border-color: #334155;
++}
++[data-theme="dark"] .sessions-page .ant-card .ant-typography {
++  color: #f1f5f9;
++}
++[data-theme="dark"] .sessions-page .ant-card .ant-typography-secondary {
++  color: #94a3b8;
++}
+ 
++[data-theme="dark"] .ant-modal-content {
++  background: #1e293b;
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .ant-modal-title {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-close-x {
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .ant-modal-close-x:hover {
++  color: #94a3b8;
++}
+ 
++[data-theme="dark"] .ant-modal-body {
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .ant-form-item-label > label {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-input-password input,
++[data-theme="dark"] .ant-input-password {
++  background: #2d3748;
++  border-color: #4a5568;
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .ant-input-password input::placeholder {
++  color: #94a3b8 !important;
++}
+ 
++[data-theme="dark"] .ant-input-password .ant-input-password-icon {
++  color: #94a3b8;
++}
+ 
++[data-theme="dark"] .ant-input-password .ant-input-password-icon:hover {
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .ant-modal-footer .ant-btn {
++  background: #2d3748;
++  border-color: #4a5568;
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
++  background: #5ec832;
++  border-color: #5ec832;
++  color: #fff;
++}
+ 
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary:hover {
++  background: #4aad2a;
++  border-color: #4aad2a;
++}
+ 
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .ant-modal-footer .ant-btn-default:hover {
++  background: #3d4a5c;
++  border-color: #6b7a8a;
++}
+ 
+ .attendance-action-card .wide-button.ant-btn-primary {
+   color: #ffffff !important;
+ }
+ 
+-
+-
++[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary {
++  background: #5ec832 !important;
++  border-color: #5ec832 !important;
++  color: #ffffff !important;
++}
++[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary:hover {
++  background: #4aad2a !important;
++  border-color: #4aad2a !important;
++  color: #ffffff !important;
++}
+ 
+ .attendance-action-card .wide-button.ant-btn-primary {
+   color: #ffffff !important;
+ }
+ 
++[data-theme="dark"] .ant-modal-content {
++  background: #1e293b;
++  color: #f1f5f9;
++}
++[data-theme="dark"] .ant-modal-title {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-modal-close-x {
++  color: #f1f5f9;
++}
++[data-theme="dark"] .ant-form-item-label > label {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-input-password input,
++[data-theme="dark"] .ant-input-password {
++  background: #2d3748;
++  border-color: #4a5568;
++  color: #f1f5f9;
++}
++[data-theme="dark"] .ant-input-password input::placeholder {
++  color: #94a3b8 !important;
++}
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
++  background: #5ec832;
++  border-color: #5ec832;
++  color: #fff;
++}
+ 
++[data-theme="dark"] .ant-modal-content,
++[data-theme="dark"] .ant-modal-body,
++[data-theme="dark"] .ant-modal-header {
++  background: #1e293b !important;
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-title {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-close-x {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-input-password,
++[data-theme="dark"] .ant-input-password input,
++[data-theme="dark"] .ant-input {
++  background: #2d3748 !important;
++  border-color: #4a5568 !important;
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-input-password input::placeholder,
++[data-theme="dark"] .ant-input::placeholder {
++  color: #94a3b8 !important;
++}
+ 
++[data-theme="dark"] .ant-input-password .ant-input-password-icon {
++  color: #94a3b8 !important;
++}
++[data-theme="dark"] .ant-input-password .ant-input-password-icon:hover {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-form-item-label > label {
++  color: #f1f5f9 !important;
++}
+ 
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .ant-modal-footer .ant-btn {
++  background: #2d3748 !important;
++  border-color: #4a5568 !important;
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
++  background: #5ec832 !important;
++  border-color: #5ec832 !important;
++  color: #ffffff !important;
++}
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary:hover {
++  background: #4aad2a !important;
++  border-color: #4aad2a !important;
++}
+ 
+ .attendance-action-card .wide-button.ant-btn-primary,
+ .attendance-action-card .wide-button.ant-btn-primary .ant-btn-icon,
+ .attendance-action-card .wide-button.ant-btn-primary span {
+   color: #ffffff !important;
+ }
+-
+-
++[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary {
++  background: #5ec832 !important;
++  border-color: #5ec832 !important;
++  color: #ffffff !important;
++}
++[data-theme="dark"] .attendance-action-card .wide-button.ant-btn-primary:hover {
++  background: #4aad2a !important;
++  border-color: #4aad2a !important;
++}
+ 
+ .attendance-action-card .ant-btn-primary {
+   color: #ffffff !important;
+ }
+ 
++[data-theme="dark"] .ant-empty-description {
++  color: #f1f5f9 !important;
++}
+ 
+-
+-
+-
++[data-theme="dark"] .change-password-btn {
++  background: #e2e8f0 !important;
++  color: #1a202c !important;
++  border-color: #cbd5e0 !important;
++}
++[data-theme="dark"] .change-password-btn:hover {
++  background: #cbd5e0 !important;
++  color: #1a202c !important;
++}
+ 
+ [data-theme="dark"] .profile-logout-btn {
+   color: #f87171 !important;
+@@ -2345,31 +2560,76 @@ h4.ant-typography,
+ }
+ 
+ 
++[data-theme="dark"] h1.ant-typography {
++  color: #f1f5f9;
++}
+ 
++[data-theme="dark"] .password-modal .ant-modal-content {
++  background: #1e293b !important;
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .password-modal .ant-modal-title {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .password-modal .ant-modal-close-x {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .password-modal .ant-modal-close-x:hover {
++  color: #94a3b8 !important;
++}
+ 
++[data-theme="dark"] .password-modal .ant-modal-body {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .password-modal .ant-form-item-label > label {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .password-modal .ant-input-password {
++  background: #2d3748 !important;
++  border-color: #4a5568 !important;
++}
++[data-theme="dark"] .password-modal .ant-input-password input {
++  background: #2d3748 !important;
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .password-modal .ant-input-password input::placeholder {
++  color: #94a3b8 !important;
++}
++[data-theme="dark"] .password-modal .ant-input-password .ant-input-password-icon {
++  color: #94a3b8 !important;
++}
++[data-theme="dark"] .password-modal .ant-input-password .ant-input-password-icon:hover {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .password-modal .ant-modal-footer .ant-btn {
++  background: #2d3748 !important;
++  border-color: #4a5568 !important;
++  color: #ffffff !important;
++}
++[data-theme="dark"] .password-modal .ant-modal-footer .ant-btn-primary {
++  background: #5ec832 !important;
++  border-color: #5ec832 !important;
++  color: #ffffff !important;
++}
++[data-theme="dark"] .password-modal .ant-modal-footer .ant-btn-primary:hover {
++  background: #4aad2a !important;
++  border-color: #4aad2a !important;
++}
+ 
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .change-password-btn {
++  background: #ffffff !important;
++  color: #1a202c !important;
++  border-color: #cbd5e0 !important;
++}
++[data-theme="dark"] .change-password-btn:hover {
++  background: #ffffff !important;
++  color: #1a202c !important;
++}
+ 
+ [data-theme="dark"] .profile-logout-btn {
+   color: #f87171 !important;
+@@ -2388,36 +2648,85 @@ h4.ant-typography,
+   color: #ffffff !important;
+ }
+ 
++[data-theme="dark"] .ant-modal-content {
++  background: #1e293b !important;
++  color: #f1f5f9 !important;
++  border: none !important;
++  box-shadow: none !important;
++}
+ 
++[data-theme="dark"] .ant-modal-header {
++  background: #1e293b !important;
++  border-bottom: 1px solid #334155 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-title {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-close {
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-modal-close:hover {
++  color: #94a3b8 !important;
++}
++[data-theme="dark"] .ant-modal-close-x {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-body {
++  background: #1e293b !important;
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-footer {
++  background: #1e293b !important;
++  border-top: 1px solid #334155 !important;
++}
+ 
++[data-theme="dark"] .ant-form-item-label > label {
++  color: #f1f5f9 !important;
++}
+ 
++[data-theme="dark"] .ant-input-password,
++[data-theme="dark"] .ant-input {
++  background: #2d3748 !important;
++  border-color: #4a5568 !important;
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-input-password input::placeholder,
++[data-theme="dark"] .ant-input::placeholder {
++  color: #94a3b8 !important;
++}
+ 
++[data-theme="dark"] .ant-modal-footer .ant-btn {
++  background: #2d3748 !important;
++  border-color: #4a5568 !important;
++  color: #f1f5f9 !important;
++}
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary {
++  background: #5ec832 !important;
++  border-color: #5ec832 !important;
++  color: #ffffff !important;
++}
++[data-theme="dark"] .ant-modal-footer .ant-btn-primary:hover {
++  background: #4aad2a !important;
++  border-color: #4aad2a !important;
++}
+ 
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++[data-theme="dark"] .ant-empty-description,
++[data-theme="dark"] .ant-table-wrapper .ant-empty-description,
++[data-theme="dark"] .ant-empty .ant-empty-description {
++  color: #ffffff !important;
++}
+ 
+ [data-theme="dark"] .empty-text-light {
+   color: #ffffff !important;
+ }
+ 
+-
++[data-theme="dark"] .ant-empty-description {
++  color: #ffffff !important;
++}
+ 
+ .active-session-grid .ant-table-wrapper {
+   overflow-x: auto;
+@@ -2492,51 +2801,3 @@ h4.ant-typography,
+   width: 100%;
+   border-radius: 0;
+ }
+-
+-.theme-toggle, .theme-toggle:hover, .theme-toggle:focus, .theme-toggle:active { background: transparent !important; border: none !important; box-shadow: none !important; }
+-
+-
+-/* Final Dark Theme Overrides */
+-
+-
+-
+-
+-
+-
+-/* Restoring typography colors for dark mode */
+-[data-theme="dark"] .ant-typography,
+-[data-theme="dark"] h1.ant-typography,
+-[data-theme="dark"] h2.ant-typography,
+-[data-theme="dark"] h3.ant-typography,
+-[data-theme="dark"] h4.ant-typography,
+-[data-theme="dark"] .sessions-header h1.ant-typography,
+-[data-theme="dark"] .sessions-header .ant-typography,
+-[data-theme="dark"] .attendance-action-card h2.ant-typography,
+-[data-theme="dark"] .attendance-action-card .ant-typography,
+-[data-theme="dark"] .page-heading h1.ant-typography,
+-[data-theme="dark"] .page-heading .ant-typography,
+-[data-theme="dark"] .section-kicker.ant-typography,
+-[data-theme="dark"] .ant-card-head-title,
+-[data-theme="dark"] .ant-form-item-label > label {
+-  color: var(--text-primary) !important;
+-}
+-
+-[data-theme="dark"] .ant-typography-secondary,
+-[data-theme="dark"] .sessions-header .ant-typography:not(h1),
+-[data-theme="dark"] .page-heading .ant-typography:not(h1),
+-[data-theme="dark"] .attendance-action-card p.ant-typography {
+-  color: var(--text-secondary) !important;
+-}
+-
+-/* Custom Active Session Scanned Students Table Header */
+-.scanned-card .ant-table-thead > tr > th {
+-    text-transform: uppercase !important;
+-    font-weight: 800 !important;
+-    color: #90A4AE !important;
+-    border-bottom: 2px solid #2C3E50 !important;
+-    border-right: 2px solid #2C3E50 !important;
+-    text-align: left;
+-}
+-.scanned-card .ant-table-thead > tr > th:last-child {
+-    border-right: none !important;
+-}
+diff --git a/frontend/src/pages/ActiveSession.tsx b/frontend/src/pages/ActiveSession.tsx
+index f8bf1af..d69a656 100644
+--- a/frontend/src/pages/ActiveSession.tsx
++++ b/frontend/src/pages/ActiveSession.tsx
+@@ -24,7 +24,6 @@ import {
+     Alert,
+     Spin,
+     Dropdown,
+-    AutoComplete,
+ } from 'antd';
+ import type { MenuProps } from 'antd';
+ import type { ColumnsType } from 'antd/es/table';
+@@ -39,7 +38,8 @@ import { useTheme } from '../contexts/ThemeContext';
+ import { subscribeToQrToken } from '../api/Qr';
+ import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+ import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
+-import { searchUsers } from '../api/User';
++
++const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+ 
+ type Attendee = {
+     id: string;
+@@ -60,8 +60,6 @@ function isValidEmail(email: string) {
+     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+ }
+ 
+-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+-
+ async function readErrorMessage(response: Response, fallback: string) {
+     try {
+         const data = await response.json() as { message?: string; error?: string; status?: string };
+@@ -99,7 +97,6 @@ export default function ActiveSessionPage() {
+     const [qrError, setQrError] = useState('');
+     const [backendSessionActive, setBackendSessionActive] = useState<boolean | null>(null);
+     const [fetchedSession, setFetchedSession] = useState<Session | null>(null);
+-    const [searchOptions, setSearchOptions] = useState<{ value: string; label: React.ReactNode }[]>([]);
+     const attendeesRequestInFlightRef = useRef(false);
+ 
+     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
+@@ -267,35 +264,13 @@ export default function ActiveSessionPage() {
+         };
+     }, [isActive, loadSessionUsers, numericSessionId]);
+ 
+-    const handleSearchUser = async (query: string) => {
+-        setAttendeeEmail(query);
+-        if (!query || query.length < 2) {
+-            setSearchOptions([]);
+-            return;
+-        }
+-        try {
+-            const results = await searchUsers(query);
+-            setSearchOptions(results.map(u => ({
+-                value: u.email,
+-                label: (
+-                    <Space>
+-                        <span className="attendee-avatar" style={{ transform: 'scale(0.8)' }}>{u.email.charAt(0).toUpperCase()}</span>
+-                        {u.email}
+-                    </Space>
+-                )
+-            })));
+-        } catch {
+-            // Ignore search errors silently
+-        }
+-    };
+-
+     const handleAddAttendee = useCallback(async () => {
+         if (numericSessionId === null) {
+             void messageApi.error('Session ID must be a positive number.');
+             return;
+         }
+ 
+-        const email = attendeeEmail.trim().toLowerCase();
++        const email = attendeeEmail.trim();
+ 
+         if (!isValidEmail(email)) {
+             void messageApi.error('Enter a valid email address.');
+@@ -661,7 +636,8 @@ export default function ActiveSessionPage() {
+ 
+                 <Card
+                     title={
+-                        <Flex justify="center" align="center" gap={12} wrap="wrap">
++                        <Flex justify="space-between" align="center" gap={12} wrap="wrap">
++                            <span>{t('scannedStudents')}</span>
+                             <Space wrap className="session-card-actions">
+                                 <Tag color="success">{attendees.length}</Tag>
+                                 <Button
+@@ -725,7 +701,6 @@ export default function ActiveSessionPage() {
+                         dataSource={attendees}
+                         rowKey="id"
+                         pagination={false}
+-                        showHeader={false}
+                         locale={{ emptyText: <Empty description={t('noAttendees')} /> }}
+                         size="middle"
+                         style={{ overflow: 'auto' }}
+@@ -767,27 +742,19 @@ export default function ActiveSessionPage() {
+                 onCancel={() => {
+                     setAddAttendeeOpen(false);
+                     setAttendeeEmail('');
+-                    setSearchOptions([]);
+                 }}
+                 destroyOnHidden
+                 className="responsive-modal"
+             >
+-                <AutoComplete
++                <Input
+                     value={attendeeEmail}
+-                    options={searchOptions}
+-                    onSearch={handleSearchUser}
+-                    onChange={(val) => setAttendeeEmail(val)}
+-                    onSelect={(val) => setAttendeeEmail(val)}
++                    onChange={(event) => setAttendeeEmail(event.target.value)}
++                    onPressEnter={() => void handleAddAttendee()}
+                     placeholder="student@example.com"
+-                    style={{ width: '100%' }}
++                    type="email"
++                    autoComplete="off"
+                     autoFocus
+-                >
+-                    <Input
+-                        onPressEnter={() => void handleAddAttendee()}
+-                        type="email"
+-                        autoComplete="off"
+-                    />
+-                </AutoComplete>
++                />
+             </Modal>
+ 
+             <Modal
+diff --git a/frontend/src/pages/Attendance.tsx b/frontend/src/pages/Attendance.tsx
+index cf72d6d..180d4bc 100644
+--- a/frontend/src/pages/Attendance.tsx
++++ b/frontend/src/pages/Attendance.tsx
+@@ -1,4 +1,4 @@
+-import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined, EnvironmentOutlined } from '@ant-design/icons';
++import { CameraOutlined, NumberOutlined, LoadingOutlined, CheckCircleOutlined, CloseCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+ import {
+     Button,
+     Card,
+@@ -10,22 +10,19 @@ import {
+     Typography,
+     message,
+     Alert,
+-    Spin,
+-    Flex,
++    Spin
+ } from 'antd';
+ import AppShell from '../components/AppShell';
+ import { useTheme } from '../contexts/ThemeContext';
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ import { createAttendance, scanQrAttendance, ApiError, getAttendedSessions, type AttendancePayload, type AttendedSessionHistoryItem } from '../api/Attendance';
+-import { getSessionPublicDetails, getSessionPublicDetailsByQrToken, type SessionPublicDetails } from '../api/Session';
+-import SessionMap from '../components/SessionMap';
+ import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
+ import { useAuth } from '../contexts/AuthContext';
+ import FaceRegistrationModal from '../components/face/FaceRegistrationModal';
+ import FaceCapture from '../components/face/FaceCapture';
+ import { fileToBase64, checkAttendanceStatus } from '../api/Face';
+-import { startRegistration } from '@simplewebauthn/browser';
+-import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
++import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
++import { getAssertionOptions, verifyAssertion, getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+ 
+ type CodeFormValues = {
+     sessionId: number;
+@@ -165,7 +162,7 @@ export default function Attendance() {
+     const sessionId = Form.useWatch('sessionId', form);
+     const sessionCode = Form.useWatch('sessionCode', form);
+     const { t } = useTheme();
+-    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification } = useAuth();
++    const { user, loading, refreshCurrentUser } = useAuth();
+     const [submitting, setSubmitting] = useState(false);
+     const [scanOpen, setScanOpen] = useState(false);
+     const [scanLoading, setScanLoading] = useState(false);
+@@ -194,11 +191,6 @@ export default function Attendance() {
+     const [historyLoading, setHistoryLoading] = useState(true);
+     const [historyError, setHistoryError] = useState('');
+ 
+-    const [currentSessionDetails, setCurrentSessionDetails] = useState<SessionPublicDetails | null>(null);
+-    const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+-    const [fetchingDetails, setFetchingDetails] = useState(false);
+-    const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
+-
+     const loadHistory = useCallback(async () => {
+         setHistoryLoading(true);
+         setHistoryError('');
+@@ -217,53 +209,6 @@ export default function Attendance() {
+         void loadHistory();
+     }, [loadHistory]);
+ 
+-    useEffect(() => {
+-        if (!sessionId || typeof sessionId !== 'number' || sessionId <= 0) {
+-            setCurrentSessionDetails(null);
+-            setUserCoords(null);
+-            return;
+-        }
+-
+-        const fetchDetails = async () => {
+-            setFetchingDetails(true);
+-            try {
+-                const details = await getSessionPublicDetails(sessionId);
+-                setCurrentSessionDetails(details);
+-            } catch (err) {
+-                console.error('Failed to fetch session public details:', err);
+-                setCurrentSessionDetails(null);
+-                setUserCoords(null);
+-            } finally {
+-                setFetchingDetails(false);
+-            }
+-        };
+-
+-        const timer = setTimeout(fetchDetails, 500); // Debounce typing
+-        return () => clearTimeout(timer);
+-    }, [sessionId]);
+-
+-    useEffect(() => {
+-        if (currentSessionDetails?.validationTypes.includes('GPS')) {
+-            const fetchUserLocation = async () => {
+-                try {
+-                    const loc = await getBrowserLocation();
+-                    setUserCoords(loc);
+-                } catch (err) {
+-                    console.error('Failed to get user location:', err);
+-                }
+-            };
+-            void fetchUserLocation();
+-        }
+-    }, [currentSessionDetails]);
+-
+-    useEffect(() => {
+-        if (isGeoModalOpen && !userCoords) {
+-            getBrowserLocation()
+-                .then(setUserCoords)
+-                .catch(err => console.error('Failed to get user location on modal open:', err));
+-        }
+-    }, [isGeoModalOpen, userCoords]);
+-
+     const handleRegisterDevice = async () => {
+         setRegisteringDevice(true);
+         try {
+@@ -284,7 +229,6 @@ export default function Attendance() {
+ 
+             await verifyRegistration(JSON.stringify(attestationResponse));
+             void messageApi.success('Biometric device registered successfully!');
+-            markWebauthVerified();
+             await refreshCurrentUser();
+         } catch (err: any) {
+             console.error('Device registration failed:', err);
+@@ -298,24 +242,56 @@ export default function Attendance() {
+         }
+     };
+ 
++    const handleDeviceAuthentication = async (): Promise<boolean> => {
++        try {
++            const { optionsJson } = await getAssertionOptions();
++            const parsedOptions = JSON.parse(optionsJson);
++            const authOptions = parsedOptions.publicKeyCredentialRequestOptions || parsedOptions.publicKey || parsedOptions;
++
++            if (authOptions && authOptions.extensions) {
++                delete authOptions.extensions.appidExclude;
++                delete authOptions.extensions.appid;
++            }
++
++            authOptions.hints = ['client-device'];
++
++            const assertionResponse = await startAuthentication({
++                optionsJSON: authOptions,
++                useBrowserAutofill: false,
++            });
++
++            await verifyAssertion(JSON.stringify(assertionResponse));
++            return true;
++        } catch (err: any) {
++            console.error('Device biometric check failed:', err);
++            let errorMsg = err.message || 'Device biometric verification failed.';
++            
++            if (errorMsg.toLowerCase().includes('no credential') || errorMsg.toLowerCase().includes('not allowed')) {
++                errorMsg = 'Passkey not found on this device. Please use the exact device you originally registered with.';
++            }
++            
++            void messageApi.error(errorMsg);
++            return false;
++        }
++    };
++
++
+     const handleSubmit = async (values: CodeFormValues) => {
+         setSubmitting(true);
+         try {
++            // Trigger biometrics check automatically before submitting session code
++            const biometricsOk = await handleDeviceAuthentication();
++            if (!biometricsOk) {
++                setSubmitting(false);
++                return;
++            }
+ 
+             let locationData: { latitude?: number, longitude?: number } = {};
+-            if (currentSessionDetails?.validationTypes.includes('GPS')) {
+-                let loc = userCoords;
+-                if (!loc) {
+-                    try {
+-                        loc = await getBrowserLocation();
+-                        setUserCoords(loc);
+-                    } catch (err) {
+-                        console.warn('Geolocation skipped or denied:', err);
+-                    }
+-                }
+-                if (loc) {
+-                    locationData = { latitude: loc.latitude, longitude: loc.longitude };
+-                }
++            try {
++                const loc = await getBrowserLocation();
++                locationData = { latitude: loc.latitude, longitude: loc.longitude };
++            } catch (err) {
++                console.warn('Geolocation skipped or denied:', err);
+             }
+ 
+             const payload: AttendancePayload = {
+@@ -327,15 +303,15 @@ export default function Attendance() {
+ 
+             void messageApi.success(t('attendanceSubmitted'));
+             form.resetFields();
+-            setCurrentSessionDetails(null);
+-            setUserCoords(null);
+             void loadHistory();
+         } catch (error: unknown) {
+             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
+                 let locData: { latitude?: number, longitude?: number } = {};
+-                if (currentSessionDetails?.validationTypes.includes('GPS')) {
+-                    const loc = userCoords || { latitude: undefined, longitude: undefined };
++                try {
++                    const loc = await getBrowserLocation();
+                     locData = { latitude: loc.latitude, longitude: loc.longitude };
++                } catch (err) {
++                    // Ignore
+                 }
+                 setPendingAttendance({
+                     sessionId: values.sessionId,
+@@ -349,11 +325,7 @@ export default function Attendance() {
+             } else if (error instanceof GeolocationPositionError) {
+                 void messageApi.error(t('locationPermissionError'));
+             } else {
+-                if (error instanceof Error && error.message.includes('WebAuthn verification is required')) {
+-                    clearWebauthVerification();
+-                } else {
+-                    void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+-                }
++                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit attendance.');
+             }
+         } finally {
+             setSubmitting(false);
+@@ -388,56 +360,42 @@ export default function Attendance() {
+ 
+         setScanLoading(true);
+         try {
+-            // Fetch session public details associated with the token first
+-            const details = await getSessionPublicDetailsByQrToken(token);
+-            setCurrentSessionDetails(details);
++            // Trigger biometrics check automatically after successful QR scan
++            const biometricsOk = await handleDeviceAuthentication();
++            if (!biometricsOk) {
++                setScanLoading(false);
++                return;
++            }
+ 
+             let payload: AttendancePayload = {};
+-            let fetchedLoc = null;
+-            if (details.validationTypes.includes('GPS')) {
+-                try {
+-                    fetchedLoc = await getBrowserLocation();
+-                    setUserCoords(fetchedLoc);
+-                    payload = { latitude: fetchedLoc.latitude, longitude: fetchedLoc.longitude };
+-                } catch (err) {
+-                    console.warn('Geolocation skipped or denied:', err);
+-                }
++            try {
++                payload = await getBrowserLocation();
++            } catch {
++                payload = {};
+             }
+ 
+             await scanQrAttendance(token, payload);
+             void messageApi.success(t('qrAttendanceSubmitted'));
+             setScanOpen(false);
+-            setCurrentSessionDetails(null);
+-            setUserCoords(null);
+             void loadHistory();
+         } catch (error: unknown) {
+             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
+                 setScanOpen(false);
+-                let locPayload: AttendancePayload = {};
+-                // If we got the details earlier and fetched location, use it
++                let payload: AttendancePayload = {};
+                 try {
+-                    const details = await getSessionPublicDetailsByQrToken(token);
+-                    if (details.validationTypes.includes('GPS')) {
+-                        const loc = await getBrowserLocation();
+-                        setUserCoords(loc);
+-                        locPayload = { latitude: loc.latitude, longitude: loc.longitude };
+-                    }
+-                } catch (err) {
+-                    // ignore
++                    payload = await getBrowserLocation();
++                } catch {
++                    payload = {};
+                 }
+                 setPendingAttendance({
+                     token,
+-                    payload: locPayload
++                    payload
+                 });
+                 setFaceStep('capture');
+                 setFaceModalOpen(true);
+             } else {
+-                if (error instanceof Error && error.message.includes('WebAuthn verification is required')) {
+-                    clearWebauthVerification();
+-                } else {
+-                    void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+-                    setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+-                }
++                void messageApi.error(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
++                setScanError(error instanceof Error ? error.message : 'Failed to submit QR attendance.');
+             }
+         } finally {
+             setScanLoading(false);
+@@ -598,7 +556,7 @@ export default function Attendance() {
+             {contextHolder}
+             
+             {/* Show Face Registration Warning only AFTER device key is set up */}
+-            {!loading && user.isSsoUser && user.webauthRegistered && !user.faceRegistered && (
++            {!loading && user.webauthRegistered && !user.faceRegistered && (
+                 <Alert
+                     message={t('faceRegistrationRequired')}
+                     description={t('faceRegistrationRequiredDescription')}
+@@ -613,21 +571,7 @@ export default function Attendance() {
+                 />
+             )}
+ 
+-            {!loading && !user.isSsoUser ? (
+-                <div className="attendance-blocked-card">
+-                    <Card style={{ borderRadius: 16 }}>
+-                        <Space direction="vertical" size={24} style={{ width: '100%' }}>
+-                            <CloseCircleOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />
+-                            <div>
+-                                <Typography.Title level={3}>Access Denied</Typography.Title>
+-                                <Typography.Paragraph type="secondary">
+-                                    Only students (SSO users) can mark their own attendance. You can only create sessions to collect attendance.
+-                                </Typography.Paragraph>
+-                            </div>
+-                        </Space>
+-                    </Card>
+-                </div>
+-            ) : !loading && !user.webauthRegistered ? (
++            {!loading && !user.webauthRegistered ? (
+                 <div className="attendance-blocked-card">
+                     <Card style={{ borderRadius: 16 }}>
+                         <Space direction="vertical" size={24} style={{ width: '100%' }}>
+@@ -717,11 +661,8 @@ export default function Attendance() {
+                                         { required: true, whitespace: true, message: 'Please enter a session code.' },
+                                     ]}
+                                 >
+-                                    <Input size="large" placeholder="Session code" autoComplete="off" />
++                                    <Input.Password size="large" placeholder="Session password" autoComplete="new-password" />
+                                 </Form.Item>
+-                                <Button type="dashed" block style={{ marginBottom: 24 }} onClick={() => setIsGeoModalOpen(true)}>
+-                                    <EnvironmentOutlined /> View Geolocation Map
+-                                </Button>
+                                 <Button
+                                     type="primary"
+                                     htmlType="submit"
+@@ -738,73 +679,6 @@ export default function Attendance() {
+                 </div>
+             )}
+ 
+-            <Modal
+-                className="attendance-map-modal"
+-                title={
+-                    <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%', paddingRight: 24 }}>
+-                        <span>{t('sessionLocation') || 'Session Location'}{currentSessionDetails ? `: ${currentSessionDetails.title}` : ''}</span>
+-                            <Space size={8}>
+-                                <Button
+-                                    size="small"
+-                                    icon={<EnvironmentOutlined />}
+-                                    onClick={async () => {
+-                                        try {
+-                                            const loc = await getBrowserLocation();
+-                                            setUserCoords(loc);
+-                                            void messageApi.success('Location updated!');
+-                                        } catch (e) {
+-                                            void messageApi.error(t('locationPermissionError') || 'Failed to get location');
+-                                        }
+-                                    }}
+-                                >
+-                                    {t('getLocation') || 'Get Location'}
+-                                </Button>
+-                                {fetchingDetails && <Spin size="small" />}
+-                            </Space>
+-                        </Flex>
+-                    }
+-                    open={isGeoModalOpen}
+-                    onCancel={() => setIsGeoModalOpen(false)}
+-                    footer={[
+-                        <Button key="ok" type="primary" onClick={() => setIsGeoModalOpen(false)}>
+-                            OK
+-                        </Button>
+-                    ]}
+-                    width={800}
+-                    destroyOnClose
+-                >
+-                <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+-                    {currentSessionDetails 
+-                        ? (currentSessionDetails.validationTypes.includes('GPS') 
+-                            ? 'This session requires geolocation check-in. You must be inside the designated radius.'
+-                            : 'This session does not require geolocation check-in, but you can still view the session location.')
+-                        : 'You can check your current location here.'}
+-                </Typography.Paragraph>
+-                <div style={{ height: 350, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+-                    {currentSessionDetails && currentSessionDetails.latitude !== undefined && currentSessionDetails.longitude !== undefined && userCoords ? (
+-                        <SessionMap
+-                            center={[currentSessionDetails.latitude, currentSessionDetails.longitude]}
+-                            radius={currentSessionDetails.allowedRadius || 100}
+-                            userLocation={[userCoords.latitude, userCoords.longitude]}
+-                        />
+-                    ) : userCoords ? (
+-                        <SessionMap
+-                            center={[userCoords.latitude, userCoords.longitude]}
+-                            radius={20}
+-                            userLocation={[userCoords.latitude, userCoords.longitude]}
+-                        />
+-                    ) : (
+-                        <Flex align="center" justify="center" style={{ height: '100%', background: '#f5f5f5' }}>
+-                            <Space direction="vertical" align="center">
+-                                <Spin />
+-                                <Typography.Text type="secondary">Acquiring your location...</Typography.Text>
+-                            </Space>
+-                        </Flex>
+-                    )}
+-                </div>
+-            </Modal>
+-
+-
+             <section className="attendance-history-section">
+                 <Typography.Title level={2} className="section-kicker">
+                     Attended Sessions
+diff --git a/frontend/src/pages/CreateSession.tsx b/frontend/src/pages/CreateSession.tsx
+index b8be072..79391e6 100644
+--- a/frontend/src/pages/CreateSession.tsx
++++ b/frontend/src/pages/CreateSession.tsx
+@@ -11,13 +11,12 @@ import {
+     Switch,
+     Typography,
+     message,
+-    Spin,
+ } from 'antd';
+ import { useNavigate } from 'react-router-dom';
+-import { useState, useEffect, useRef } from 'react';
++import { useState } from 'react';
+ import AppShell from '../components/AppShell';
+ import { createSession } from '../api/Session';
+-import { useGeolocation } from '../hooks/Geolocation';
++import GeolocationButton from '../components/GeolocationButton';
+ import SessionMap from '../components/SessionMap';
+ import { useTheme } from '../contexts/ThemeContext';
+ 
+@@ -41,29 +40,6 @@ export default function CreateSessionPage() {
+     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
+     const [loading, setLoading] = useState(false);
+ 
+-    const { getPosition, loading: geoLoading } = useGeolocation();
+-
+-    const fetchingRef = useRef(false);
+-
+-    useEffect(() => {
+-        if (geolocationEnabled && !coords && !fetchingRef.current) {
+-            fetchingRef.current = true;
+-            const fetchLocation = async () => {
+-                try {
+-                    const result = await getPosition();
+-                    setCoords(result);
+-                    message.success(t('locationSet') || 'Location set!');
+-                } catch (e) {
+-                    console.error(e);
+-                    message.error(t('locationPermissionError') || 'Failed to acquire location. Please grant permission.');
+-                } finally {
+-                    fetchingRef.current = false;
+-                }
+-            };
+-            void fetchLocation();
+-        }
+-    }, [geolocationEnabled, coords, getPosition, t]);
+-
+     const handleSubmit = async (values: CreateSessionFormValues) => {
+         if (values.geolocationEnabled && !coords) {
+             message.error(t('pleaseSetLocation') || 'Please set your location first.');
+@@ -138,7 +114,7 @@ export default function CreateSessionPage() {
+                 <Form
+                     form={form}
+                     layout="vertical"
+-                    initialValues={{ sessionMode: 'QR', geolocationEnabled: false, faceRecognitionEnabled: false, radius: 100 }}
++                    initialValues={{ geolocationEnabled: false, faceRecognitionEnabled: false, radius: 100 }}
+                     onFinish={handleSubmit}
+                     requiredMark={false}
+                     autoComplete="off"
+@@ -214,54 +190,31 @@ export default function CreateSessionPage() {
+                                 />
+                             </Form.Item>
+ 
+-                            {geoLoading && !coords && (
+-                                <div style={{ marginBottom: 16 }}>
+-                                    <Spin size="small" /> <Typography.Text type="secondary">Acquiring location...</Typography.Text>
+-                                </div>
+-                            )}
++                            <Form.Item label={t('sessionLocation') || 'Session Location'} required>
++                                <Flex align="center" gap="small">
++                                    <GeolocationButton
++                                        onLocationSuccess={(newCoords) => {
++                                            setCoords(newCoords);
++                                            message.success(t('locationSet') || 'Location set!');
++                                        }}
++                                    />
++                                    {coords && (
++                                        <Typography.Text type="success">
++                                            Lat: {coords.lat.toFixed(5)}, Lng: {coords.long.toFixed(5)}
++                                        </Typography.Text>
++                                    )}
++                                </Flex>
++                            </Form.Item>
+ 
+                             {coords && (
+-                                <>
+-                                    <Form.Item label={t('sessionLocation') || 'Session Location'}>
+-                                        <Space size={12} align="center">
+-                                            <Typography.Text type="success">
+-                                                Lat: {coords.lat.toFixed(5)}, Lng: {coords.long.toFixed(5)}
+-                                            </Typography.Text>
+-                                            <Button
+-                                                size="small"
+-                                                icon={<EnvironmentOutlined />}
+-                                                onClick={async () => {
+-                                                    try {
+-                                                        const result = await getPosition();
+-                                                        setCoords(result);
+-                                                        message.success(t('locationSet') || 'Location set!');
+-                                                    } catch (e) {
+-                                                        console.error(e);
+-                                                        message.error(t('locationPermissionError') || 'Failed to acquire location.');
+-                                                    }
+-                                                }}
+-                                                loading={geoLoading}
+-                                            >
+-                                                {t('getLocation') || 'Get Location'}
+-                                            </Button>
+-                                        </Space>
+-                                        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
+-                                            Drag the marker or click on the map to adjust the central location.
+-                                        </Typography.Paragraph>
+-                                    </Form.Item>
+-
+-                                    <Form.Item label="Location preview">
+-                                        <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
+-                                            <SessionMap
+-                                                center={[coords.lat, coords.long]}
+-                                                radius={form.getFieldValue('radius') || 100}
+-                                                onCenterChange={(newCenter) => {
+-                                                    setCoords({ lat: newCenter[0], long: newCenter[1] });
+-                                                }}
+-                                            />
+-                                        </div>
+-                                    </Form.Item>
+-                                </>
++                                <Form.Item label="Location preview">
++                                    <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
++                                        <SessionMap
++                                            center={[coords.lat, coords.long]}
++                                            radius={form.getFieldValue('radius') || 100}
++                                        />
++                                    </div>
++                                </Form.Item>
+                             )}
+                         </>
+                     )}
+@@ -297,7 +250,7 @@ export default function CreateSessionPage() {
+                             ]}
+                             extra={t('codeExtra') || 'Participants can use this code to join.'}
+                         >
+-                            <Input placeholder={t('codePlaceholder') || 'Enter password'} size="large" autoComplete="off" data-lpignore="true" />
++                            <Input.Password placeholder={t('codePlaceholder') || 'Enter password'} size="large" autoComplete="new-password" />
+                         </Form.Item>
+                     )}
+ 
+diff --git a/frontend/src/pages/Dashboard.tsx b/frontend/src/pages/Dashboard.tsx
+index e544218..36d448c 100644
+--- a/frontend/src/pages/Dashboard.tsx
++++ b/frontend/src/pages/Dashboard.tsx
+@@ -13,7 +13,7 @@ import { getAttendedSessionsCount } from '../api/Attendance';
+ 
+ export default function Dashboard() {
+     const navigate = useNavigate();
+-    const { user, loading, refreshCurrentUser, markWebauthVerified } = useAuth();
++    const { user, loading, refreshCurrentUser } = useAuth();
+     const { t } = useTheme();
+     const [registerModalOpen, setRegisterModalOpen] = useState(false);
+ 
+@@ -29,7 +29,7 @@ export default function Dashboard() {
+             },
+             onCancel() {
+                 // If they choose to register device later, trigger face registration popup
+-                if (!user.faceRegistered && user.isSsoUser) {
++                if (!user.faceRegistered) {
+                     setRegisterModalOpen(true);
+                 }
+             }
+@@ -55,11 +55,10 @@ export default function Dashboard() {
+ 
+             await verifyRegistration(JSON.stringify(attestationResponse));
+             void message.success('Biometric device registered successfully!');
+-            markWebauthVerified();
+             await refreshCurrentUser();
+             
+             // Auto trigger face registration after successful device registration
+-            if (!user.faceRegistered && user.isSsoUser) {
++            if (!user.faceRegistered) {
+                 setRegisterModalOpen(true);
+             }
+         } catch (err: any) {
+@@ -87,7 +86,7 @@ export default function Dashboard() {
+                 void handleRegisterDevice();
+             } else {
+                 const triggerFace = localStorage.getItem('trigger_face_registration');
+-                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered && user.isSsoUser) {
++                if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered) {
+                     localStorage.removeItem('trigger_face_registration');
+                     setRegisterModalOpen(true);
+                 }
+@@ -149,7 +148,7 @@ export default function Dashboard() {
+                 {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
+             </Typography.Title>
+ 
+-            {!loading && !user.webauthRegistered && user.isSsoUser && (
++            {!loading && !user.webauthRegistered && (
+                 <Alert
+                     message="Biometric Device Required"
+                     description="You have not registered your biometric device yet. Please register your device to enable biometric verification."
+@@ -157,14 +156,14 @@ export default function Dashboard() {
+                     showIcon
+                     className="dashboard-alert"
+                     action={
+-                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => void handleRegisterDevice()}>
++                        <Button size="small" type="primary" className="primary-action alert-action-button" onClick={handleRegisterDevice}>
+                             Register Device
+                         </Button>
+                     }
+                 />
+             )}
+ 
+-            {!loading && !user.faceRegistered && user.isSsoUser && (
++            {!loading && !user.faceRegistered && (
+                 <Alert
+                     message="Face Registration Required"
+                     description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
+diff --git a/frontend/src/pages/Login.tsx b/frontend/src/pages/Login.tsx
+index b9c3888..d772419 100644
+--- a/frontend/src/pages/Login.tsx
++++ b/frontend/src/pages/Login.tsx
+@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
+ function validateEmail(email: string): string | null {
+     if (!email) return 'Email cannot be empty';
+     if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
+-    if (email.endsWith('@innopolis.ru') || email.endsWith('@innopolis.university')) return 'Innopolis emails must use SSO to log in or register';
++    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+     return null;
+ }
+ 
+@@ -49,7 +49,7 @@ export default function LoginPage() {
+                     <input
+                         className="auth-input"
+                         type="email"
+-                        placeholder="name@example.com"
++                        placeholder="name@innopolis.university"
+                         value={email}
+                         onChange={(event) => setEmail(event.target.value)}
+                         required
+diff --git a/frontend/src/pages/Profile.tsx b/frontend/src/pages/Profile.tsx
+index 1026d0a..2e88a76 100644
+--- a/frontend/src/pages/Profile.tsx
++++ b/frontend/src/pages/Profile.tsx
+@@ -11,7 +11,7 @@ import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
+ import { updatePassword } from '../api/User';
+ 
+ export default function Profile() {
+-    const { user, loading, error, refreshCurrentUser, clearWebauthVerification, markWebauthVerified } = useAuth();
++    const { user, loading, error, refreshCurrentUser } = useAuth();
+     const { t } = useTheme();
+     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
+@@ -29,7 +29,6 @@ export default function Profile() {
+         } catch (error) {
+             console.error("Error while logout:", error);
+         } finally {
+-            clearWebauthVerification();
+             window.location.href = '/login';
+         }
+     };
+@@ -75,7 +74,6 @@ export default function Profile() {
+ 
+             await verifyRegistration(JSON.stringify(attestationResponse));
+             void messageApi.success('WebAuth device key registered successfully!');
+-            markWebauthVerified();
+             void refreshCurrentUser();
+             if (user && !user.faceRegistered) {
+                 setIsFaceModalOpen(true);
+@@ -135,30 +133,26 @@ export default function Profile() {
+                             {t('changePassword')}
+                         </Button>
+ 
+-                        {user.isSsoUser && (
+-                            <>
+-                                <Button
+-                                    block
+-                                    size="large"
+-                                    type="primary"
+-                                    className="profile-action-button primary-action"
+-                                    onClick={() => setIsFaceModalOpen(true)}
+-                                >
+-                                    Update Face Recognition
+-                                </Button>
+-
+-                                <Button
+-                                    block
+-                                    size="large"
+-                                    className="profile-action-button change-password-btn"
+-                                    onClick={() => void handleRegisterDevice()}
+-                                    loading={registeringDevice}
+-                                    icon={<SafetyCertificateOutlined />}
+-                                >
+-                                    {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
+-                                </Button>
+-                            </>
+-                        )}
++                        <Button
++                            block
++                            size="large"
++                            type="primary"
++                            className="profile-action-button primary-action"
++                            onClick={() => setIsFaceModalOpen(true)}
++                        >
++                            Update Face Recognition
++                        </Button>
++
++                        <Button
++                            block
++                            size="large"
++                            className="profile-action-button change-password-btn"
++                            onClick={handleRegisterDevice}
++                            loading={registeringDevice}
++                            icon={<SafetyCertificateOutlined />}
++                        >
++                            {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
++                        </Button>
+ 
+                         <button className="profile-logout-btn" onClick={handleLogout}>
+                             {t('logout')}
+diff --git a/frontend/src/pages/Register.tsx b/frontend/src/pages/Register.tsx
+index f1a356e..77ef718 100644
+--- a/frontend/src/pages/Register.tsx
++++ b/frontend/src/pages/Register.tsx
+@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
+ function validateEmail(email: string): string | null {
+     if (!email) return 'Email cannot be empty';
+     if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
+-    if (email.endsWith('@innopolis.ru') || email.endsWith('@innopolis.university')) return 'Innopolis emails must use SSO to log in or register';
++    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+     return null;
+ }
+ 
+@@ -23,11 +23,11 @@ function validatePassword(password: string): string | null {
+         return 'Password must contain at least one digit';
+     }
+ 
+-    if (!/[a-z╨░-╤П╤С]/.test(password)) {
++    if (!/[a-z]/.test(password)) {
+         return 'Password must contain at least one lowercase letter';
+     }
+ 
+-    if (!/[A-Z╨Р-╨п╨Б]/.test(password)) {
++    if (!/[A-Z]/.test(password)) {
+         return 'Password must contain at least one uppercase letter';
+     }
+ 
+@@ -80,7 +80,7 @@ export default function RegisterPage() {
+                     <input
+                         className="auth-input"
+                         type="email"
+-                        placeholder="name@example.com"
++                        placeholder="name@innopolis.university"
+                         value={email}
+                         onChange={(event) => setEmail(event.target.value)}
+                         required
+diff --git a/frontend/src/pages/Sessions.tsx b/frontend/src/pages/Sessions.tsx
+index a54983e..7f59edc 100644
+--- a/frontend/src/pages/Sessions.tsx
++++ b/frontend/src/pages/Sessions.tsx
+@@ -1,12 +1,10 @@
+-import { PlusOutlined, DownloadOutlined } from '@ant-design/icons';
+-import { Alert, Button, Card, Flex, Spin, Typography, Select, Tag, Space, message, Dropdown, Input, DatePicker } from 'antd';
+-import type { MenuProps } from 'antd';
+-import type { Dayjs } from 'dayjs';
++import { PlusOutlined } from '@ant-design/icons';
++import { Alert, Button, Card, Flex, Spin, Typography } from 'antd';
+ import { useNavigate } from 'react-router-dom';
+ import AppShell from '../components/AppShell';
+ import { useTheme } from '../contexts/ThemeContext';
+ import { useEffect, useState } from 'react';
+-import { getCreatedSessions, getSessionUsers, exportSessionAttendance, type CreatedSessionHistoryItem } from '../api/Session';
++import { getCreatedSessions, getSessionAttendees, type CreatedSessionHistoryItem } from '../api/Session';
+ 
+ type ParticipantCountState = {
+     count: number;
+@@ -30,41 +28,6 @@ export default function SessionsPage() {
+     const [participantCounts, setParticipantCounts] = useState<Record<number, ParticipantCountState>>({});
+     const [loading, setLoading] = useState(true);
+     const [error, setError] = useState('');
+-    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'active' | 'completed'>('newest');
+-    const [searchQuery, setSearchQuery] = useState('');
+-    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+-    const [exportingId, setExportingId] = useState<number | null>(null);
+-
+-    const handleExport = async (e: React.MouseEvent | React.KeyboardEvent, sessionId: number, format: string) => {
+-        e.stopPropagation();
+-        setExportingId(sessionId);
+-        try {
+-            await exportSessionAttendance(sessionId, format);
+-            message.success('Exported successfully');
+-        } catch (exportErr: any) {
+-            message.error(exportErr.message || 'Failed to export');
+-        } finally {
+-            setExportingId(null);
+-        }
+-    };
+-
+-    const getExportMenuItems = (sessionId: number): MenuProps['items'] => [
+-        {
+-            key: 'csv',
+-            label: 'Standard CSV',
+-            onClick: ({ domEvent }) => void handleExport(domEvent as React.MouseEvent, sessionId, 'csv'),
+-        },
+-        {
+-            key: 'moodle',
+-            label: 'Moodle CSV',
+-            onClick: ({ domEvent }) => void handleExport(domEvent as React.MouseEvent, sessionId, 'moodle'),
+-        },
+-        {
+-            key: 'txt',
+-            label: 'Plain Text',
+-            onClick: ({ domEvent }) => void handleExport(domEvent as React.MouseEvent, sessionId, 'txt'),
+-        },
+-    ];
+ 
+     useEffect(() => {
+         let cancelled = false;
+@@ -84,7 +47,7 @@ export default function SessionsPage() {
+                 const counts = await Promise.all(
+                     createdSessions.map(async (session) => {
+                         try {
+-                            const attendees = await getSessionUsers(session.id);
++                            const attendees = await getSessionAttendees(session.id);
+                             return [session.id, { count: attendees.length, failed: false }] as const;
+                         } catch {
+                             return [session.id, { count: 0, failed: true }] as const;
+@@ -110,78 +73,28 @@ export default function SessionsPage() {
+         };
+     }, []);
+ 
+-    const filteredAndSortedSessions = [...sessions]
+-        .filter(s => {
+-            if (searchQuery && !s.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+-                return false;
+-            }
+-            if (dateRange && dateRange[0] && dateRange[1]) {
+-                const sessionTime = new Date(s.timestamp).getTime();
+-                const start = dateRange[0].startOf('day').valueOf();
+-                const end = dateRange[1].endOf('day').valueOf();
+-                if (sessionTime < start || sessionTime > end) {
+-                    return false;
+-                }
+-            }
+-            if (sortBy === 'active') return s.isActive;
+-            if (sortBy === 'completed') return !s.isActive;
+-            return true;
+-        })
+-        .sort((a, b) => {
+-            const timeA = new Date(a.timestamp).getTime();
+-            const timeB = new Date(b.timestamp).getTime();
+-            if (sortBy === 'newest' || sortBy === 'active' || sortBy === 'completed') {
+-                return timeB - timeA;
+-            } else {
+-                return timeA - timeB;
+-            }
+-        });
+-
+     return (
+         <AppShell title={t('sessions')} showPageTitle={false} pageClassName="sessions-page">
+-            <Flex className="sessions-header" justify="space-between" align="center" gap={24} wrap="wrap" style={{ marginBottom: 24 }}>
+-                <Flex justify="space-between" align="center" style={{ width: '100%' }}>
+-                    <div>
+-                        <Typography.Title level={1} style={{ fontWeight: 600, margin: 0 }}>
+-                            {t('sessions')}
+-                        </Typography.Title>
+-                        <Typography.Paragraph style={{ fontWeight: 400, margin: 0, marginTop: 4 }}>
+-                            {t('manageSessions')}
+-                        </Typography.Paragraph>
+-                    </div>
+-                    <Button
+-                        type="primary"
+-                        size="large"
+-                        icon={<PlusOutlined />}
+-                        className="primary-action new-session-button"
+-                        onClick={() => navigate('/sessions/create')}
+-                    >
+-                        {t('newSession')}
+-                    </Button>
+-                </Flex>
++            <Flex className="sessions-header" justify="space-between" align="center" gap={24} wrap="wrap">
++                <div>
++                    <Typography.Title level={1} style={{ fontWeight: 600 }}>
++                        {t('sessions')}
++                    </Typography.Title>
++                    <Typography.Paragraph style={{ fontWeight: 400 }}>
++                        {t('manageSessions')}
++                    </Typography.Paragraph>
++                </div>
+ 
+-                <Space size="middle" wrap style={{ marginTop: 8 }}>
+-                    <Input.Search 
+-                        placeholder="Search sessions..." 
+-                        allowClear 
+-                        onChange={(e) => setSearchQuery(e.target.value)}
+-                        style={{ width: 200 }}
+-                    />
+-                    <DatePicker.RangePicker 
+-                        onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+-                    />
+-                    <Select
+-                        value={sortBy}
+-                        onChange={(value) => setSortBy(value as any)}
+-                        style={{ width: 160 }}
+-                        options={[
+-                            { value: 'newest', label: 'Newest First' },
+-                            { value: 'oldest', label: 'Oldest First' },
+-                            { value: 'active', label: 'Active Only' },
+-                            { value: 'completed', label: 'Completed Only' },
+-                        ]}
+-                    />
+-                </Space>
++                {/* ╨н╤В╨░ ╨║╨╜╨╛╨┐╨║╨░ ╨┐╤А╨╛╤Б╤В╨╛ ╨┐╨╡╤А╨╡╨▓╨╛╨┤╨╕╤В ╨╜╨░ ╤В╨▓╨╛╨╣ ╨│╨╛╤В╨╛╨▓╤Л╨╣ CreateSessionPage */}
++                <Button
++                    type="primary"
++                    size="large"
++                    icon={<PlusOutlined />}
++                    className="primary-action new-session-button"
++                    onClick={() => navigate('/sessions/create')}
++                >
++                    {t('newSession')}
++                </Button>
+             </Flex>
+ 
+             {loading ? (
+@@ -203,7 +116,7 @@ export default function SessionsPage() {
+                 </div>
+             ) : (
+                 <div className="sessions-grid">
+-                    {filteredAndSortedSessions.map((session) => (
++                    {sessions.map((session) => (
+                         <Card
+                             key={session.id}
+                             hoverable
+@@ -216,38 +129,19 @@ export default function SessionsPage() {
+                                         password: '',
+                                         geolocationEnabled: false,
+                                         createdAt: session.timestamp,
+-                                        isActive: session.isActive,
++                                        isActive: true,
+                                     },
+                                 },
+                             })}
+                         >
+-                            <Flex justify="space-between" align="start">
+-                                <div>
+-                                    <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
+-                                        {session.title}
+-                                    </Typography.Title>
+-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+-                                        {formatSessionDate(session.timestamp)}
+-                                    </Typography.Text>
+-                                    <div style={{ marginTop: 8 }}>
+-                                        {session.isActive ? (
+-                                            <Tag color="green">Active</Tag>
+-                                        ) : (
+-                                            <Tag color="default">Completed</Tag>
+-                                        )}
+-                                    </div>
+-                                </div>
+-                                <div onClick={(e) => e.stopPropagation()}>
+-                                    <Dropdown menu={{ items: getExportMenuItems(session.id) }} trigger={['click']}>
+-                                        <Button
+-                                            icon={<DownloadOutlined />}
+-                                            loading={exportingId === session.id}
+-                                        >
+-                                            Export
+-                                        </Button>
+-                                    </Dropdown>
+-                                </div>
+-                            </Flex>
++                            <div>
++                                <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
++                                    {session.title}
++                                </Typography.Title>
++                                <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
++                                    {formatSessionDate(session.timestamp)}
++                                </Typography.Text>
++                            </div>
+                             <div style={{ marginTop: 18 }}>
+                                 <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                     Participants
+diff --git a/frontend/src/pages/WebAuthVerification.tsx b/frontend/src/pages/WebAuthVerification.tsx
+deleted file mode 100644
+index 0a626d5..0000000
+--- a/frontend/src/pages/WebAuthVerification.tsx
++++ /dev/null
+@@ -1,61 +0,0 @@
+-import { useEffect, useState } from 'react';
+-import { useLocation, useNavigate } from 'react-router-dom';
+-import { Card, Button, Typography, Space, message } from 'antd';
+-import { SafetyCertificateOutlined } from '@ant-design/icons';
+-import { useAuth } from '../contexts/AuthContext';
+-
+-export default function WebAuthVerificationPage() {
+-    const { verifyWebauth } = useAuth();
+-    const navigate = useNavigate();
+-    const location = useLocation();
+-    const [verifying, setVerifying] = useState(false);
+-    const [error, setError] = useState<string | null>(null);
+-
+-    const from = (location.state as any)?.from?.pathname || '/dashboard';
+-
+-    const triggerVerification = async () => {
+-        setVerifying(true);
+-        setError(null);
+-        try {
+-            const success = await verifyWebauth();
+-            if (success) {
+-                void message.success('Identity verified successfully!');
+-                navigate(from, { replace: true });
+-            } else {
+-                setError('Biometric verification failed. Please try again.');
+-            }
+-        } catch (err: any) {
+-            setError(err.message || 'An error occurred during verification.');
+-        } finally {
+-            setVerifying(false);
+-        }
+-    };
+-
+-    useEffect(() => {
+-        void triggerVerification();
+-    }, []);
+-
+-    return (
+-        <div className="auth-screen" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+-            <Card style={{ width: 400, textAlign: 'center', borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+-                <Space direction="vertical" size={24} style={{ width: '100%' }}>
+-                    <SafetyCertificateOutlined style={{ fontSize: 48, color: '#5ec832' }} />
+-                    <Typography.Title level={3} style={{ margin: 0 }}>Confirm Identity</Typography.Title>
+-                    <Typography.Text type="secondary">
+-                        Please confirm your identity using WebAuthn (Touch ID, Face ID or Windows Hello) to proceed.
+-                    </Typography.Text>
+-                    {error && <Typography.Text type="danger">{error}</Typography.Text>}
+-                    <Button 
+-                        type="primary" 
+-                        size="large" 
+-                        onClick={() => void triggerVerification()} 
+-                        loading={verifying}
+-                        style={{ width: '100%', background: '#5ec832', borderColor: '#5ec832' }}
+-                    >
+-                        {verifying ? 'Verifying...' : 'Verify Biometrics'}
+-                    </Button>
+-                </Space>
+-            </Card>
+-        </div>
+-    );
+-}
+diff --git a/frontend/src/router/AppRouter.tsx b/frontend/src/router/AppRouter.tsx
+index ff82204..0221ca5 100644
+--- a/frontend/src/router/AppRouter.tsx
++++ b/frontend/src/router/AppRouter.tsx
+@@ -8,11 +8,10 @@ import CreateSessionPage from '../pages/CreateSession';
+ import ActiveSessionPage from '../pages/ActiveSession';
+ import ProfilePage from '../pages/Profile';
+ import VerificationPage from '../pages/Verification';
+-import WebAuthVerificationPage from '../pages/WebAuthVerification';
+ import { useAuth } from '../contexts/AuthContext';
+ 
+ export default function AppRouter() {
+-    const { user, loading, isWebauthVerified } = useAuth();
++    const { user, loading } = useAuth();
+     const location = useLocation();
+ 
+     if (loading) {
+@@ -30,17 +29,11 @@ export default function AppRouter() {
+         return <Navigate to="/dashboard" replace />;
+     }
+ 
+-    const needsWebauth = user.id && user.webauthRegistered && !isWebauthVerified;
+-    if (needsWebauth && location.pathname !== '/webauth-verify') {
+-        return <Navigate to="/webauth-verify" state={{ from: location }} replace />;
+-    }
+-
+     return (
+         <Routes>
+             <Route path="/" element={<Navigate to="/login" replace />} />
+             <Route path="/login" element={<LoginPage />} />
+             <Route path="/register" element={<RegisterPage />} />
+-            <Route path="/webauth-verify" element={<WebAuthVerificationPage />} />
+             <Route path="/dashboard" element={<DashboardPage />} />
+             <Route path="/attendance" element={<AttendancePage />} />
+             <Route path="/attendance/verify" element={<VerificationPage />} />
+diff --git a/frontend/src/types/Authentification.ts b/frontend/src/types/Authentification.ts
+index fc1a2ad..c32fd14 100644
+--- a/frontend/src/types/Authentification.ts
++++ b/frontend/src/types/Authentification.ts
+@@ -13,6 +13,4 @@ export type UserDTO = {
+     email: string;
+     faceRegistered?: boolean;
+     webauthRegistered?: boolean;
+-    webauthVerified?: boolean;
+-    isSsoUser?: boolean;
+ };
+\ No newline at end of file

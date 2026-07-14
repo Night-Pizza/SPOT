@@ -82,10 +82,11 @@ export default function Dashboard() {
     useEffect(() => {
         if (!loading && user) {
             const triggerDevice = localStorage.getItem('trigger_device_registration');
-            if (triggerDevice === 'true') {
+            if (triggerDevice === 'true' && user.isSsoUser) {
                 localStorage.removeItem('trigger_device_registration');
                 void handleRegisterDevice();
             } else {
+                localStorage.removeItem('trigger_device_registration'); // Clean up if it was set incorrectly
                 const triggerFace = localStorage.getItem('trigger_face_registration');
                 if (triggerFace === 'true' && user.webauthRegistered && !user.faceRegistered && user.isSsoUser) {
                     localStorage.removeItem('trigger_face_registration');
