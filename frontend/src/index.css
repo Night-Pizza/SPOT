@@ -166,7 +166,7 @@ body {
   box-shadow: 0 3px 12px rgba(17, 24, 39, 0.13);
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 1010;
 }
 
 .brand-lockup {
@@ -349,7 +349,7 @@ body {
    opacity: 0;
    pointer-events: none;
    transition: 0.25s ease;
-   z-index: 50;
+   z-index: 1020;
  }
 
 .drawer-overlay.open {
@@ -367,7 +367,7 @@ body {
   background: #ffffff;
   transform: none;
   transition: 0.25s ease;
-  z-index: 60;
+  z-index: 1030;
   padding: 28px 16px 24px;
   border-right: 1px solid #eef0f3;
   box-shadow: none;
