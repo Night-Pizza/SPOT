@@ -82,7 +82,8 @@ public class SessionService {
                         sessionModel.getId(),
                         sessionModel.getTitle(),
                         sessionModel.getOwner().getEmail(),
-                        sessionModel.getCreateAt()))
+                        sessionModel.getCreateAt(),
+                        sessionModel.isActive()))
                 .collect(Collectors.toList());
     }
 

@@ -133,7 +133,8 @@ public class AttendanceService {
                         attendanceModel.getId(),
                         attendanceModel.getSession().getTitle(),
                         attendanceModel.getSession().getOwner().getEmail(),
-                        attendanceModel.getTimestamp()))
+                        attendanceModel.getTimestamp(),
+                        attendanceModel.getSession().isActive()))
                 .collect(Collectors.toList());
     }
 

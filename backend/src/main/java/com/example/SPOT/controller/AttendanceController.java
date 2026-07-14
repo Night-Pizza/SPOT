@@ -14,7 +14,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
@@ -103,6 +106,11 @@ public class AttendanceController {
     public ResponseEntity<List<UserAttendanceDTO>> getAttendedSessions(@AuthenticationPrincipal String userIdStr) {
         Long userId = Long.valueOf(userIdStr);
         return ResponseEntity.ok(attendanceService.getAllUserAttendance(userId));
+    }
+
+    @GetMapping("/export/{sessionId}")
+    public void exportAttendance(@PathVariable Long sessionId, @RequestParam(defaultValue = "csv") String format, HttpServletResponse response) throws IOException {
+        attendanceService.exportAttendance(sessionId, format, response);
     }
 
     @PostMapping("/create/email")

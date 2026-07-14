@@ -20,6 +20,7 @@ export type CreatedSessionHistoryItem = {
     title: string;
     ownerEmail: string;
     timestamp: string;
+    isActive: boolean;
 };
 
 export type SessionAttendee = {
@@ -179,5 +180,25 @@ export async function getSessionPublicDetailsByQrToken(token: string): Promise<S
     }
 
     return response.json() as Promise<SessionPublicDetails>;
+}
+
+export async function exportSessionAttendance(sessionId: number, format: string = 'csv'): Promise<void> {
+    const response = await converter(`/attendance/export/${sessionId}?format=${format}`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to export attendance.'));
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_${sessionId}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
 }
 

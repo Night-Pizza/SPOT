@@ -1,10 +1,11 @@
-import { PlusOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Flex, Spin, Typography } from 'antd';
+import { PlusOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Flex, Spin, Typography, Select, Tag, Space, message, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useEffect, useState } from 'react';
-import { getCreatedSessions, getSessionAttendees, type CreatedSessionHistoryItem } from '../api/Session';
+import { getCreatedSessions, getSessionAttendees, exportSessionAttendance, type CreatedSessionHistoryItem } from '../api/Session';
 
 type ParticipantCountState = {
     count: number;
@@ -28,6 +29,39 @@ export default function SessionsPage() {
     const [participantCounts, setParticipantCounts] = useState<Record<number, ParticipantCountState>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'active' | 'completed'>('newest');
+    const [exportingId, setExportingId] = useState<number | null>(null);
+
+    const handleExport = async (e: React.MouseEvent | React.KeyboardEvent, sessionId: number, format: string) => {
+        e.stopPropagation();
+        setExportingId(sessionId);
+        try {
+            await exportSessionAttendance(sessionId, format);
+            message.success('Exported successfully');
+        } catch (exportErr: any) {
+            message.error(exportErr.message || 'Failed to export');
+        } finally {
+            setExportingId(null);
+        }
+    };
+
+    const getExportMenuItems = (sessionId: number): MenuProps['items'] => [
+        {
+            key: 'csv',
+            label: 'Standard CSV',
+            onClick: ({ domEvent }) => void handleExport(domEvent as React.MouseEvent, sessionId, 'csv'),
+        },
+        {
+            key: 'moodle',
+            label: 'Moodle CSV',
+            onClick: ({ domEvent }) => void handleExport(domEvent as React.MouseEvent, sessionId, 'moodle'),
+        },
+        {
+            key: 'txt',
+            label: 'Plain Text',
+            onClick: ({ domEvent }) => void handleExport(domEvent as React.MouseEvent, sessionId, 'txt'),
+        },
+    ];
 
     useEffect(() => {
         let cancelled = false;
@@ -73,6 +107,22 @@ export default function SessionsPage() {
         };
     }, []);
 
+    const filteredAndSortedSessions = [...sessions]
+        .sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            if (sortBy === 'newest' || sortBy === 'active' || sortBy === 'completed') {
+                return timeB - timeA;
+            } else {
+                return timeA - timeB;
+            }
+        })
+        .filter(s => {
+            if (sortBy === 'active') return s.isActive;
+            if (sortBy === 'completed') return !s.isActive;
+            return true;
+        });
+
     return (
         <AppShell title={t('sessions')} showPageTitle={false} pageClassName="sessions-page">
             <Flex className="sessions-header" justify="space-between" align="center" gap={24} wrap="wrap">
@@ -85,16 +135,28 @@ export default function SessionsPage() {
                     </Typography.Paragraph>
                 </div>
 
-                {/* Эта кнопка просто переводит на твой готовый CreateSessionPage */}
-                <Button
-                    type="primary"
-                    size="large"
-                    icon={<PlusOutlined />}
-                    className="primary-action new-session-button"
-                    onClick={() => navigate('/sessions/create')}
-                >
-                    {t('newSession')}
-                </Button>
+                <Space size="middle" wrap>
+                    <Select
+                        value={sortBy}
+                        onChange={(value) => setSortBy(value as any)}
+                        style={{ width: 160 }}
+                        options={[
+                            { value: 'newest', label: 'Newest First' },
+                            { value: 'oldest', label: 'Oldest First' },
+                            { value: 'active', label: 'Active Only' },
+                            { value: 'completed', label: 'Completed Only' },
+                        ]}
+                    />
+                    <Button
+                        type="primary"
+                        size="large"
+                        icon={<PlusOutlined />}
+                        className="primary-action new-session-button"
+                        onClick={() => navigate('/sessions/create')}
+                    >
+                        {t('newSession')}
+                    </Button>
+                </Space>
             </Flex>
 
             {loading ? (
@@ -116,7 +178,7 @@ export default function SessionsPage() {
                 </div>
             ) : (
                 <div className="sessions-grid">
-                    {sessions.map((session) => (
+                    {filteredAndSortedSessions.map((session) => (
                         <Card
                             key={session.id}
                             hoverable
@@ -129,19 +191,38 @@ export default function SessionsPage() {
                                         password: '',
                                         geolocationEnabled: false,
                                         createdAt: session.timestamp,
-                                        isActive: true,
+                                        isActive: session.isActive,
                                     },
                                 },
                             })}
                         >
-                            <div>
-                                <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
-                                    {session.title}
-                                </Typography.Title>
-                                <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                    {formatSessionDate(session.timestamp)}
-                                </Typography.Text>
-                            </div>
+                            <Flex justify="space-between" align="start">
+                                <div>
+                                    <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
+                                        {session.title}
+                                    </Typography.Title>
+                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                        {formatSessionDate(session.timestamp)}
+                                    </Typography.Text>
+                                    <div style={{ marginTop: 8 }}>
+                                        {session.isActive ? (
+                                            <Tag color="green">Active</Tag>
+                                        ) : (
+                                            <Tag color="default">Completed</Tag>
+                                        )}
+                                    </div>
+                                </div>
+                                <div onClick={(e) => e.stopPropagation()}>
+                                    <Dropdown menu={{ items: getExportMenuItems(session.id) }} trigger={['click']}>
+                                        <Button
+                                            icon={<DownloadOutlined />}
+                                            loading={exportingId === session.id}
+                                        >
+                                            Export
+                                        </Button>
+                                    </Dropdown>
+                                </div>
+                            </Flex>
                             <div style={{ marginTop: 18 }}>
                                 <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
                                     Participants
