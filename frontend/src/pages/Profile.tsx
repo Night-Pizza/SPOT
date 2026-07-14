@@ -11,7 +11,7 @@ import { getRegistrationOptions, verifyRegistration } from '../api/WebAuth';
 import { updatePassword } from '../api/User';
 
 export default function Profile() {
-    const { user, loading, error, refreshCurrentUser, clearWebauthVerification, markWebauthVerified } = useAuth();
+    const { user, loading, error, refreshCurrentUser, markWebauthVerified } = useAuth();
     const { t } = useTheme();
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
