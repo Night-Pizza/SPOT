@@ -98,7 +98,8 @@ public class UserController {
                 userDTO.email(),
                 userDTO.faceRegistered(),
                 userDTO.webauthRegistered(),
-                webauthVerified
+                webauthVerified,
+                userDTO.isSsoUser()
         ));
     }
 
