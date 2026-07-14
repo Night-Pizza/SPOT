@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 function validateEmail(email: string): string | null {
     if (!email) return 'Email cannot be empty';
     if (email.includes(' ') || email !== email.toLowerCase()) return 'Email must be in lowercase and contain no spaces';
-    if (!email.endsWith('@innopolis.ru') && !email.endsWith('@innopolis.university')) return 'Email must belong to @innopolis.ru or @innopolis.university';
+    if (email.endsWith('@innopolis.ru') || email.endsWith('@innopolis.university')) return 'Innopolis emails must use SSO to log in or register';
     return null;
 }
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
                     <input
                         className="auth-input"
                         type="email"
-                        placeholder="name@innopolis.university"
+                        placeholder="name@example.com"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
                         required
