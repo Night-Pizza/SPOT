@@ -139,17 +139,28 @@ export default function SessionsPage() {
 
     return (
         <AppShell title={t('sessions')} showPageTitle={false} pageClassName="sessions-page">
-            <Flex className="sessions-header" justify="space-between" align="center" gap={24} wrap="wrap">
-                <div>
-                    <Typography.Title level={1} style={{ fontWeight: 600 }}>
-                        {t('sessions')}
-                    </Typography.Title>
-                    <Typography.Paragraph style={{ fontWeight: 400 }}>
-                        {t('manageSessions')}
-                    </Typography.Paragraph>
-                </div>
+            <Flex className="sessions-header" justify="space-between" align="center" gap={24} wrap="wrap" style={{ marginBottom: 24 }}>
+                <Flex justify="space-between" align="center" style={{ width: '100%' }}>
+                    <div>
+                        <Typography.Title level={1} style={{ fontWeight: 600, margin: 0 }}>
+                            {t('sessions')}
+                        </Typography.Title>
+                        <Typography.Paragraph style={{ fontWeight: 400, margin: 0, marginTop: 4 }}>
+                            {t('manageSessions')}
+                        </Typography.Paragraph>
+                    </div>
+                    <Button
+                        type="primary"
+                        size="large"
+                        icon={<PlusOutlined />}
+                        className="primary-action new-session-button"
+                        onClick={() => navigate('/sessions/create')}
+                    >
+                        {t('newSession')}
+                    </Button>
+                </Flex>
 
-                <Space size="middle" wrap style={{ marginBottom: 16 }}>
+                <Space size="middle" wrap style={{ marginTop: 8 }}>
                     <Input.Search 
                         placeholder="Search sessions..." 
                         allowClear 
@@ -170,15 +181,6 @@ export default function SessionsPage() {
                             { value: 'completed', label: 'Completed Only' },
                         ]}
                     />
-                    <Button
-                        type="primary"
-                        size="large"
-                        icon={<PlusOutlined />}
-                        className="primary-action new-session-button"
-                        onClick={() => navigate('/sessions/create')}
-                    >
-                        {t('newSession')}
-                    </Button>
                 </Space>
             </Flex>
 

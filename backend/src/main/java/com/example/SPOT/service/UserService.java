@@ -124,6 +124,16 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    public java.util.List<UserDTO> searchUsers(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return userRepository.findTop10ByEmailContainingIgnoreCase(query.trim())
+                .stream()
+                .map(this::mapToDTO)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     @Transactional
     public UserDTO updatePassword(Long id, UserUpdateDTO userUpdateDTO) {
         UserModel userEntity = userRepository.findById(id)

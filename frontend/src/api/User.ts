@@ -40,3 +40,16 @@ export async function updatePassword(data: UpdatePasswordRequest): Promise<UserD
 
     return response.json() as Promise<UserDTO>;
 }
+
+export async function searchUsers(query: string): Promise<UserDTO[]> {
+    if (!query) return [];
+    const response = await converter(`/user/search?q=${encodeURIComponent(query)}`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to search users'));
+    }
+
+    return response.json() as Promise<UserDTO[]>;
+}

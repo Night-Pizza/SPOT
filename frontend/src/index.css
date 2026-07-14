@@ -2527,3 +2527,16 @@ h4.ant-typography,
 [data-theme="dark"] .attendance-action-card p.ant-typography {
   color: var(--text-secondary) !important;
 }
+
+/* Custom Active Session Scanned Students Table Header */
+.scanned-card .ant-table-thead > tr > th {
+    text-transform: uppercase !important;
+    font-weight: 800 !important;
+    color: #90A4AE !important;
+    border-bottom: 2px solid #2C3E50 !important;
+    border-right: 2px solid #2C3E50 !important;
+    text-align: left;
+}
+.scanned-card .ant-table-thead > tr > th:last-child {
+    border-right: none !important;
+}

@@ -24,6 +24,7 @@ import {
     Alert,
     Spin,
     Dropdown,
+    AutoComplete,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -38,6 +39,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
 import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
 import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
+import { searchUsers } from '../api/User';
+import type { UserDTO } from '../types/Authentification';
 
 type Attendee = {
     id: string;
@@ -97,6 +100,7 @@ export default function ActiveSessionPage() {
     const [qrError, setQrError] = useState('');
     const [backendSessionActive, setBackendSessionActive] = useState<boolean | null>(null);
     const [fetchedSession, setFetchedSession] = useState<Session | null>(null);
+    const [searchOptions, setSearchOptions] = useState<{ value: string; label: React.ReactNode }[]>([]);
     const attendeesRequestInFlightRef = useRef(false);
 
     const sessionFromUrl = sessionId ? getSessionById(sessionId) : undefined;
@@ -264,13 +268,35 @@ export default function ActiveSessionPage() {
         };
     }, [isActive, loadSessionUsers, numericSessionId]);
 
+    const handleSearchUser = async (query: string) => {
+        setAttendeeEmail(query);
+        if (!query || query.length < 2) {
+            setSearchOptions([]);
+            return;
+        }
+        try {
+            const results = await searchUsers(query);
+            setSearchOptions(results.map(u => ({
+                value: u.email,
+                label: (
+                    <Space>
+                        <span className="attendee-avatar" style={{ transform: 'scale(0.8)' }}>{u.email.charAt(0).toUpperCase()}</span>
+                        {u.email}
+                    </Space>
+                )
+            })));
+        } catch {
+            // Ignore search errors silently
+        }
+    };
+
     const handleAddAttendee = useCallback(async () => {
         if (numericSessionId === null) {
             void messageApi.error('Session ID must be a positive number.');
             return;
         }
 
-        const email = attendeeEmail.trim();
+        const email = attendeeEmail.trim().toLowerCase();
 
         if (!isValidEmail(email)) {
             void messageApi.error('Enter a valid email address.');
@@ -742,19 +768,27 @@ export default function ActiveSessionPage() {
                 onCancel={() => {
                     setAddAttendeeOpen(false);
                     setAttendeeEmail('');
+                    setSearchOptions([]);
                 }}
                 destroyOnHidden
                 className="responsive-modal"
             >
-                <Input
+                <AutoComplete
                     value={attendeeEmail}
-                    onChange={(event) => setAttendeeEmail(event.target.value)}
-                    onPressEnter={() => void handleAddAttendee()}
+                    options={searchOptions}
+                    onSearch={handleSearchUser}
+                    onChange={(val) => setAttendeeEmail(val)}
+                    onSelect={(val) => setAttendeeEmail(val)}
                     placeholder="student@example.com"
-                    type="email"
-                    autoComplete="off"
+                    style={{ width: '100%' }}
                     autoFocus
-                />
+                >
+                    <Input
+                        onPressEnter={() => void handleAddAttendee()}
+                        type="email"
+                        autoComplete="off"
+                    />
+                </AutoComplete>
             </Modal>
 
             <Modal

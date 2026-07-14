@@ -13,6 +13,8 @@ public interface UserRepository extends JpaRepository<UserModel, Long> {
 
     UserModel findByEmail(String email);
 
+    java.util.List<UserModel> findTop10ByEmailContainingIgnoreCase(String email);
+
     Optional<UserModel> findByWebauthCredentialId(byte[] webauthnCredentialId);
 
     Optional<UserModel> findByWebauthDeviceFingerprint(String fingerprint);
