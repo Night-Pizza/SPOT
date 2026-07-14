@@ -3,7 +3,7 @@ name: SPOT Deploy Pipeline
 on:
     push:
         branches:
-            - device-binding
+            - merge-week6
     workflow_dispatch:
 
 jobs:
