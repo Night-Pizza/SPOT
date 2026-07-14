@@ -12,7 +12,10 @@ import {
     Alert,
     Spin,
     Flex,
+    Select,
+    DatePicker
 } from 'antd';
+import type { Dayjs } from 'dayjs';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -194,6 +197,10 @@ export default function Attendance() {
     const [historyLoading, setHistoryLoading] = useState(true);
     const [historyError, setHistoryError] = useState('');
 
+    const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+
     const [currentSessionDetails, setCurrentSessionDetails] = useState<SessionPublicDetails | null>(null);
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [fetchingDetails, setFetchingDetails] = useState(false);
@@ -216,6 +223,31 @@ export default function Attendance() {
     useEffect(() => {
         void loadHistory();
     }, [loadHistory]);
+
+    const filteredAndSortedHistory = [...history]
+        .filter(s => {
+            if (searchQuery && !s.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+                return false;
+            }
+            if (dateRange && dateRange[0] && dateRange[1]) {
+                const sessionTime = new Date(s.timestamp).getTime();
+                const start = dateRange[0].startOf('day').valueOf();
+                const end = dateRange[1].endOf('day').valueOf();
+                if (sessionTime < start || sessionTime > end) {
+                    return false;
+                }
+            }
+            return true;
+        })
+        .sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            if (sortBy === 'newest') {
+                return timeB - timeA;
+            } else {
+                return timeA - timeB;
+            }
+        });
 
     useEffect(() => {
         if (!sessionId || typeof sessionId !== 'number' || sessionId <= 0) {
@@ -806,9 +838,31 @@ export default function Attendance() {
 
 
             <section className="attendance-history-section">
-                <Typography.Title level={2} className="section-kicker">
-                    Attended Sessions
-                </Typography.Title>
+                <Flex justify="space-between" align="center" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
+                    <Typography.Title level={2} className="section-kicker" style={{ margin: 0 }}>
+                        Attended Sessions
+                    </Typography.Title>
+                    <Space size="middle" wrap>
+                        <Input.Search 
+                            placeholder="Search sessions..." 
+                            allowClear 
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ width: 200 }}
+                        />
+                        <DatePicker.RangePicker 
+                            onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                        />
+                        <Select
+                            value={sortBy}
+                            onChange={(value) => setSortBy(value as any)}
+                            style={{ width: 140 }}
+                            options={[
+                                { value: 'newest', label: 'Newest First' },
+                                { value: 'oldest', label: 'Oldest First' },
+                            ]}
+                        />
+                    </Space>
+                </Flex>
 
                 {historyLoading ? (
                     <Card className="attendance-history-card">
@@ -833,26 +887,30 @@ export default function Attendance() {
                     </Card>
                 ) : (
                     <div className="attendance-history-grid">
-                        {history.map((session) => (
-                            <Card key={session.id} className="session-grid-card">
-                                <div>
-                                    <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
-                                        {session.title}
-                                    </Typography.Title>
-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Owner: {session.ownerEmail}
-                                    </Typography.Text>
-                                </div>
-                                <div style={{ marginTop: 18 }}>
-                                    <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Attended
-                                    </Typography.Text>
-                                    <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
-                                        {formatAttendanceDate(session.timestamp)}
-                                    </Typography.Paragraph>
-                                </div>
-                            </Card>
-                        ))}
+                        {filteredAndSortedHistory.length === 0 ? (
+                            <Typography.Text type="secondary">No sessions match your search criteria.</Typography.Text>
+                        ) : (
+                            filteredAndSortedHistory.map((session) => (
+                                <Card key={session.id} className="session-grid-card">
+                                    <div>
+                                        <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
+                                            {session.title}
+                                        </Typography.Title>
+                                        <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                            Owner: {session.ownerEmail}
+                                        </Typography.Text>
+                                    </div>
+                                    <div style={{ marginTop: 18 }}>
+                                        <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
+                                            Attended
+                                        </Typography.Text>
+                                        <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
+                                            {formatAttendanceDate(session.timestamp)}
+                                        </Typography.Paragraph>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
                     </div>
                 )}
             </section>
