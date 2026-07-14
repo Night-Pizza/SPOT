@@ -54,21 +54,16 @@ public class AuthController {
 
     @GetMapping("/my-university/login")
     public ResponseEntity<Void> myUniversityLogin(HttpServletRequest request) {
-        String state = generateState();
-        request.getSession(true).setAttribute(SSO_STATE_SESSION_ATTRIBUTE, state);
-
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(myUniversitySsoService.buildAuthorizationUri(state))
+                .location(myUniversitySsoService.buildAuthorizationUri())
                 .build();
     }
 
     @GetMapping("/my-university/callback")
     public ResponseEntity<Void> myUniversityCallback(
             @RequestParam(required = false) String code,
-            @RequestParam(required = false) String state,
             HttpServletRequest request,
             HttpServletResponse responseHttp) {
-        validateState(request, state);
 
         UserDTO response = myUniversitySsoService.redeemCode(code);
 
@@ -98,27 +93,5 @@ public class AuthController {
                 .build();
     }
 
-    private String generateState() {
-        byte[] bytes = new byte[SSO_STATE_BYTES];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
 
-    private void validateState(HttpServletRequest request, String receivedState) {
-        HttpSession session = request.getSession(false);
-        if (session == null) {
-            throw new CustomException("SSO_STATE_INVALID", "SSO state is invalid");
-        }
-
-        Object expectedState = session.getAttribute(SSO_STATE_SESSION_ATTRIBUTE);
-        session.removeAttribute(SSO_STATE_SESSION_ATTRIBUTE);
-
-        if (!(expectedState instanceof String expected)
-                || expected.isBlank()
-                || receivedState == null
-                || receivedState.isBlank()
-                || !expected.equals(receivedState)) {
-            throw new CustomException("SSO_STATE_INVALID", "SSO state is invalid");
-        }
-    }
 }

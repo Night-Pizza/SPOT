@@ -45,55 +45,20 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginStoresStateAndRedirectsWithState() throws Exception {
-        when(myUniversitySsoService.buildAuthorizationUri(any(String.class)))
-                .thenAnswer(invocation -> URI.create(
-                        "https://sso.example/login?state=" + invocation.getArgument(0, String.class)));
+    void loginRedirectsWithoutState() throws Exception {
+        when(myUniversitySsoService.buildAuthorizationUri())
+                .thenReturn(URI.create("https://sso.example/login"));
 
         mockMvc.perform(get("/auth/my-university/login"))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", containsString("https://sso.example/login?state=")))
-                .andExpect(request().sessionAttribute(
-                        AuthController.SSO_STATE_SESSION_ATTRIBUTE,
-                        not(blankOrNullString())));
+                .andExpect(header().string("Location", containsString("https://sso.example/login")));
 
-        ArgumentCaptor<String> stateCaptor = ArgumentCaptor.forClass(String.class);
-        verify(myUniversitySsoService).buildAuthorizationUri(stateCaptor.capture());
+        verify(myUniversitySsoService).buildAuthorizationUri();
     }
 
     @Test
-    void callbackRejectsInvalidStateBeforeRedeemingCode() throws Exception {
+    void callbackAuthenticatesUser() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        session.setAttribute(AuthController.SSO_STATE_SESSION_ATTRIBUTE, "expected-state");
-
-        mockMvc.perform(get("/auth/my-university/callback")
-                        .session(session)
-                        .param("code", "code-1")
-                        .param("state", "wrong-state"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value("SSO_STATE_INVALID"));
-
-        verify(myUniversitySsoService, never()).redeemCode(any(String.class));
-    }
-
-    @Test
-    void callbackRejectsMissingStateBeforeRedeemingCode() throws Exception {
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute(AuthController.SSO_STATE_SESSION_ATTRIBUTE, "expected-state");
-
-        mockMvc.perform(get("/auth/my-university/callback")
-                        .session(session)
-                        .param("code", "code-1"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value("SSO_STATE_INVALID"));
-
-        verify(myUniversitySsoService, never()).redeemCode(any(String.class));
-    }
-
-    @Test
-    void callbackAcceptsValidStateAndAuthenticatesUser() throws Exception {
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute(AuthController.SSO_STATE_SESSION_ATTRIBUTE, "expected-state");
 
         when(myUniversitySsoService.redeemCode("code-1"))
                 .thenReturn(new UserDTO(7L, "teacher@innopolis.ru", false, false, false, true));
@@ -102,8 +67,7 @@ class AuthControllerTest {
 
         mockMvc.perform(get("/auth/my-university/callback")
                         .session(session)
-                        .param("code", "code-1")
-                        .param("state", "expected-state"))
+                        .param("code", "code-1"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "/dashboard"));
 
