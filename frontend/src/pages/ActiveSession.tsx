@@ -399,11 +399,11 @@ export default function ActiveSessionPage() {
                         >
                             <Button
                                 type="text"
-                                danger
                                 size="small"
                                 icon={<DeleteOutlined />}
                                 loading={removingAttendeeEmail === attendee.email}
                                 aria-label={`${t('remove')} ${attendee.email}`}
+                                style={{ color: '#52c41a' }} // зелёный цвет
                             />
                         </Popconfirm>
                     </span>
@@ -747,6 +747,7 @@ export default function ActiveSessionPage() {
                                     type="primary"
                                     icon={<PlusOutlined />}
                                     onClick={() => setAddAttendeeOpen(true)}
+                                    style={{ background: '#52c41a', borderColor: '#52c41a' }} // зелёный
                                 >
                                     {t('addAttendee')}
                                 </Button>
