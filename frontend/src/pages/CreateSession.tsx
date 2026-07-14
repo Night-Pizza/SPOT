@@ -12,11 +12,12 @@ import {
     Typography,
     message,
     Spin,
+    Modal,
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import AppShell from '../components/AppShell';
-import { createSession } from '../api/Session';
+import { createSession /*, type CreateSessionRequest */ } from '../api/Session';
 import { useGeolocation } from '../hooks/Geolocation';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,10 +31,21 @@ type CreateSessionFormValues = {
     sessionCode?: string;
 };
 
+type ValidationType = 'GPS' | 'PASSWORD' | 'FACE' | 'NONE';
+interface CreateSessionRequest {
+    title: string;
+    validationTypes: ValidationType[];
+    password?: string;
+    latitude?: number;
+    longitude?: number;
+    allowedRadius?: number;
+}
+
 export default function CreateSessionPage() {
     const [form] = Form.useForm<CreateSessionFormValues>();
     const navigate = useNavigate();
     const { t } = useTheme();
+
     const geolocationEnabled = Form.useWatch('geolocationEnabled', form);
     const faceRecognitionEnabled = Form.useWatch('faceRecognitionEnabled', form);
     const sessionMode = Form.useWatch('sessionMode', form);
@@ -41,8 +53,9 @@ export default function CreateSessionPage() {
     const [coords, setCoords] = useState<{ lat: number; long: number } | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const { getPosition, loading: geoLoading } = useGeolocation();
+    const [mapOpen, setMapOpen] = useState(false);
 
+    const { getPosition, loading: geoLoading } = useGeolocation();
     const fetchingRef = useRef(false);
 
     useEffect(() => {
@@ -52,10 +65,10 @@ export default function CreateSessionPage() {
                 try {
                     const result = await getPosition();
                     setCoords(result);
-                    message.success(t('locationSet') || 'Location set!');
+                    message.success(t('locationSet'));
                 } catch (e) {
                     console.error(e);
-                    message.error(t('locationPermissionError') || 'Failed to acquire location. Please grant permission.');
+                    message.error(t('locationPermissionError'));
                 } finally {
                     fetchingRef.current = false;
                 }
@@ -66,43 +79,41 @@ export default function CreateSessionPage() {
 
     const handleSubmit = async (values: CreateSessionFormValues) => {
         if (values.geolocationEnabled && !coords) {
-            message.error(t('pleaseSetLocation') || 'Please set your location first.');
+            message.error(t('pleaseSetLocation'));
             return;
         }
-
         if (!values.sessionMode) {
-            message.error('Please choose a session mode.');
+            message.error(t('checkInMethod'));
             return;
         }
 
-        const validationTypes: string[] = [];
+        const validationTypes: ValidationType[] = [];
         if (values.geolocationEnabled) validationTypes.push('GPS');
         if (values.sessionMode === 'CODE') validationTypes.push('PASSWORD');
         if (values.faceRecognitionEnabled) validationTypes.push('FACE');
         if (validationTypes.length === 0) validationTypes.push('NONE');
 
-        const sessionData = {
+        const rawRadius = Number(values.radius);
+        const safeRadius = Number.isNaN(rawRadius) ? undefined : Math.max(rawRadius, 10);
+
+        const sessionData: CreateSessionRequest = {
             title: values.title.trim(),
             validationTypes,
         };
 
-        if (values.sessionMode === 'CODE') {
-            Object.assign(sessionData, { password: values.sessionCode?.trim() });
+        if (values.sessionMode === 'CODE' && values.sessionCode?.trim()) {
+            sessionData.password = values.sessionCode.trim();
         }
-
         if (values.geolocationEnabled && coords) {
-            Object.assign(sessionData, {
-                latitude: coords.lat,
-                longitude: coords.long,
-                allowedRadius: values.radius,
-            });
+            sessionData.latitude = coords.lat;
+            sessionData.longitude = coords.long;
+            if (safeRadius !== undefined) sessionData.allowedRadius = safeRadius;
         }
 
         try {
             setLoading(true);
             const response = await createSession(sessionData);
 
-            // Формируем объект сессии для передачи через state
             const sessionForState = {
                 id: String(response.id),
                 title: values.title.trim(),
@@ -110,30 +121,26 @@ export default function CreateSessionPage() {
                 mode: values.sessionMode,
                 geolocationEnabled: values.geolocationEnabled || false,
                 faceRecognitionEnabled: values.faceRecognitionEnabled || false,
-                radius: values.geolocationEnabled ? values.radius : undefined,
+                radius: values.geolocationEnabled ? safeRadius : undefined,
                 lat: coords?.lat,
                 lng: coords?.long,
                 createdAt: new Date().toISOString(),
-                validationTypes: validationTypes,
+                validationTypes,
                 isActive: true,
             };
 
-            message.success(t('sessionCreated') || 'Session created successfully!');
+            message.success(t('sessionCreated'));
             navigate(`/sessions/${response.id}`, { state: { session: sessionForState } });
         } catch (error) {
             console.error(error);
-            message.error(t('createFailed') || 'Failed to create session');
+            message.error(t('createFailed'));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <AppShell
-            title={t('createSession')}
-            subtitle={t('sessionDetails')}
-            pageClassName="create-session-page"
-        >
+        <AppShell title={t('createSession')} subtitle={t('sessionDetails')} pageClassName="create-session-page">
             <Card className="session-form-card">
                 <Form
                     form={form}
@@ -144,26 +151,22 @@ export default function CreateSessionPage() {
                     autoComplete="off"
                 >
                     <Form.Item
-                        label="Session Mode"
+                        label={t('checkInMethod')}
                         name="sessionMode"
-                        rules={[{ required: true, message: 'Please choose a session mode.' }]}
+                        rules={[{ required: true, message: t('checkInMethod') }]}
+                        style={{ marginBottom: 12 }}
                     >
-                        <Radio.Group
-                            size="large"
-                            optionType="button"
-                            buttonStyle="solid"
-                            className="session-mode-choice"
-                        >
+                        <Radio.Group size="large" optionType="button" buttonStyle="solid" className="session-mode-choice">
                             <Radio.Button value="QR">
                                 <Space size={8}>
                                     <QrcodeOutlined />
-                                    QR Code session
+                                    {t('scanQR')}
                                 </Space>
                             </Radio.Button>
                             <Radio.Button value="CODE">
                                 <Space size={8}>
                                     <KeyOutlined />
-                                    Code Word session
+                                    {t('sessionCode')}
                                 </Space>
                             </Radio.Button>
                         </Radio.Group>
@@ -172,22 +175,19 @@ export default function CreateSessionPage() {
                     <Form.Item
                         label={t('sessionTitle')}
                         name="title"
-                        rules={[
-                            { required: true, whitespace: true, message: t('titleRequired') || 'Please enter a session title.' },
-                        ]}
+                        rules={[{ required: true, whitespace: true, message: t('titleRequired') }]}
+                        style={{ marginBottom: 12 }}
                     >
-                        <Input placeholder={t('titlePlaceholder') || 'e.g. Machine Learning Lecture'} size="large" autoComplete="off" />
+                        <Input placeholder={t('titlePlaceholder')} size="large" autoComplete="off" />
                     </Form.Item>
 
-                    <div className="session-switch-row" style={{ marginBottom: 16 }}>
-                        <Space size={16} align="center">
-                            <span className="field-icon field-icon-green">
-                                <EnvironmentOutlined />
-                            </span>
+                    <div className="session-switch-row" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Space size={12} align="center">
+                            <span className="field-icon field-icon-green"><EnvironmentOutlined /></span>
                             <div>
-                                <Typography.Text strong>{t('enableGeolocation')}</Typography.Text>
+                                <Typography.Text strong>{t('limitByLocation')}</Typography.Text>
                                 <Typography.Paragraph className="field-helper" style={{ margin: 0 }}>
-                                    {t('geolocationHelp') || 'Restrict attendance to a physical location'}
+                                    {t('onlyNearCheckIn')}
                                 </Typography.Paragraph>
                             </div>
                         </Space>
@@ -202,79 +202,57 @@ export default function CreateSessionPage() {
                                 label={t('allowedRadius')}
                                 name="radius"
                                 rules={[
-                                    { required: true, message: t('radiusRequired') || 'Please enter an allowed radius.' },
-                                    { type: 'number', min: 1, message: t('radiusMin') || 'Radius must be a positive number.' },
+                                    { required: true, message: t('radiusRequired') },
+                                    { type: 'number', min: 1, message: t('radiusMin') },
                                 ]}
+                                style={{ marginBottom: 8 }}
                             >
-                                <InputNumber
-                                    size="large"
-                                    min={1}
-                                    addonAfter={t('meters') || 'meters'}
-                                    className="full-width-input"
-                                />
+                                <InputNumber size="large" min={1} addonAfter={t('meters')} className="full-width-input" />
                             </Form.Item>
 
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                                <Typography.Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
+                                    {coords ? `Lat: ${coords.lat.toFixed(5)}, Lng: ${coords.long.toFixed(5)}` : t('locationNotSet')}
+                                </Typography.Text>
+                                <Button
+                                    size="small"
+                                    icon={<EnvironmentOutlined />}
+                                    onClick={async () => {
+                                        try {
+                                            const result = await getPosition();
+                                            setCoords(result);
+                                            message.success(t('locationSet'));
+                                        } catch (e) {
+                                            console.error(e);
+                                            message.error(t('locationPermissionError'));
+                                        }
+                                    }}
+                                    loading={geoLoading}
+                                >
+                                    {t('useDeviceLocation')}
+                                </Button>
+
+                                <Button size="small" onClick={() => setMapOpen(true)}>
+                                    {t('pickOnMap')}
+                                </Button>
+                            </div>
+
                             {geoLoading && !coords && (
-                                <div style={{ marginBottom: 16 }}>
-                                    <Spin size="small" /> <Typography.Text type="secondary">Acquiring location...</Typography.Text>
+                                <div style={{ marginBottom: 6 }}>
+                                    <Spin size="small" /> <Typography.Text type="secondary">{t('gettingLocation')}</Typography.Text>
                                 </div>
-                            )}
-
-                            {coords && (
-                                <>
-                                    <Form.Item label={t('sessionLocation') || 'Session Location'}>
-                                        <Space size={12} align="center">
-                                            <Typography.Text type="success">
-                                                Lat: {coords.lat.toFixed(5)}, Lng: {coords.long.toFixed(5)}
-                                            </Typography.Text>
-                                            <Button
-                                                size="small"
-                                                icon={<EnvironmentOutlined />}
-                                                onClick={async () => {
-                                                    try {
-                                                        const result = await getPosition();
-                                                        setCoords(result);
-                                                        message.success(t('locationSet') || 'Location set!');
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                        message.error(t('locationPermissionError') || 'Failed to acquire location.');
-                                                    }
-                                                }}
-                                                loading={geoLoading}
-                                            >
-                                                {t('getLocation') || 'Get Location'}
-                                            </Button>
-                                        </Space>
-                                        <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
-                                            Drag the marker or click on the map to adjust the central location.
-                                        </Typography.Paragraph>
-                                    </Form.Item>
-
-                                    <Form.Item label="Location preview">
-                                        <div style={{ height: 300, borderRadius: 16, overflow: 'hidden' }}>
-                                            <SessionMap
-                                                center={[coords.lat, coords.long]}
-                                                radius={form.getFieldValue('radius') || 100}
-                                                onCenterChange={(newCenter) => {
-                                                    setCoords({ lat: newCenter[0], long: newCenter[1] });
-                                                }}
-                                            />
-                                        </div>
-                                    </Form.Item>
-                                </>
                             )}
                         </>
                     )}
 
-                    <div className="session-switch-row" style={{ marginBottom: 16 }}>
-                        <Space size={16} align="center">
-                            <span className="field-icon field-icon-blue">
-                                <CameraOutlined />
-                            </span>
+                    <div className="session-switch-row" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Space size={12} align="center">
+                            {/* камера с тем же стилем, что и гео */}
+                            <span className="field-icon field-icon-green"><CameraOutlined /></span>
                             <div>
-                                <Typography.Text strong>Require Face Recognition</Typography.Text>
+                                <Typography.Text strong>{t('faceRecognition')}</Typography.Text>
                                 <Typography.Paragraph className="field-helper" style={{ margin: 0 }}>
-                                    Students must scan their face to mark attendance
+                                    {t('faceRecognitionHelp')}
                                 </Typography.Paragraph>
                             </div>
                         </Space>
@@ -288,37 +266,30 @@ export default function CreateSessionPage() {
                             label={
                                 <Space size={8}>
                                     <KeyOutlined className="muted-icon" />
-                                    <span>{t('sessionCode') || 'Session Code'}</span>
+                                    <span>{t('sessionCode')}</span>
                                 </Space>
                             }
                             name="sessionCode"
-                            rules={[
-                                { required: true, whitespace: true, message: 'Please enter a session code.' },
-                            ]}
-                            extra={t('codeExtra') || 'Participants can use this code to join.'}
+                            rules={[{ required: true, whitespace: true, message: t('sessionCode') }]}
+                            extra={t('codeExtra')}
+                            style={{ marginBottom: 8 }}
                         >
-                            <Input.Password placeholder={t('codePlaceholder') || 'Enter password'} size="large" autoComplete="new-password" />
+                            <Input.Password placeholder={t('codePlaceholder')} size="large" autoComplete="new-password" />
                         </Form.Item>
                     )}
 
-                    <Form.Item label="Validation Methods">
+                    <Form.Item label={t('validationMethods')} style={{ marginBottom: 12 }}>
                         <Typography.Text type="secondary">
                             {[
-                                geolocationEnabled && 'GPS',
-                                sessionMode === 'CODE' && 'Password',
-                                faceRecognitionEnabled && 'Face Recognition'
-                            ].filter(Boolean).join(', ') || 'None'}
+                                geolocationEnabled && t('gps'),
+                                sessionMode === 'CODE' && t('password'),
+                                faceRecognitionEnabled && t('faceRecShort')
+                            ].filter(Boolean).join(', ') || t('none')}
                         </Typography.Text>
                     </Form.Item>
 
-                    <Flex className="form-actions" gap={16} wrap="wrap">
-                        <Button
-                            type="primary"
-                            htmlType="submit"
-                            size="large"
-                            className="primary-action"
-                            loading={loading}
-                        >
+                    <Flex className="form-actions" gap={12} wrap="wrap">
+                        <Button type="primary" htmlType="submit" size="large" className="primary-action" loading={loading}>
                             {t('createSession')}
                         </Button>
                         <Button size="large" onClick={() => navigate('/sessions')}>
@@ -327,6 +298,61 @@ export default function CreateSessionPage() {
                     </Flex>
                 </Form>
             </Card>
+
+            <Modal
+                title={t('pickLocation')}
+                open={mapOpen}
+                onCancel={() => setMapOpen(false)}
+                onOk={() => setMapOpen(false)}
+                okText={t('done')}
+                width={720}
+                bodyStyle={{ padding: 0 }}
+                destroyOnClose
+            >
+                <div style={{ height: 420, overflow: 'hidden', borderRadius: 12 }}>
+                    <SessionMap
+                        center={[coords?.lat || 0, coords?.long || 0]}
+                        radius={form.getFieldValue('radius') || 100}
+                        onCenterChange={(c) => setCoords({ lat: c[0], long: c[1] })}
+                    />
+                </div>
+                <div style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <Typography.Text type="secondary">
+                        {t('mapHint')}
+                    </Typography.Text>
+                    <Space size={8} align="center" wrap>
+                        <Typography.Text type="secondary">{t('allowedRadiusShort')}:</Typography.Text>
+                        <InputNumber
+                            size="small"
+                            min={10}
+                            value={form.getFieldValue('radius') || 100}
+                            onChange={(val) => {
+                                const r = Number(val);
+                                if (!Number.isNaN(r)) form.setFieldsValue({ radius: Math.max(r, 10) });
+                            }}
+                            addonAfter={t('metersShort')}
+                            style={{ width: 140 }}
+                        />
+                        <Button
+                            size="small"
+                            icon={<EnvironmentOutlined />}
+                            onClick={async () => {
+                                try {
+                                    const result = await getPosition();
+                                    setCoords(result);
+                                    message.success(t('locationSet'));
+                                } catch (e) {
+                                    console.error(e);
+                                    message.error(t('locationPermissionError'));
+                                }
+                            }}
+                            loading={geoLoading}
+                        >
+                            {t('useDeviceLocation')}
+                        </Button>
+                    </Space>
+                </div>
+            </Modal>
         </AppShell>
     );
 }

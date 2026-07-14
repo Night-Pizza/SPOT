@@ -42,8 +42,6 @@ function formatAttendanceDate(timestamp: string) {
     }).format(new Date(timestamp));
 }
 
-
-
 const SCAN_ERRORS = {
     permissionDenied: 'Camera access was denied. Allow camera permission in your browser and try again.',
     noCamera: 'No camera was found on this device.',
@@ -144,7 +142,7 @@ function extractQrToken(rawValue: string) {
 async function getBrowserLocation() {
     const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         if (!navigator.geolocation) {
-            reject(new Error('Геолокация не поддерживается вашим браузером.'));
+            reject(new Error('Geolocation is not supported by your browser.'));
         } else {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
                 enableHighAccuracy: true,
@@ -274,13 +272,13 @@ export default function Attendance() {
             });
 
             await verifyRegistration(JSON.stringify(attestationResponse));
-            void messageApi.success('Biometric device registered successfully!');
+            void messageApi.success(t('biometricRegistrationSuccess'));
             await refreshCurrentUser();
         } catch (err: any) {
             console.error('Device registration failed:', err);
             let userFriendlyMsg = err.message || 'Biometric device registration failed.';
             if (err.name === 'InvalidStateError' || userFriendlyMsg.includes('previously registered') || userFriendlyMsg.includes('InvalidState') || userFriendlyMsg.includes('exclude')) {
-                userFriendlyMsg = 'The device is already in use by someone else';
+                userFriendlyMsg = t('deviceAlreadyInUse');
             }
             void messageApi.error(userFriendlyMsg);
         } finally {
@@ -311,21 +309,19 @@ export default function Attendance() {
         } catch (err: any) {
             console.error('Device biometric check failed:', err);
             let errorMsg = err.message || 'Device biometric verification failed.';
-            
+
             if (errorMsg.toLowerCase().includes('no credential') || errorMsg.toLowerCase().includes('not allowed')) {
                 errorMsg = 'Passkey not found on this device. Please use the exact device you originally registered with.';
             }
-            
+
             void messageApi.error(errorMsg);
             return false;
         }
     };
 
-
     const handleSubmit = async (values: CodeFormValues) => {
         setSubmitting(true);
         try {
-            // Trigger biometrics check automatically before submitting session code
             const biometricsOk = await handleDeviceAuthentication();
             if (!biometricsOk) {
                 setSubmitting(false);
@@ -414,11 +410,9 @@ export default function Attendance() {
 
         setScanLoading(true);
         try {
-            // Fetch session public details associated with the token first
             const details = await getSessionPublicDetailsByQrToken(token);
             setCurrentSessionDetails(details);
 
-            // Trigger biometrics check automatically after successful QR scan
             const biometricsOk = await handleDeviceAuthentication();
             if (!biometricsOk) {
                 setScanLoading(false);
@@ -447,7 +441,6 @@ export default function Attendance() {
             if (error instanceof ApiError && error.status === 'MISSING_FACE_RECOGNITION_DATA') {
                 setScanOpen(false);
                 let locPayload: AttendancePayload = {};
-                // If we got the details earlier and fetched location, use it
                 try {
                     const details = await getSessionPublicDetailsByQrToken(token);
                     if (details.validationTypes.includes('GPS')) {
@@ -562,7 +555,7 @@ export default function Attendance() {
         setFaceStep('verifying');
         try {
             const base64Images = await Promise.all(photos.map(p => fileToBase64(p)));
-            
+
             const updatedPayload = {
                 ...pendingAttendance.payload,
                 images: base64Images
@@ -625,8 +618,7 @@ export default function Attendance() {
     return (
         <AppShell title={t('attendance')} showPageTitle={false} pageClassName="attendance-page">
             {contextHolder}
-            
-            {/* Show Face Registration Warning only AFTER device key is set up */}
+
             {!loading && user.webauthRegistered && !user.faceRegistered && (
                 <Alert
                     message={t('faceRegistrationRequired')}
@@ -648,9 +640,9 @@ export default function Attendance() {
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>
                             <SafetyCertificateOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
                             <div>
-                                <Typography.Title level={3}>Biometric Device Required</Typography.Title>
+                                <Typography.Title level={3}>{t('biometricDeviceRequired')}</Typography.Title>
                                 <Typography.Paragraph type="secondary">
-                                    You must register this device with your biometrics before you can mark attendance.
+                                    {t('biometricDeviceRequiredDesc')}
                                 </Typography.Paragraph>
                             </div>
                             <Button
@@ -660,7 +652,7 @@ export default function Attendance() {
                                 loading={registeringDevice}
                                 className="primary-action wide-button"
                             >
-                                Register Device
+                                {t('registerDeviceButton')}
                             </Button>
                         </Space>
                     </Card>
@@ -675,7 +667,7 @@ export default function Attendance() {
                             <div className="centered-copy">
                                 <Typography.Title level={2}>{t('scanQRCode')}</Typography.Title>
                                 <Typography.Paragraph>
-                                    Scan a session QR code to mark your attendance.
+                                    {t('scanQRDescription')}
                                 </Typography.Paragraph>
                             </div>
                             <Button
@@ -707,13 +699,13 @@ export default function Attendance() {
                             <Form form={form} onFinish={handleSubmit} layout="vertical" requiredMark={false} autoComplete="off">
                                 <Form.Item
                                     name="sessionId"
-                                    label="Session ID"
+                                    label={t('sessionId')}
                                     rules={[
-                                        { required: true, message: 'Please enter a session ID.' },
+                                        { required: true, message: t('sessionIdRequired') },
                                         {
                                             type: 'integer',
                                             min: 1,
-                                            message: 'Session ID must be a positive integer.',
+                                            message: t('sessionIdPositive'),
                                         },
                                     ]}
                                 >
@@ -727,12 +719,12 @@ export default function Attendance() {
                                 </Form.Item>
                                 <Form.Item
                                     name="sessionCode"
-                                    label="Session Code"
+                                    label={t('sessionCodeLabel')}
                                     rules={[
                                         { required: true, whitespace: true, message: 'Please enter a session code.' },
                                     ]}
                                 >
-                                    <Input.Password size="large" placeholder="Session password" autoComplete="new-password" />
+                                    <Input.Password size="large" placeholder={t('sessionPasswordPlaceholder')} autoComplete="new-password" />
                                 </Form.Item>
                                 <Button
                                     type="primary"
@@ -760,7 +752,7 @@ export default function Attendance() {
                     }}
                     title={
                         <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{ width: '100%' }}>
-                            <span>{t('sessionLocation') || 'Session Location'}: {currentSessionDetails.title}</span>
+                            <span>{t('sessionLocationTitle')}: {currentSessionDetails.title}</span>
                             <Space size={8}>
                                 <Button
                                     size="small"
@@ -769,7 +761,7 @@ export default function Attendance() {
                                         try {
                                             const loc = await getBrowserLocation();
                                             setUserCoords(loc);
-                                            void messageApi.success('Location updated!');
+                                            void messageApi.success(t('locationUpdated'));
                                         } catch (e) {
                                             void messageApi.error(t('locationPermissionError') || 'Failed to get location');
                                         }
@@ -783,7 +775,7 @@ export default function Attendance() {
                     }
                 >
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                        This session requires geolocation check-in. You must be inside the designated radius.
+                        {t('geolocationRequired')}
                     </Typography.Paragraph>
                     <div style={{ height: 350, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
                         {currentSessionDetails.latitude !== undefined && currentSessionDetails.longitude !== undefined && userCoords ? (
@@ -796,7 +788,7 @@ export default function Attendance() {
                             <Flex align="center" justify="center" style={{ height: '100%', background: '#f5f5f5' }}>
                                 <Space direction="vertical" align="center">
                                     <Spin />
-                                    <Typography.Text type="secondary">Acquiring your location...</Typography.Text>
+                                    <Typography.Text type="secondary">{t('gettingLocation')}</Typography.Text>
                                 </Space>
                             </Flex>
                         )}
@@ -804,17 +796,16 @@ export default function Attendance() {
                 </Card>
             )}
 
-
             <section className="attendance-history-section">
                 <Typography.Title level={2} className="section-kicker">
-                    Attended Sessions
+                    {t('attendedSessions')}
                 </Typography.Title>
 
                 {historyLoading ? (
                     <Card className="attendance-history-card">
                         <Space>
                             <Spin />
-                            <Typography.Text type="secondary">Loading attendance history...</Typography.Text>
+                            <Typography.Text type="secondary">{t('loadingHistory')}</Typography.Text>
                         </Space>
                     </Card>
                 ) : historyError ? (
@@ -826,9 +817,9 @@ export default function Attendance() {
                     />
                 ) : history.length === 0 ? (
                     <Card className="attendance-history-card">
-                        <Typography.Title level={4} style={{ marginTop: 0 }}>No attended sessions yet</Typography.Title>
+                        <Typography.Title level={4} style={{ marginTop: 0 }}>{t('noAttendedSessions')}</Typography.Title>
                         <Typography.Text type="secondary">
-                            You have not attended any sessions yet.
+                            {t('noAttendedDescription')}
                         </Typography.Text>
                     </Card>
                 ) : (
@@ -840,12 +831,12 @@ export default function Attendance() {
                                         {session.title}
                                     </Typography.Title>
                                     <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Owner: {session.ownerEmail}
+                                        {t('owner')}: {session.ownerEmail}
                                     </Typography.Text>
                                 </div>
                                 <div style={{ marginTop: 18 }}>
                                     <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                        Attended
+                                        {t('attendedAt')}
                                     </Typography.Text>
                                     <Typography.Paragraph style={{ margin: 0, fontWeight: 600 }}>
                                         {formatAttendanceDate(session.timestamp)}
@@ -856,7 +847,7 @@ export default function Attendance() {
                     </div>
                 )}
             </section>
-            
+
             <Modal
                 title={t('scanQRCode')}
                 open={scanOpen}
@@ -878,7 +869,6 @@ export default function Attendance() {
                 </Space>
             </Modal>
 
-            {/* Face Registration Modal */}
             <FaceRegistrationModal
                 visible={registerModalOpen}
                 onSuccess={() => {
@@ -888,7 +878,6 @@ export default function Attendance() {
                 onCancel={() => setRegisterModalOpen(false)}
             />
 
-            {/* Face Attendance Verification Modal */}
             <Modal
                 title={t('faceVerificationRequired')}
                 open={faceModalOpen}

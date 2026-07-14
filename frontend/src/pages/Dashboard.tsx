@@ -16,23 +16,43 @@ export default function Dashboard() {
     const { user, loading, refreshCurrentUser } = useAuth();
     const { t } = useTheme();
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
+    const [tourVisible, setTourVisible] = useState(false);
+    const [step, setStep] = useState(0);
+
+    const tourSteps = [
+        t('tour.welcome'),
+        t('tour.step1'),
+        t('tour.step2'),
+        t('tour.step3'),
+        t('tour.step4'),
+        t('tour.step5'),
+        t('tour.finish'),
+    ];
+
+    const nextStep = () => {
+        if (step < tourSteps.length - 1) {
+            setStep(step + 1);
+        } else {
+            setTourVisible(false);
+            localStorage.setItem('tourSeen', 'true');
+        }
+    };
+
+    useEffect(() => {
+        if (!loading && user && !localStorage.getItem('tourSeen')) {
+            setTourVisible(true);
+        }
+    }, [loading, user]);
 
     const showRegistrationRetryModal = (errorMsg: string) => {
         Modal.confirm({
-            title: 'Biometric Registration Failed',
-            content: `${errorMsg}. Would you like to try registering your device again or register it later?`,
-            okText: 'Try Again',
-            cancelText: 'Register Later',
+            title: t('biometricRequired'),
+            content: `${errorMsg}. ${t('retry')}?`,
+            okText: t('retry'),
+            cancelText: t('registerLater'),
             okButtonProps: { className: 'primary-action' },
-            onOk() {
-                void handleRegisterDevice();
-            },
-            onCancel() {
-                // If they choose to register device later, trigger face registration popup
-                if (!user.faceRegistered) {
-                    setRegisterModalOpen(true);
-                }
-            }
+            onOk() { void handleRegisterDevice(); },
+            onCancel() { if (!user.faceRegistered) setRegisterModalOpen(true); }
         });
     };
 
@@ -41,38 +61,28 @@ export default function Dashboard() {
             const { optionsJson } = await getRegistrationOptions();
             const parsedOptions = JSON.parse(optionsJson);
             const regOptions = parsedOptions.publicKeyCredentialCreationOptions || parsedOptions.publicKey || parsedOptions;
-
             if (regOptions.extensions) {
                 delete regOptions.extensions.appidExclude;
                 delete regOptions.extensions.appid;
             }
-
             regOptions.hints = ['client-device'];
-
-            const attestationResponse = await startRegistration({
-                optionsJSON: regOptions,
-            });
-
+            const attestationResponse = await startRegistration({ optionsJSON: regOptions });
             await verifyRegistration(JSON.stringify(attestationResponse));
-            void message.success('Biometric device registered successfully!');
+            void message.success(t('biometricRegistrationSuccess'));
             await refreshCurrentUser();
-            
-            // Auto trigger face registration after successful device registration
-            if (!user.faceRegistered) {
-                setRegisterModalOpen(true);
-            }
+            if (!user.faceRegistered) setRegisterModalOpen(true);
         } catch (err: any) {
             console.error('Device registration failed:', err);
-            let userFriendlyMsg = err.message || 'Biometric device registration failed.';
+            let userFriendlyMsg = err.message || t('biometricRegistrationFailed') || 'Biometric device registration failed.';
             if (
-                err.name === 'InvalidStateError' || 
-                userFriendlyMsg.includes('previously registered') || 
-                userFriendlyMsg.includes('InvalidState') || 
+                err.name === 'InvalidStateError' ||
+                userFriendlyMsg.includes('previously registered') ||
+                userFriendlyMsg.includes('InvalidState') ||
                 userFriendlyMsg.includes('exclude') ||
                 userFriendlyMsg.toLowerCase().includes('credential manager') ||
                 userFriendlyMsg.toLowerCase().includes('unknown error')
             ) {
-                userFriendlyMsg = 'The device is already in use by someone else';
+                userFriendlyMsg = t('deviceAlreadyInUse');
             }
             showRegistrationRetryModal(userFriendlyMsg);
         }
@@ -93,13 +103,12 @@ export default function Dashboard() {
             }
         }
     }, [loading, user]);
+
     const [stats, setStats] = useState({ created: 0, attended: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
     const [statsError, setStatsError] = useState('');
 
-    const openAction = (path: string) => {
-        navigate(path);
-    };
+    const openAction = (path: string) => navigate(path);
 
     const handleActionKeyDown = (event: KeyboardEvent<HTMLElement>, path: string) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -110,54 +119,41 @@ export default function Dashboard() {
 
     useEffect(() => {
         let cancelled = false;
-
         async function loadStats() {
             setStatsLoading(true);
             setStatsError('');
-
             try {
                 const [created, attended] = await Promise.all([
                     getCreatedSessionsCount(),
                     getAttendedSessionsCount(),
                 ]);
-
-                if (!cancelled) {
-                    setStats({ created, attended });
-                }
+                if (!cancelled) setStats({ created, attended });
             } catch (error) {
-                if (!cancelled) {
-                    setStatsError(error instanceof Error ? error.message : 'Failed to load dashboard statistics');
-                }
+                if (!cancelled) setStatsError(error instanceof Error ? error.message : t('fetchError'));
             } finally {
-                if (!cancelled) {
-                    setStatsLoading(false);
-                }
+                if (!cancelled) setStatsLoading(false);
             }
         }
-
         void loadStats();
-
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
     }, []);
 
     return (
         <AppShell title={t('dashboard')} showPageTitle={false} pageClassName="dashboard-page">
             <Typography.Title level={1} className="dashboard-greeting">
-                {t('hello')}, <span>{loading ? 'Loading...' : user.email || 'Profile'}</span>
+                {t('hello')}, <span>{loading ? t('loading') : user.email || t('profileTitle')}</span>
             </Typography.Title>
 
             {!loading && !user.webauthRegistered && (
                 <Alert
-                    message="Biometric Device Required"
-                    description="You have not registered your biometric device yet. Please register your device to enable biometric verification."
+                    message={t('biometricRequired')}
+                    description={t('biometricNotRegistered')}
                     type="warning"
                     showIcon
                     className="dashboard-alert"
                     action={
                         <Button size="small" type="primary" className="primary-action alert-action-button" onClick={handleRegisterDevice}>
-                            Register Device
+                            {t('registerDevice')}
                         </Button>
                     }
                 />
@@ -165,14 +161,14 @@ export default function Dashboard() {
 
             {!loading && !user.faceRegistered && (
                 <Alert
-                    message="Face Registration Required"
-                    description="You have not registered your face embedding yet. Please register your face to enable face recognition check-in."
+                    message={t('faceRegistrationRequired')}
+                    description={t('faceNotRegistered')}
                     type="warning"
                     showIcon
                     className="dashboard-alert"
                     action={
                         <Button size="small" type="primary" className="primary-action alert-action-button" onClick={() => setRegisterModalOpen(true)}>
-                            Register Face
+                            {t('updateFace')}
                         </Button>
                     }
                 />
@@ -195,11 +191,9 @@ export default function Dashboard() {
                         <PlusOutlined />
                     </span>
                     <Typography.Title level={3}>{t('createSession')}</Typography.Title>
-                    <Typography.Paragraph>
-                        Start a session
-                    </Typography.Paragraph>
+                    <Typography.Paragraph>{t('startSession')}</Typography.Paragraph>
                     <span className="quick-action-cta">
-                        Create <ArrowRightOutlined />
+                        {t('create')} <ArrowRightOutlined />
                     </span>
                 </Card>
 
@@ -215,11 +209,9 @@ export default function Dashboard() {
                         <QrcodeOutlined />
                     </span>
                     <Typography.Title level={3}>{t('scanQR')}</Typography.Title>
-                    <Typography.Paragraph>
-                        Mark attendance
-                    </Typography.Paragraph>
+                    <Typography.Paragraph>{t('markAttendance')}</Typography.Paragraph>
                     <span className="quick-action-cta">
-                        Open <ArrowRightOutlined />
+                        {t('open')} <ArrowRightOutlined />
                     </span>
                 </Card>
 
@@ -234,12 +226,10 @@ export default function Dashboard() {
                     <span className="quick-action-icon purple-icon">
                         <BarChartOutlined />
                     </span>
-                    <Typography.Title level={3}>View History</Typography.Title>
-                    <Typography.Paragraph>
-                        Review records
-                    </Typography.Paragraph>
+                    <Typography.Title level={3}>{t('sessions')}</Typography.Title>
+                    <Typography.Paragraph>{t('reviewRecords')}</Typography.Paragraph>
                     <span className="quick-action-cta">
-                        View <ArrowRightOutlined />
+                        {t('view')} <ArrowRightOutlined />
                     </span>
                 </Card>
             </div>
@@ -248,16 +238,17 @@ export default function Dashboard() {
                 <Card className="dashboard-stat-card">
                     <Typography.Text type="secondary">{t('sessionsCreated')}</Typography.Text>
                     <Typography.Title level={2} className="dashboard-stat-number">
-                        {statsLoading ? 'Loading...' : stats.created}
+                        {statsLoading ? t('loading') : stats.created}
                     </Typography.Title>
                 </Card>
                 <Card className="dashboard-stat-card">
                     <Typography.Text type="secondary">{t('sessionsAttended')}</Typography.Text>
                     <Typography.Title level={2} className="dashboard-stat-number">
-                        {statsLoading ? 'Loading...' : stats.attended}
+                        {statsLoading ? t('loading') : stats.attended}
                     </Typography.Title>
                 </Card>
             </div>
+
             {statsError && (
                 <Alert
                     message={statsError}
@@ -272,6 +263,30 @@ export default function Dashboard() {
                 onSuccess={() => setRegisterModalOpen(false)}
                 onCancel={() => setRegisterModalOpen(false)}
             />
+
+            {/* Tour Modal */}
+            <Modal
+                title={t('tour.welcome')}
+                open={tourVisible}
+                onCancel={() => {
+                    setTourVisible(false);
+                    localStorage.setItem('tourSeen', 'true');
+                }}
+                footer={[
+                    <Button key="next" type="primary" onClick={nextStep} className="primary-action">
+                        {step < tourSteps.length - 1 ? t('next') : t('finish')}
+                    </Button>
+                ]}
+                centered
+                className="tour-modal"
+            >
+                <Typography.Paragraph style={{ fontSize: 16, marginBottom: 0 }}>
+                    {tourSteps[step]}
+                </Typography.Paragraph>
+                <Typography.Text type="secondary" style={{ display: 'block', marginTop: 16 }}>
+                    {step + 1} / {tourSteps.length}
+                </Typography.Text>
+            </Modal>
         </AppShell>
     );
 }

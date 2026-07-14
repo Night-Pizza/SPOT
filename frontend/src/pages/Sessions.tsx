@@ -6,10 +6,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useEffect, useState } from 'react';
 import { getCreatedSessions, getSessionAttendees, type CreatedSessionHistoryItem } from '../api/Session';
 
-type ParticipantCountState = {
-    count: number;
-    failed: boolean;
-};
+type ParticipantCountState = { count: number; failed: boolean; };
 
 function formatSessionDate(timestamp: string) {
     return new Intl.DateTimeFormat('en-US', {
@@ -31,19 +28,15 @@ export default function SessionsPage() {
 
     useEffect(() => {
         let cancelled = false;
-
         async function loadSessions() {
             setLoading(true);
             setError('');
             setParticipantCounts({});
-
             try {
                 const createdSessions = await getCreatedSessions();
-
                 if (cancelled) return;
                 setSessions(createdSessions);
                 setLoading(false);
-
                 const counts = await Promise.all(
                     createdSessions.map(async (session) => {
                         try {
@@ -54,23 +47,16 @@ export default function SessionsPage() {
                         }
                     })
                 );
-
+                if (!cancelled) setParticipantCounts(Object.fromEntries(counts));
+            } catch (e) {
                 if (!cancelled) {
-                    setParticipantCounts(Object.fromEntries(counts));
-                }
-            } catch (loadError) {
-                if (!cancelled) {
-                    setError(loadError instanceof Error ? loadError.message : 'Failed to load sessions');
+                    setError(e instanceof Error ? e.message : 'Failed to load sessions');
                     setLoading(false);
                 }
             }
         }
-
         void loadSessions();
-
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
     }, []);
 
     return (
@@ -85,7 +71,6 @@ export default function SessionsPage() {
                     </Typography.Paragraph>
                 </div>
 
-                {/* Эта кнопка просто переводит на твой готовый CreateSessionPage */}
                 <Button
                     type="primary"
                     size="large"
@@ -100,18 +85,13 @@ export default function SessionsPage() {
             {loading ? (
                 <div className="sessions-empty-state">
                     <Spin />
-                    <Typography.Text style={{ fontWeight: 400, marginLeft: 12 }}>Loading sessions...</Typography.Text>
+                    <Typography.Text style={{ fontWeight: 400, marginLeft: 12 }}>{t('loading')}</Typography.Text>
                 </div>
             ) : error ? (
-                <Alert
-                    message={error}
-                    type="error"
-                    showIcon
-                    style={{ maxWidth: 1380, margin: '0 auto' }}
-                />
+                <Alert message={error} type="error" showIcon style={{ maxWidth: 1380, margin: '0 auto' }} />
             ) : sessions.length === 0 ? (
                 <div className="sessions-empty-state">
-                    <Typography.Title level={3} style={{ fontWeight: 600 }}>Create your first session</Typography.Title>
+                    <Typography.Title level={3} style={{ fontWeight: 600 }}>{t('newSession')}</Typography.Title>
                     <Typography.Text style={{ fontWeight: 400 }}>{t('noSessions')}</Typography.Text>
                 </div>
             ) : (
@@ -144,12 +124,12 @@ export default function SessionsPage() {
                             </div>
                             <div style={{ marginTop: 18 }}>
                                 <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
-                                    Participants
+                                    {t('participants')}
                                 </Typography.Text>
                                 <Typography.Title level={4} style={{ margin: 0, fontWeight: 600 }}>
                                     {participantCounts[session.id]?.failed
-                                        ? 'Unavailable'
-                                        : participantCounts[session.id]?.count ?? 'Loading...'}
+                                        ? t('unavailable')
+                                        : participantCounts[session.id]?.count ?? t('loading')}
                                 </Typography.Title>
                             </div>
                         </Card>

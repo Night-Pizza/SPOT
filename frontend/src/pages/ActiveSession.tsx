@@ -101,7 +101,7 @@ export default function ActiveSessionPage() {
     const [isEditingRadius, setIsEditingRadius] = useState(false);
     const [editRadius, setEditRadius] = useState<number | undefined>(undefined);
     const [mapKey, setMapKey] = useState(0);
-    const [isMounted, setIsMounted] = useState(false); //
+    const [isMounted, setIsMounted] = useState(false);
     const [qrToken, setQrToken] = useState('');
     const [qrError, setQrError] = useState('');
     const [backendSessionActive, setBackendSessionActive] = useState<boolean | null>(null);
@@ -113,7 +113,6 @@ export default function ActiveSessionPage() {
         ? Number(sessionId)
         : null;
 
-    // Безопасно достаем данные сессии
     const state = location.state as  { session?: Session } | null;
     const sessionFromState = state?.session;
     const activeSession = fetchedSession || sessionFromUrl || sessionFromState;
@@ -182,7 +181,6 @@ export default function ActiveSessionPage() {
         };
     }, [numericSessionId]);
 
-    // Настройка иконок Leaflet + isMounted (как в первом файле)
     useEffect(() => {
         delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
         L.Icon.Default.mergeOptions({
@@ -196,7 +194,6 @@ export default function ActiveSessionPage() {
         setIsMounted(true);
     }, []);
 
-    // Инициализация editRadius из активной сессии
     useEffect(() => {
         if (activeSession) {
             setEditRadius(activeSession.radius);
@@ -372,7 +369,7 @@ export default function ActiveSessionPage() {
     const columns = useMemo<ColumnsType<Attendee>>(
         () => [
             {
-                title: 'Name',
+                title: t('name') || 'Name',
                 dataIndex: 'name',
                 key: 'name',
                 render: (name: string) => (
@@ -389,7 +386,7 @@ export default function ActiveSessionPage() {
                 render: (email: string) => <span className="student-email-cell">{email}</span>,
             },
             {
-                title: 'Actions',
+                title: t('actions') || 'Actions',
                 align: 'center',
                 width: 60,
                 render: (_, attendee) => (
@@ -452,7 +449,7 @@ export default function ActiveSessionPage() {
             updateSession(activeSession.id, { radius: nextRadius });
             setEditRadius(nextRadius);
             setIsEditingRadius(false);
-            setMapKey((prev) => prev + 1); // 👈 обновляем карту
+            setMapKey((prev) => prev + 1);
             void messageApi.success('Radius updated');
         } else {
             void messageApi.error('Please enter a valid radius');
@@ -560,13 +557,13 @@ export default function ActiveSessionPage() {
                     <Typography.Title level={1}>{displayTitle}</Typography.Title>
                     <Space size={12} wrap className="active-session-meta">
                         <Tag color={isActive ? 'success' : 'default'}>
-                            {isActive ? t('active') : 'Ended'}
+                            {isActive ? t('active') : t('ended')}
                         </Tag>
                         <Typography.Text type="secondary">
-                            Session ID: {numericSessionId}
+                            {t('sessionId')}: {numericSessionId}
                         </Typography.Text>
                         <Typography.Text type="secondary">
-                            {isActive ? t('sessionLive') : 'Session finished'}
+                            {isActive ? t('sessionLive') : t('sessionFinished')}
                         </Typography.Text>
                     </Space>
                 </div>
@@ -582,7 +579,7 @@ export default function ActiveSessionPage() {
                                 type="text"
                                 icon={<ExpandOutlined />}
                                 onClick={() => setQrModalOpen(true)}
-                                aria-label="Expand QR"
+                                aria-label={t('expandQR')}
                                 disabled={!qrUrl}
                             />
                         ) : null
@@ -608,20 +605,18 @@ export default function ActiveSessionPage() {
                                 <Space direction="vertical" align="center">
                                     <Spin />
                                     <Typography.Text type="secondary">
-                                        {qrError || 'Waiting for backend QR token...'}
+                                        {qrError || t('waitingForToken')}
                                     </Typography.Text>
                                 </Space>
                             )}
                         </div>
                     )}
 
-
-
                     <div className="session-detail-list">
                         {!isQrSession && (
                             <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
-                                <Typography.Text strong>{sessionPassword || 'Unavailable'}</Typography.Text>
+                                <Typography.Text strong>{sessionPassword || t('unavailable')}</Typography.Text>
                             </Flex>
                         )}
 
@@ -629,7 +624,7 @@ export default function ActiveSessionPage() {
                             activeSession.validationTypes.length > 0 && (
                                 <Flex className="session-detail-row" justify="space-between" gap={16}>
                                     <Typography.Text type="secondary">
-                                        Validation Methods
+                                        {t('validationMethodsLabel')}
                                     </Typography.Text>
                                     <Typography.Text strong>
                                         {activeSession.validationTypes.join(', ')}
@@ -638,7 +633,7 @@ export default function ActiveSessionPage() {
                             )}
 
                         <Flex className="session-detail-row" justify="space-between" gap={16}>
-                            <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
+                            <Typography.Text type="secondary">{t('geolocationLabel')}</Typography.Text>
                             <Typography.Text
                                 strong
                                 className={activeSession?.geolocationEnabled ? 'green-text' : undefined}
@@ -656,7 +651,7 @@ export default function ActiveSessionPage() {
                         </Flex>
                         {hasLocation && (
                             <Flex className="session-detail-row" justify="space-between" gap={16}>
-                                <Typography.Text type="secondary">{t('location')}</Typography.Text>
+                                <Typography.Text type="secondary">{t('locationLabel')}</Typography.Text>
                                 <Typography.Text strong>
                                     {activeSession?.lat?.toFixed(5)}, {activeSession?.lng?.toFixed(5)}
                                 </Typography.Text>
@@ -664,7 +659,7 @@ export default function ActiveSessionPage() {
                         )}
                         {hasLocation && isActive && (
                             <Flex className="session-detail-row radius-edit-row" justify="space-between" gap={16} align="center">
-                                <Typography.Text type="secondary">Radius</Typography.Text>
+                                <Typography.Text type="secondary">{t('radiusLabel')}</Typography.Text>
                                 {isEditingRadius ? (
                                     <Space>
                                         <InputNumber
@@ -680,7 +675,7 @@ export default function ActiveSessionPage() {
                                             icon={<SaveOutlined />}
                                             onClick={handleSaveRadius}
                                         >
-                                            Save
+                                            {t('save')}
                                         </Button>
                                         <Button
                                             size="small"
@@ -689,13 +684,13 @@ export default function ActiveSessionPage() {
                                                 setEditRadius(undefined);
                                             }}
                                         >
-                                            Cancel
+                                            {t('cancel')}
                                         </Button>
                                     </Space>
                                 ) : (
                                     <Space>
                                         <Typography.Text strong>
-                                            {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
+                                            {activeSession?.radius ? `${activeSession.radius}m` : t('nA')}
                                         </Typography.Text>
                                         {isActive && (
                                             <Button
@@ -735,7 +730,7 @@ export default function ActiveSessionPage() {
                                 icon={<ExpandOutlined />}
                                 style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000 }}
                                 onClick={() => setMapModalOpen(true)}
-                                aria-label="Expand Map"
+                                aria-label={t('expandQR')}
                             />
                         </div>
                     )}
@@ -753,11 +748,11 @@ export default function ActiveSessionPage() {
                                     icon={<PlusOutlined />}
                                     onClick={() => setAddAttendeeOpen(true)}
                                 >
-                                    Add attendee
+                                    {t('addAttendee')}
                                 </Button>
                                 <Dropdown menu={{ items: exportMenuItems }} placement="bottomRight">
                                     <Button size="small" icon={<DownloadOutlined />}>
-                                        Export
+                                        {t('exportLabel')}
                                     </Button>
                                 </Dropdown>
                                 <Button
@@ -766,7 +761,7 @@ export default function ActiveSessionPage() {
                                     onClick={() => void loadSessionUsers()}
                                     loading={attendeesLoading}
                                 >
-                                    Refresh
+                                    {t('refreshLabel')}
                                 </Button>
                                 {isActive && (
                                     <Button
@@ -779,7 +774,7 @@ export default function ActiveSessionPage() {
                                         disabled={endingSession}
                                         onClick={() => setEndSessionModalOpen(true)}
                                     >
-                                        End Session
+                                        {t('endSession')}
                                     </Button>
                                 )}
                             </Space>
@@ -799,7 +794,7 @@ export default function ActiveSessionPage() {
                         <div style={{ padding: 32, textAlign: 'center' }}>
                             <Spin />
                             <div style={{ marginTop: 12 }}>
-                                <Typography.Text type="secondary">Loading checked-in users...</Typography.Text>
+                                <Typography.Text type="secondary">{t('loadingUsers')}</Typography.Text>
                             </div>
                         </div>
                     ) : null}
@@ -815,7 +810,6 @@ export default function ActiveSessionPage() {
                 </Card>
             </div>
 
-            {/* Модалка QR */}
             <Modal
                 open={qrModalOpen}
                 footer={null}
@@ -840,7 +834,7 @@ export default function ActiveSessionPage() {
             </Modal>
 
             <Modal
-                title="Add attendee"
+                title={t('addAttendeeModalTitle')}
                 open={addAttendeeOpen}
                 okText={t('add')}
                 cancelText={t('cancel')}
@@ -857,7 +851,7 @@ export default function ActiveSessionPage() {
                     value={attendeeEmail}
                     onChange={(event) => setAttendeeEmail(event.target.value)}
                     onPressEnter={() => void handleAddAttendee()}
-                    placeholder="student@example.com"
+                    placeholder={t('attendeeEmailPlaceholder')}
                     type="email"
                     autoComplete="off"
                     autoFocus
@@ -865,10 +859,10 @@ export default function ActiveSessionPage() {
             </Modal>
 
             <Modal
-                title="End session?"
+                title={t('endSessionConfirmTitle')}
                 open={endSessionModalOpen}
-                okText="End Session"
-                cancelText="Cancel"
+                okText={t('endSessionConfirm')}
+                cancelText={t('cancel')}
                 confirmLoading={endingSession}
                 okButtonProps={{ danger: true, disabled: endingSession }}
                 cancelButtonProps={{ disabled: endingSession }}
@@ -883,7 +877,7 @@ export default function ActiveSessionPage() {
                 className="responsive-modal end-session-modal"
             >
                 <Typography.Paragraph style={{ marginBottom: 0 }}>
-                    QR/code attendance will stop after ending the session. Participants will no longer be able to check in using this session.
+                    {t('endSessionDescription')}
                 </Typography.Paragraph>
             </Modal>
 
@@ -896,7 +890,7 @@ export default function ActiveSessionPage() {
                 centered
                 className="responsive-modal map-modal"
                 closable
-                title="Session Location"
+                title={t('sessionLocation')}
             >
                 <div className="map-modal-frame">
                     {isMounted && (

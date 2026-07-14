@@ -326,14 +326,14 @@ body {
 }
 
 .drawer-overlay {
-   position: fixed;
-   inset: 0;
-   background: rgba(0, 0, 0, 0.18);
-   opacity: 0;
-   pointer-events: none;
-   transition: 0.25s ease;
-   z-index: 50;
- }
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.25s ease;
+  z-index: 50;
+}
 
 .drawer-overlay.open {
   opacity: 1;

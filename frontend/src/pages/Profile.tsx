@@ -42,7 +42,7 @@ export default function Profile() {
             setIsPasswordModalOpen(false);
             form.resetFields();
         } catch {
-            void messageApi.error('Failed to change password');
+            void messageApi.error(t('passwordChangeFailed'));
         }
     };
 
@@ -65,7 +65,7 @@ export default function Profile() {
             });
 
             await verifyRegistration(JSON.stringify(attestationResponse));
-            void messageApi.success('WebAuth device key registered successfully!');
+            void messageApi.success(t('biometricRegistrationSuccess'));
             void refreshCurrentUser();
             if (user && !user.faceRegistered) {
                 setIsFaceModalOpen(true);
@@ -74,14 +74,14 @@ export default function Profile() {
             console.error('Device registration failed:', err);
             let userFriendlyMsg = err.message || 'WebAuth device key registration failed.';
             if (
-                err.name === 'InvalidStateError' || 
-                userFriendlyMsg.includes('previously registered') || 
-                userFriendlyMsg.includes('InvalidState') || 
+                err.name === 'InvalidStateError' ||
+                userFriendlyMsg.includes('previously registered') ||
+                userFriendlyMsg.includes('InvalidState') ||
                 userFriendlyMsg.includes('exclude') ||
                 userFriendlyMsg.toLowerCase().includes('credential manager') ||
                 userFriendlyMsg.toLowerCase().includes('unknown error')
             ) {
-                userFriendlyMsg = 'The device is already in use by someone else';
+                userFriendlyMsg = t('deviceAlreadyInUse');
             }
             void messageApi.error(userFriendlyMsg);
         } finally {
@@ -97,7 +97,7 @@ export default function Profile() {
                     type="error"
                     showIcon
                     message={error}
-                    action={<Button size="small" onClick={() => void refreshCurrentUser()}>Retry</Button>}
+                    action={<Button size="small" onClick={() => void refreshCurrentUser()}>{t('retry')}</Button>}
                     style={{ marginBottom: 16 }}
                 />
             )}
@@ -107,14 +107,14 @@ export default function Profile() {
                         {loading ? <Spin size="small" /> : avatarText}
                     </div>
                     <div className="profile-info">
-                        <p className="profile-name">{loading ? 'Loading...' : email}</p>
+                        <p className="profile-name">{loading ? t('loading') : email}</p>
                         <p className="profile-email">{email}</p>
                     </div>
                 </div>
             </section>
 
             <section className="profile-actions-section">
-                <Card className="profile-actions-card" title="Account actions">
+                <Card className="profile-actions-card" title={t('accountActions')}>
                     <div className="profile-actions-grid">
                         <Button
                             block
@@ -132,7 +132,7 @@ export default function Profile() {
                             className="profile-action-button primary-action"
                             onClick={() => setIsFaceModalOpen(true)}
                         >
-                            Update Face Recognition
+                            {t('updateFace')}
                         </Button>
 
                         <Button
@@ -143,7 +143,7 @@ export default function Profile() {
                             loading={registeringDevice}
                             icon={<SafetyCertificateOutlined />}
                         >
-                            {user.webauthRegistered ? 'Change Biometric Device' : 'Register Biometric Device'}
+                            {user.webauthRegistered ? t('changeDevice') : t('registerDevice')}
                         </Button>
 
                         <button className="profile-logout-btn" onClick={handleLogout}>
@@ -164,7 +164,7 @@ export default function Profile() {
                     <Form.Item
                         label={t('currentPassword')}
                         name="oldPassword"
-                        rules={[{ required: true, message: 'Please enter your current password' }]}
+                        rules={[{ required: true, message: t('currentPasswordRequired') }]}
                     >
                         <Input.Password placeholder={t('currentPassword')} autoComplete="new-password" />
                     </Form.Item>
@@ -172,8 +172,8 @@ export default function Profile() {
                         label={t('newPassword')}
                         name="newPassword"
                         rules={[
-                            { required: true, message: 'Please enter a new password' },
-                            { min: 8, message: 'Password must be at least 8 characters' },
+                            { required: true, message: t('newPasswordRequired') },
+                            { min: 8, message: t('passwordMinLength') },
                         ]}
                     >
                         <Input.Password placeholder={t('newPassword')} autoComplete="new-password" />
@@ -182,7 +182,7 @@ export default function Profile() {
                         label={t('confirmPassword')}
                         name="confirmPassword"
                         rules={[
-                            { required: true, message: 'Please confirm your new password' },
+                            { required: true, message: t('confirmPasswordRequired') },
                             ({ getFieldValue }) => ({
                                 validator(_, value) {
                                     if (!value || getFieldValue('newPassword') === value) {
@@ -207,7 +207,7 @@ export default function Profile() {
                 visible={isFaceModalOpen}
                 onSuccess={() => {
                     setIsFaceModalOpen(false);
-                    void messageApi.success('Face updated successfully');
+                    void messageApi.success(t('faceUpdated'));
                 }}
                 onCancel={() => setIsFaceModalOpen(false)}
             />
