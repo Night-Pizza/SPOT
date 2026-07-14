@@ -62,7 +62,7 @@ function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 async function readErrorMessage(response: Response, fallback: string) {
     try {
         const data = await response.json() as { message?: string; error?: string; status?: string };
