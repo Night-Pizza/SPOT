@@ -112,10 +112,6 @@ public class AttendanceController {
 
     @PostMapping("/create/email")
     public ResponseEntity<AttendanceResponseDTO> createAttendance(@Valid @RequestBody EmailAttendanceRequestDTO emailAttendanceCreateDTO, @AuthenticationPrincipal String userIdStr, HttpServletRequest request) {
-        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
-        if (isVerified == null || !isVerified) {
-            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
-        }
         Long userId = Long.valueOf(userIdStr);
 
         String key = "attendance-email:" + userId + ":" + emailAttendanceCreateDTO.sessionId();
