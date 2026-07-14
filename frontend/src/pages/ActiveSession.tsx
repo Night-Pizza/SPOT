@@ -661,8 +661,7 @@ export default function ActiveSessionPage() {
 
                 <Card
                     title={
-                        <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-                            <span>{t('scannedStudents')}</span>
+                        <Flex justify="center" align="center" gap={12} wrap="wrap">
                             <Space wrap className="session-card-actions">
                                 <Tag color="success">{attendees.length}</Tag>
                                 <Button
@@ -726,6 +725,7 @@ export default function ActiveSessionPage() {
                         dataSource={attendees}
                         rowKey="id"
                         pagination={false}
+                        showHeader={false}
                         locale={{ emptyText: <Empty description={t('noAttendees')} /> }}
                         size="middle"
                         style={{ overflow: 'auto' }}
