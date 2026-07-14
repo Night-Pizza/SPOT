@@ -88,12 +88,12 @@ test('logs in and creates a basic code session', async ({ page, context }) => {
 
   await page.goto(`${baseUrl}/login`);
 
-  await page.getByPlaceholder('name@innopolis.university').fill('prof@innopolis.ru');
+  await page.getByPlaceholder('name@example.com').fill('prof@example.com');
   await page.getByPlaceholder('password').fill('12345');
   await page.getByRole('button', { name: 'Login' }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole('heading', { name: /Hello/i })).toContainText('prof@innopolis.ru');
+  await expect(page.getByRole('heading', { name: /Hello/i })).toContainText('prof@example.com');
 
   await page.getByRole('button', { name: /Create Session/i }).click();
 
