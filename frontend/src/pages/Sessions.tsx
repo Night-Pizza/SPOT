@@ -1,6 +1,7 @@
 import { PlusOutlined, DownloadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Flex, Spin, Typography, Select, Tag, Space, message, Dropdown } from 'antd';
+import { Alert, Button, Card, Flex, Spin, Typography, Select, Tag, Space, message, Dropdown, Input, DatePicker } from 'antd';
 import type { MenuProps } from 'antd';
+import type { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,6 +31,8 @@ export default function SessionsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'active' | 'completed'>('newest');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
     const [exportingId, setExportingId] = useState<number | null>(null);
 
     const handleExport = async (e: React.MouseEvent | React.KeyboardEvent, sessionId: number, format: string) => {
@@ -108,6 +111,22 @@ export default function SessionsPage() {
     }, []);
 
     const filteredAndSortedSessions = [...sessions]
+        .filter(s => {
+            if (searchQuery && !s.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+                return false;
+            }
+            if (dateRange && dateRange[0] && dateRange[1]) {
+                const sessionTime = new Date(s.timestamp).getTime();
+                const start = dateRange[0].startOf('day').valueOf();
+                const end = dateRange[1].endOf('day').valueOf();
+                if (sessionTime < start || sessionTime > end) {
+                    return false;
+                }
+            }
+            if (sortBy === 'active') return s.isActive;
+            if (sortBy === 'completed') return !s.isActive;
+            return true;
+        })
         .sort((a, b) => {
             const timeA = new Date(a.timestamp).getTime();
             const timeB = new Date(b.timestamp).getTime();
@@ -116,11 +135,6 @@ export default function SessionsPage() {
             } else {
                 return timeA - timeB;
             }
-        })
-        .filter(s => {
-            if (sortBy === 'active') return s.isActive;
-            if (sortBy === 'completed') return !s.isActive;
-            return true;
         });
 
     return (
@@ -135,7 +149,16 @@ export default function SessionsPage() {
                     </Typography.Paragraph>
                 </div>
 
-                <Space size="middle" wrap>
+                <Space size="middle" wrap style={{ marginBottom: 16 }}>
+                    <Input.Search 
+                        placeholder="Search sessions..." 
+                        allowClear 
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{ width: 200 }}
+                    />
+                    <DatePicker.RangePicker 
+                        onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                    />
                     <Select
                         value={sortBy}
                         onChange={(value) => setSortBy(value as any)}
