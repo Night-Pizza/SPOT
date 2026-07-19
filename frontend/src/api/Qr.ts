@@ -66,7 +66,7 @@ export function subscribeToQrToken(
                 connected = true;
                 socket.send(encodeStompFrame('SUBSCRIBE', {
                     id: `session-${sessionId}-qr`,
-                    destination: `/topic/session/${sessionId}/qr`,
+                    destination: `/user/queue/session/${sessionId}/qr`,
                     ack: 'auto',
                 }));
             }
