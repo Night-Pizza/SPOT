@@ -7,6 +7,7 @@ import {
     PlusOutlined,
     DeleteOutlined,
     DownloadOutlined,
+    PlayCircleOutlined,
 } from '@ant-design/icons';
 import {
     Button,
@@ -37,7 +38,8 @@ import { useApp, type Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
-import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+import { closeSession, resumeSession, renameSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+
 import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
 import { searchUsers } from '../api/User';
 
@@ -91,6 +93,7 @@ export default function ActiveSessionPage() {
     const [removingAttendeeEmail, setRemovingAttendeeEmail] = useState<string | null>(null);
     const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
     const [endingSession, setEndingSession] = useState(false);
+    const [resumingSession, setResumingSession] = useState(false);
     const [sessionEnded, setSessionEnded] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -140,6 +143,7 @@ export default function ActiveSessionPage() {
     }, [numericSessionId]);
 
     useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         void loadSessionDetails();
     }, [loadSessionDetails]);
 
@@ -395,6 +399,19 @@ export default function ActiveSessionPage() {
         ],
         [handleRemoveAttendee, removingAttendeeEmail, t],
     );
+    const handleRename = async (newTitle: string) => {
+        if (numericSessionId === null) return;
+        if (!newTitle.trim()) {
+            return;
+        }
+        try {
+            await renameSession(numericSessionId, newTitle.trim());
+            setFetchedSession(activeSession ? { ...activeSession, title: newTitle.trim() } : null);
+            void messageApi.success('Session renamed successfully');
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to rename session');
+        }
+    };
 
     const handleEndSession = async () => {
         if (numericSessionId === null) {
@@ -424,6 +441,31 @@ export default function ActiveSessionPage() {
             setEndingSession(false);
         }
     };
+
+    const handleResumeSession = async () => {
+        if (numericSessionId === null) {
+            void messageApi.error('Session ID must be a positive number.');
+            return;
+        }
+
+        setResumingSession(true);
+        try {
+            await resumeSession(numericSessionId);
+            setSessionEnded(false);
+            setBackendSessionActive(true);
+            if (fetchedSession) {
+                setFetchedSession({ ...fetchedSession, isActive: true });
+            }
+            void messageApi.success('Session resumed.');
+            void loadSessionDetails();
+            void loadSessionUsers();
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to resume session.');
+        } finally {
+            setResumingSession(false);
+        }
+    };
+
 
     const handleExport = async (format: string) => {
         if (numericSessionId === null) return;
@@ -487,7 +529,7 @@ export default function ActiveSessionPage() {
         activeSession?.lat !== undefined &&
         activeSession?.lng !== undefined;
 
-    const displayTitle = activeSession?.title || `Session ${numericSessionId}`;
+    const displayTitle = activeSession?.title || '';
     const sessionPassword = activeSession?.password || '';
     const qrPayload = qrToken ? JSON.stringify({ token: qrToken }) : '';
     const qrUrl = qrPayload
@@ -523,8 +565,20 @@ export default function ActiveSessionPage() {
                     }}
                 />
                 <div>
-                    <Typography.Title level={1}>{displayTitle}</Typography.Title>
-                    <Space size={12} wrap className="active-session-meta">
+                    <Typography.Title 
+                        level={1} 
+                        editable={{
+                            tooltip: t('edit') || 'Edit',
+                            onChange: handleRename,
+                            text: displayTitle,
+                            triggerType: ['text'],
+                            icon: <span />,
+                        }}
+                        style={{ color: displayTitle ? 'inherit' : '#bfbfbf', margin: 0 }}
+                    >
+                        {displayTitle || t('clickToNameSession') || 'Click to name the session'}
+                    </Typography.Title>
+                    <Space size={12} wrap className="active-session-meta" style={{ marginTop: 8 }}>
                         <Tag color={isActive ? 'success' : 'default'}>
                             {isActive ? t('active') : 'Ended'}
                         </Tag>
@@ -572,10 +626,18 @@ export default function ActiveSessionPage() {
                                 <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
                             ) : (
                                 <Space direction="vertical" align="center">
-                                    <Spin />
-                                    <Typography.Text type="secondary">
-                                        {qrError || 'Waiting for backend QR token...'}
-                                    </Typography.Text>
+                                    {!isActive ? (
+                                        <Typography.Text type="secondary">
+                                            Session is stopped, QR is not available
+                                        </Typography.Text>
+                                    ) : (
+                                        <>
+                                            <Spin />
+                                            <Typography.Text type="secondary">
+                                                {qrError || 'Waiting for backend QR token...'}
+                                            </Typography.Text>
+                                        </>
+                                    )}
                                 </Space>
                             )}
                         </div>
@@ -684,6 +746,16 @@ export default function ActiveSessionPage() {
                                         Export
                                     </Button>
                                 </Dropdown>
+                                {!isActive && (
+                                    <Button
+                                        size="small"
+                                        icon={<PlayCircleOutlined />}
+                                        loading={resumingSession}
+                                        onClick={() => void handleResumeSession()}
+                                    >
+                                        Resume
+                                    </Button>
+                                )}
                                 <Button
                                     size="small"
                                     icon={<ReloadOutlined />}
@@ -698,10 +770,16 @@ export default function ActiveSessionPage() {
                                         type="primary"
                                         danger
                                         icon={<StopOutlined />}
-                                        className="end-session-btn"
+
                                         loading={endingSession}
                                         disabled={endingSession}
-                                        onClick={() => setEndSessionModalOpen(true)}
+                                        onClick={() => {
+                                            if (!activeSession?.title || activeSession.title.trim() === '') {
+                                                void messageApi.error(t('nameSessionBeforeEnd') || 'Please name the session before ending it.');
+                                            } else {
+                                                setEndSessionModalOpen(true);
+                                            }
+                                        }}
                                     >
                                         End Session
                                     </Button>

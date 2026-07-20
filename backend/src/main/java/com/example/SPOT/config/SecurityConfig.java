@@ -86,7 +86,7 @@ public class SecurityConfig {
                 "https://10.93.27.37",
                 "https://innospot.duckdns.org"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         
         configuration.setAllowedHeaders(Arrays.asList(
                 "Content-Type",

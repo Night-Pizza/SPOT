@@ -60,6 +60,21 @@ public class SessionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/resume/{id}")
+    public ResponseEntity<Void> resumeSession(@PathVariable Long id, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.resumeSession(id, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/rename/{id}")
+    public ResponseEntity<Void> renameSession(@PathVariable Long id, @Valid @RequestBody com.example.SPOT.dto.request.SessionUpdateDTO request, @AuthenticationPrincipal String userIdStr) {
+        Long userId = Long.valueOf(userIdStr);
+        sessionService.updateSessionName(id, userId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+
     @GetMapping("/alla")
     public ResponseEntity<List<Long>> getAllaSessions(){
         return ResponseEntity.ok().body(sessionService.getAllaSessions());

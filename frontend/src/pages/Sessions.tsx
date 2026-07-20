@@ -1,4 +1,4 @@
-import { PlusOutlined, DownloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Flex, Spin, Typography, Select, Tag, Space, message, Dropdown, Input, DatePicker } from 'antd';
 import type { MenuProps } from 'antd';
 import type { Dayjs } from 'dayjs';
@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useEffect, useState } from 'react';
-import { getCreatedSessions, getSessionUsers, exportSessionAttendance, type CreatedSessionHistoryItem } from '../api/Session';
+import { getCreatedSessions, getSessionUsers, exportSessionAttendance, resumeSession, type CreatedSessionHistoryItem } from '../api/Session';
+
 
 type ParticipantCountState = {
     count: number;
@@ -34,6 +35,7 @@ export default function SessionsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
     const [exportingId, setExportingId] = useState<number | null>(null);
+    const [resumingId, setResumingId] = useState<number | null>(null);
 
     const handleExport = async (e: React.MouseEvent | React.KeyboardEvent, sessionId: number, format: string) => {
         e.stopPropagation();
@@ -47,6 +49,22 @@ export default function SessionsPage() {
             setExportingId(null);
         }
     };
+
+    const handleResume = async (e: React.MouseEvent, sessionId: number) => {
+        e.stopPropagation();
+        setResumingId(sessionId);
+        try {
+            await resumeSession(sessionId);
+            message.success('Session resumed successfully');
+            setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, isActive: true } : s));
+            navigate(`/sessions/${sessionId}`);
+        } catch (resumeErr: any) {
+            message.error(resumeErr.message || 'Failed to resume session');
+        } finally {
+            setResumingId(null);
+        }
+    };
+
 
     const getExportMenuItems = (sessionId: number): MenuProps['items'] => [
         {
@@ -224,7 +242,7 @@ export default function SessionsPage() {
                             <Flex justify="space-between" align="start">
                                 <div>
                                     <Typography.Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
-                                        {session.title}
+                                        {session.title || 'Untitled Session'}
                                     </Typography.Title>
                                     <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
                                         {formatSessionDate(session.timestamp)}
@@ -238,14 +256,27 @@ export default function SessionsPage() {
                                     </div>
                                 </div>
                                 <div onClick={(e) => e.stopPropagation()}>
-                                    <Dropdown menu={{ items: getExportMenuItems(session.id) }} trigger={['click']}>
-                                        <Button
-                                            icon={<DownloadOutlined />}
-                                            loading={exportingId === session.id}
-                                        >
-                                            Export
-                                        </Button>
-                                    </Dropdown>
+                                    <Flex vertical gap="small" align="end">
+                                        <Dropdown menu={{ items: getExportMenuItems(session.id) }} trigger={['click']}>
+                                            <Button
+                                                icon={<DownloadOutlined />}
+                                                loading={exportingId === session.id}
+                                                style={{ minWidth: 105 }}
+                                            >
+                                                Export
+                                            </Button>
+                                        </Dropdown>
+                                        {!session.isActive && (
+                                            <Button
+                                                icon={<PlayCircleOutlined />}
+                                                loading={resumingId === session.id}
+                                                onClick={(e) => void handleResume(e, session.id)}
+                                                style={{ minWidth: 105 }}
+                                            >
+                                                Resume
+                                            </Button>
+                                        )}
+                                    </Flex>
                                 </div>
                             </Flex>
                             <div style={{ marginTop: 18 }}>
