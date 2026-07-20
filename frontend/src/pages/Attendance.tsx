@@ -169,7 +169,7 @@ export default function Attendance() {
     const sessionId = Form.useWatch('sessionId', form);
     const sessionCode = Form.useWatch('sessionCode', form);
     const { t } = useTheme();
-    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification, isWebauthVerified } = useAuth();
+    const { user, loading, refreshCurrentUser, markWebauthVerified, clearWebauthVerification } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [submitting, setSubmitting] = useState(false);
