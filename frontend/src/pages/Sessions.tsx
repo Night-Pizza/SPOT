@@ -1,4 +1,4 @@
-import { PlusOutlined, DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Flex, Spin, Typography, Select, Tag, Space, message, Dropdown, Input, DatePicker } from 'antd';
 import type { MenuProps } from 'antd';
 import type { Dayjs } from 'dayjs';
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useTheme } from '../contexts/ThemeContext';
 import { useEffect, useState } from 'react';
-import { getCreatedSessions, getSessionUsers, exportSessionAttendance, resumeSession, type CreatedSessionHistoryItem } from '../api/Session';
+import { getCreatedSessions, getSessionUsers, exportSessionAttendance, resumeSession, closeSession, type CreatedSessionHistoryItem } from '../api/Session';
 
 
 type ParticipantCountState = {
@@ -36,6 +36,7 @@ export default function SessionsPage() {
     const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
     const [exportingId, setExportingId] = useState<number | null>(null);
     const [resumingId, setResumingId] = useState<number | null>(null);
+    const [endingId, setEndingId] = useState<number | null>(null);
 
     const handleExport = async (e: React.MouseEvent | React.KeyboardEvent, sessionId: number, format: string) => {
         e.stopPropagation();
@@ -62,6 +63,24 @@ export default function SessionsPage() {
             message.error(resumeErr.message || 'Failed to resume session');
         } finally {
             setResumingId(null);
+        }
+    };
+
+    const handleEnd = async (e: React.MouseEvent, session: CreatedSessionHistoryItem) => {
+        e.stopPropagation();
+        if (!session.title || !session.title.trim()) {
+            message.error(t('nameSessionBeforeEnd') || 'Please open the session and name it before ending.');
+            return;
+        }
+        setEndingId(session.id);
+        try {
+            await closeSession(session.id);
+            message.success('Session ended successfully');
+            setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isActive: false } : s));
+        } catch (endErr: any) {
+            message.error(endErr.message || 'Failed to end session');
+        } finally {
+            setEndingId(null);
         }
     };
 
@@ -261,19 +280,29 @@ export default function SessionsPage() {
                                             <Button
                                                 icon={<DownloadOutlined />}
                                                 loading={exportingId === session.id}
-                                                style={{ minWidth: 105 }}
+                                                style={{ width: 115 }}
                                             >
                                                 Export
                                             </Button>
                                         </Dropdown>
-                                        {!session.isActive && (
+                                        {!session.isActive ? (
                                             <Button
                                                 icon={<PlayCircleOutlined />}
                                                 loading={resumingId === session.id}
                                                 onClick={(e) => void handleResume(e, session.id)}
-                                                style={{ minWidth: 105 }}
+                                                style={{ width: 115 }}
                                             >
                                                 Resume
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                danger
+                                                icon={<StopOutlined />}
+                                                loading={endingId === session.id}
+                                                onClick={(e) => void handleEnd(e, session)}
+                                                style={{ width: 115 }}
+                                            >
+                                                End
                                             </Button>
                                         )}
                                     </Flex>

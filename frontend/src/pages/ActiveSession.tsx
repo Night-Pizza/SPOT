@@ -8,6 +8,7 @@ import {
     DeleteOutlined,
     DownloadOutlined,
     PlayCircleOutlined,
+    CameraOutlined,
 } from '@ant-design/icons';
 import {
     Button,
@@ -91,7 +92,6 @@ export default function ActiveSessionPage() {
     const [attendeeEmail, setAttendeeEmail] = useState('');
     const [addingAttendee, setAddingAttendee] = useState(false);
     const [removingAttendeeEmail, setRemovingAttendeeEmail] = useState<string | null>(null);
-    const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
     const [endingSession, setEndingSession] = useState(false);
     const [resumingSession, setResumingSession] = useState(false);
     const [sessionEnded, setSessionEnded] = useState(false);
@@ -424,7 +424,6 @@ export default function ActiveSessionPage() {
             await closeSession(numericSessionId);
             setSessionEnded(true);
             setBackendSessionActive(false);
-            setEndSessionModalOpen(false);
             setQrModalOpen(false);
             setMapModalOpen(false);
             setAddAttendeeOpen(false);
@@ -645,7 +644,7 @@ export default function ActiveSessionPage() {
 
 
 
-                    <div className="session-detail-list">
+                    <div className="session-detail-list" style={{ marginTop: isQrSession ? 30 : 0 }}>
                         {!isQrSession && (
                             <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
@@ -653,17 +652,7 @@ export default function ActiveSessionPage() {
                             </Flex>
                         )}
 
-                        {activeSession?.validationTypes &&
-                            activeSession.validationTypes.length > 0 && (
-                                <Flex className="session-detail-row" justify="space-between" gap={16}>
-                                    <Typography.Text type="secondary">
-                                        Validation Methods
-                                    </Typography.Text>
-                                    <Typography.Text strong>
-                                        {activeSession.validationTypes.join(', ')}
-                                    </Typography.Text>
-                                </Flex>
-                            )}
+
 
                         <Flex className="session-detail-row" justify="space-between" gap={16}>
                             <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
@@ -678,10 +667,28 @@ export default function ActiveSessionPage() {
                                         {activeSession?.radius ? ` · ${activeSession.radius}m` : ''}
                                     </Space>
                                 ) : (
-                                    t('disabled')
+                                    'Disabled'
                                 )}
                             </Typography.Text>
                         </Flex>
+
+                        <Flex className="session-detail-row" justify="space-between" gap={16}>
+                            <Typography.Text type="secondary">Face Recognition</Typography.Text>
+                            <Typography.Text
+                                strong
+                                className={activeSession?.validationTypes?.includes('FACE') ? 'green-text' : undefined}
+                            >
+                                {activeSession?.validationTypes?.includes('FACE') ? (
+                                    <Space size={6}>
+                                        <CameraOutlined />
+                                        {t('enabled')}
+                                    </Space>
+                                ) : (
+                                    'Disabled'
+                                )}
+                            </Typography.Text>
+                        </Flex>
+
                         {hasLocation && (
                             <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('location')}</Typography.Text>
@@ -690,15 +697,7 @@ export default function ActiveSessionPage() {
                                 </Typography.Text>
                             </Flex>
                         )}
-                        {hasLocation && isActive && (
-                            <Flex className="session-detail-row radius-edit-row" justify="space-between" gap={16} align="center">
-                                <Typography.Text type="secondary">Radius</Typography.Text>
-                                <Typography.Text strong>
-                                    {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
-                                </Typography.Text>
-                                {/* TODO: re-enable editing when PATCH /session/{id} accepts allowedRadius. */}
-                            </Flex>
-                        )}
+
                     </div>
 
                     {hasLocation && isMounted && (
@@ -770,20 +769,20 @@ export default function ActiveSessionPage() {
                                         type="primary"
                                         danger
                                         icon={<StopOutlined />}
-
                                         loading={endingSession}
                                         disabled={endingSession}
                                         onClick={() => {
-                                            if (!activeSession?.title || activeSession.title.trim() === '') {
-                                                void messageApi.error(t('nameSessionBeforeEnd') || 'Please name the session before ending it.');
+                                            if (!displayTitle.trim()) {
+                                                message.error(t('nameSessionBeforeEnd') || 'Please name the session before ending it.');
                                             } else {
-                                                setEndSessionModalOpen(true);
+                                                void handleEndSession();
                                             }
                                         }}
                                     >
                                         End Session
                                     </Button>
                                 )}
+
                             </Space>
                         </Flex>
                     }
@@ -854,6 +853,7 @@ export default function ActiveSessionPage() {
                     setAttendeeEmail('');
                     setSearchOptions([]);
                 }}
+                centered
                 destroyOnHidden
                 className="responsive-modal"
             >
@@ -875,28 +875,7 @@ export default function ActiveSessionPage() {
                 </AutoComplete>
             </Modal>
 
-            <Modal
-                title="End session?"
-                open={endSessionModalOpen}
-                okText="End Session"
-                cancelText="Cancel"
-                confirmLoading={endingSession}
-                okButtonProps={{ danger: true, disabled: endingSession }}
-                cancelButtonProps={{ disabled: endingSession }}
-                onOk={() => void handleEndSession()}
-                onCancel={() => {
-                    if (!endingSession) {
-                        setEndSessionModalOpen(false);
-                    }
-                }}
-                centered
-                destroyOnHidden
-                className="responsive-modal end-session-modal"
-            >
-                <Typography.Paragraph style={{ marginBottom: 0 }}>
-                    QR/code attendance will stop after ending the session. Participants will no longer be able to check in using this session.
-                </Typography.Paragraph>
-            </Modal>
+
 
             <Modal
                 open={mapModalOpen}
@@ -910,11 +889,11 @@ export default function ActiveSessionPage() {
                 title="Session Location"
             >
                 <div className="map-modal-frame">
-                    {isMounted && (
+                    {isMounted && hasLocation && activeSession && (
                         <SessionMap
                             key={mapKey + 1000}
-                            center={[activeSession!.lat!, activeSession!.lng!]}
-                            radius={activeSession!.radius || 100}
+                            center={[activeSession.lat!, activeSession.lng!]}
+                            radius={activeSession.radius || 100}
                         />
                     )}
                 </div>
