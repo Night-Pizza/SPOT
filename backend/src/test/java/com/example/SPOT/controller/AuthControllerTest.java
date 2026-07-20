@@ -2,6 +2,7 @@ package com.example.SPOT.controller;
 
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.handler.GlobalExceptionHandler;
+import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.service.MyUniversitySsoService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,15 +32,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthControllerTest {
     private MyUniversitySsoService myUniversitySsoService;
     private SecurityContextRepository securityContextRepository;
+    private UserRepository userRepository;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         myUniversitySsoService = org.mockito.Mockito.mock(MyUniversitySsoService.class);
         securityContextRepository = org.mockito.Mockito.mock(SecurityContextRepository.class);
+        userRepository = org.mockito.Mockito.mock(UserRepository.class);
 
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AuthController(myUniversitySsoService, securityContextRepository))
+                .standaloneSetup(new AuthController(myUniversitySsoService, securityContextRepository, userRepository))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
