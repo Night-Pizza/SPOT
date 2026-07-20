@@ -1,7 +1,7 @@
 import { converter } from './Converter';
 
 export type CreateSessionRequest = {
-    title: string;
+    title?: string;
     password?: string;
     latitude?: number;
     longitude?: number;
@@ -135,6 +135,29 @@ export async function closeSession(sessionId: number): Promise<void> {
         throw new Error(await readErrorMessage(response, 'Failed to end session.'));
     }
 }
+
+export async function resumeSession(sessionId: number): Promise<void> {
+    const response = await converter(`/session/resume/${sessionId}`, {
+        method: 'PATCH',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Error resuming session'));
+    }
+}
+
+export async function renameSession(sessionId: number, title: string): Promise<void> {
+    const response = await converter(`/session/rename/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Error renaming session'));
+    }
+}
+
 
 export async function getActiveSessionIds(): Promise<number[]> {
     const response = await converter('/session/alla', {

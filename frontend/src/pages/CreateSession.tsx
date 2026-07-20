@@ -22,7 +22,6 @@ import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 
 type CreateSessionFormValues = {
-    title: string;
     sessionMode?: 'QR' | 'CODE';
     geolocationEnabled?: boolean;
     faceRecognitionEnabled?: boolean;
@@ -81,8 +80,7 @@ export default function CreateSessionPage() {
         if (values.faceRecognitionEnabled) validationTypes.push('FACE');
         if (validationTypes.length === 0) validationTypes.push('NONE');
 
-        const sessionData = {
-            title: values.title.trim(),
+        const sessionData: any = {
             validationTypes,
         };
 
@@ -105,7 +103,7 @@ export default function CreateSessionPage() {
             // Формируем объект сессии для передачи через state
             const sessionForState = {
                 id: String(response.id),
-                title: values.title.trim(),
+                title: '',
                 password: values.sessionMode === 'CODE' ? values.sessionCode?.trim() || '' : '',
                 mode: values.sessionMode,
                 geolocationEnabled: values.geolocationEnabled || false,
@@ -132,6 +130,7 @@ export default function CreateSessionPage() {
         <AppShell
             title={t('createSession')}
             subtitle={t('sessionDetails')}
+            showPageTitle={false}
             pageClassName="create-session-page"
         >
             <Card className="session-form-card">
@@ -169,15 +168,7 @@ export default function CreateSessionPage() {
                         </Radio.Group>
                     </Form.Item>
 
-                    <Form.Item
-                        label={t('sessionTitle')}
-                        name="title"
-                        rules={[
-                            { required: true, whitespace: true, message: t('titleRequired') || 'Please enter a session title.' },
-                        ]}
-                    >
-                        <Input placeholder={t('titlePlaceholder') || 'e.g. Machine Learning Lecture'} size="large" autoComplete="off" />
-                    </Form.Item>
+
 
                     <div className="session-switch-row" style={{ marginBottom: 16 }}>
                         <Space size={16} align="center">

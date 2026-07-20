@@ -36,6 +36,8 @@ const translations: Record<Language, Record<string, string>> = {
         ok: 'OK',
 
         // Сессии
+        clickToNameSession: 'Click to name the session',
+        nameSessionBeforeEnd: 'Please name the session before ending it.',
         newSession: 'New Session',
         sessionDetails: 'Session Details',
         sessionCode: 'Session Code',
@@ -242,6 +244,8 @@ const translations: Record<Language, Record<string, string>> = {
         continue: 'Продолжить',
 
         // Сессии
+        clickToNameSession: 'Нажмите, чтобы назвать сессию',
+        nameSessionBeforeEnd: 'Пожалуйста, укажите имя сессии перед её завершением.',
         newSession: 'Новая сессия',
         sessionDetails: 'Детали сессии',
         sessionCode: 'Код сессии',
