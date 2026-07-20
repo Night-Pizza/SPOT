@@ -42,13 +42,14 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(requestHandler)
-                        .ignoringRequestMatchers("/user/login", "/user/register", "/auth/test-register", "/attendance/create", "/attendance/scan"))
+                        .ignoringRequestMatchers("/user/login", "/user/register", "/auth/test-register", "/attendance/create", "/attendance/scan", "/user/face"))
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository())
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/user/login").permitAll()
                         .requestMatchers("/user/register").permitAll()
+                        .requestMatchers("/user/face").permitAll()
                         .requestMatchers("/auth/csrf").permitAll()
                         .requestMatchers("/auth/test-register").permitAll()
                         .requestMatchers("/auth/my-university/login").permitAll()
