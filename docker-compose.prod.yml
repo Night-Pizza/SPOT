@@ -121,6 +121,8 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=duckdns"
       - "traefik.http.routers.frontend.priority=10"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.tls.stores.default.defaultgeneratedcert.resolver=duckdns"
+      - "traefik.tls.stores.default.defaultgeneratedcert.domain.main=${APP_HOST}"
     networks:
       - app-network
 
