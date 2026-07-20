@@ -4,6 +4,8 @@ export const useGeolocation = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Wraps the native browser Geolocation API in a Promise.
+  // It handles permissions, timeouts, and state management (loading, error) for the component.
   const getPosition = (): Promise<{ lat: number; long: number }> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
