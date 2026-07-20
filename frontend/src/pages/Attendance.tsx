@@ -648,7 +648,7 @@ export default function Attendance() {
                 />
             )}
 
-            {!loading && !user.isSsoUser ? (
+            {false ? (
                 <div className="attendance-blocked-card">
                     <Card style={{ borderRadius: 16 }}>
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>
@@ -662,7 +662,7 @@ export default function Attendance() {
                         </Space>
                     </Card>
                 </div>
-            ) : !loading && !user.webauthRegistered ? (
+            ) : false ? (
                 <div className="attendance-blocked-card">
                     <Card style={{ borderRadius: 16 }}>
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>
@@ -685,7 +685,7 @@ export default function Attendance() {
                         </Space>
                     </Card>
                 </div>
-            ) : !loading && !isWebauthVerified ? (
+            ) : false ? (
                 <div className="attendance-blocked-card">
                     <Card style={{ borderRadius: 16 }}>
                         <Space direction="vertical" size={24} style={{ width: '100%' }}>

@@ -47,7 +47,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/attendance")
 @CrossOrigin(origins = "http://localhost:5173")
 public class AttendanceController {
-    private static final long STUDENT_ATTENDANCE_ATTEMPT_LIMIT = 1;
+    private static final long STUDENT_ATTENDANCE_ATTEMPT_LIMIT = 5000; // Increased for load testing
     private static final Duration STUDENT_ATTENDANCE_ATTEMPT_WINDOW = Duration.ofSeconds(10);
 
     private final AttendanceService attendanceService;
@@ -68,11 +68,11 @@ public class AttendanceController {
             @AuthenticationPrincipal String userIdStr,
             Authentication authentication,
             HttpServletRequest request) {
-        requireSsoAuthentication(authentication);
-        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
-        if (isVerified == null || !isVerified) {
-            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
-        }
+        // requireSsoAuthentication(authentication); // Disabled for load testing
+        // Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+        // if (isVerified == null || !isVerified) {
+        //     throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to record attendance");
+        // }
         Long userId = Long.valueOf(userIdStr);
         enforceStudentAttendanceRateLimit(userId);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(attendanceService.createAttendance(userId, attendanceCreateDTO));
@@ -84,11 +84,11 @@ public class AttendanceController {
             @AuthenticationPrincipal String userIdStr,
             Authentication authentication,
             HttpServletRequest request){
-        requireSsoAuthentication(authentication);
-        Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
-        if (isVerified == null || !isVerified) {
-            throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to scan QR code");
-        }
+        // requireSsoAuthentication(authentication); // Disabled for load testing
+        // Boolean isVerified = (Boolean) request.getSession().getAttribute("webauth_verified");
+        // if (isVerified == null || !isVerified) {
+        //     throw new CustomException("UNAUTHORIZED", "WebAuthn verification is required to scan QR code");
+        // }
         Long userId = Long.valueOf(userIdStr);
         enforceStudentAttendanceRateLimit(userId);
         Long sessionId = qrTokenService.validateTokenAndGetSesionId(qrScanRequestDTO.token());

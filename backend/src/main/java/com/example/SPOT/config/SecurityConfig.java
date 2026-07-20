@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(requestHandler)
-                        .ignoringRequestMatchers("/user/login", "/user/register"))
+                        .ignoringRequestMatchers("/user/login", "/user/register", "/auth/test-register", "/attendance/create", "/attendance/scan"))
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository())
                 )
@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/user/login").permitAll()
                         .requestMatchers("/user/register").permitAll()
                         .requestMatchers("/auth/csrf").permitAll()
+                        .requestMatchers("/auth/test-register").permitAll()
                         .requestMatchers("/auth/my-university/login").permitAll()
                         .requestMatchers("/auth/my-university/callback").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()

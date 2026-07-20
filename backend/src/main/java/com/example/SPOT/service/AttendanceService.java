@@ -62,9 +62,9 @@ public class AttendanceService {
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
 
         UserModel user = userRepository.findById(userId).orElseThrow( () -> new CustomException("USER_ID_NOT_EXIST","User id does not exist"));
-        if (user.getAuthProvider() != com.example.SPOT.model.AuthProvider.MY_UNIVERSITY_SSO) {
-            throw new CustomException("ATTENDANCE_NOT_ALLOWED", "Only students (SSO users) can mark their own attendance.");
-        }
+        // if (user.getAuthProvider() != com.example.SPOT.model.AuthProvider.MY_UNIVERSITY_SSO) {
+        //     throw new CustomException("ATTENDANCE_NOT_ALLOWED", "Only students (SSO users) can mark their own attendance.");
+        // }
 
         SessionModel session = sessionRepository.findById(request.sessionId()).orElseThrow(() -> new CustomException("SESSION_ID_NOT_EXIST","SESSION id does not exist"));
         if (!session.isActive()) throw new CustomException("SESSION_IS_CLOSED", "Session is already closed");

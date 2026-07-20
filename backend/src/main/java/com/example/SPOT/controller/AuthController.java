@@ -9,6 +9,8 @@ import java.util.List;
 import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.response.UserDTO;
 import com.example.SPOT.exception.CustomException;
+import com.example.SPOT.model.UserModel;
+import com.example.SPOT.repository.UserRepository;
 import com.example.SPOT.service.MyUniversitySsoService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 
@@ -39,10 +42,12 @@ public class AuthController {
 
     private final MyUniversitySsoService myUniversitySsoService;
     private final SecurityContextRepository securityContextRepository;
+    private final UserRepository userRepository;
 
-    public AuthController(MyUniversitySsoService myUniversitySsoService, SecurityContextRepository securityContextRepository) {
+    public AuthController(MyUniversitySsoService myUniversitySsoService, SecurityContextRepository securityContextRepository, UserRepository userRepository) {
         this.myUniversitySsoService = myUniversitySsoService;
         this.securityContextRepository = securityContextRepository;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/csrf")
@@ -93,5 +98,37 @@ public class AuthController {
                 .build();
     }
 
+    @PostMapping("/test-register")
+    public ResponseEntity<Long> testRegister(@RequestParam String email, HttpServletRequest request, HttpServletResponse responseHttp) {
+        UserModel user = userRepository.findByEmail(email);
+        if (user == null) {
+            user = new UserModel();
+            user.setEmail(email);
+            user.setAuthProvider(com.example.SPOT.model.AuthProvider.LOCAL); // Doesn't matter since SSO is bypassed
+            user = userRepository.save(user);
+        }
+
+        HttpSession existingSession = request.getSession(false);
+        if (existingSession != null) {
+            existingSession.invalidate();
+        }
+
+        HttpSession session = request.getSession(true);
+        session.setAttribute(AuthConstants.AUTH_METHOD_SESSION_ATTRIBUTE, AuthConstants.AUTH_METHOD_LOCAL);
+        session.setAttribute(AuthConstants.AUTHENTICATED_AT_SESSION_ATTRIBUTE, Instant.now());
+        session.setAttribute("webauth_verified", true); // explicitly mark webauth verified
+
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                user.getId().toString(),
+                null,
+                List.of(new SimpleGrantedAuthority(AuthConstants.ROLE_SSO))); // Grant SSO role to bypass requireSsoAuthentication (just in case)
+
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(authentication);
+        SecurityContextHolder.setContext(securityContext);
+        securityContextRepository.saveContext(securityContext, request, responseHttp);
+
+        return ResponseEntity.ok(user.getId());
+    }
 
 }
