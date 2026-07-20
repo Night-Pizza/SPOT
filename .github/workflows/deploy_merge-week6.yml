@@ -1,9 +1,6 @@
 name: SPOT Deploy Pipeline
 
 on:
-    push:
-        branches:
-            - test-deploy
     workflow_dispatch:
 
 jobs:
