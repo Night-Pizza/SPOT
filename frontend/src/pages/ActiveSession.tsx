@@ -114,7 +114,7 @@ export default function ActiveSessionPage() {
     // Безопасно достаем данные сессии
     const state = location.state as  { session?: Session } | null;
     const sessionFromState = state?.session;
-    const activeSession = fetchedSession || sessionFromUrl || sessionFromState;
+    const activeSession = fetchedSession || sessionFromState || sessionFromUrl;
     const isActive = !sessionEnded && (backendSessionActive ?? activeSession?.isActive !== false);
 
     const loadSessionDetails = useCallback(async () => {
