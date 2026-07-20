@@ -137,6 +137,14 @@ public class SessionService {
         sessionModel.setActive(false);
     }
 
+    @Transactional
+    public void resumeSession(Long id, Long userId){
+        SessionModel sessionModel = getSessionOwnedByUser(id, userId);
+        if (sessionModel.isActive()) throw new CustomException("SESSION_ALREADY_ACTIVE", "This session is already active");
+        sessionModel.setActive(true);
+    }
+
+
     public List<SessionResponseDTO> getAllSessions(){
         return sessionRepository.findAll().stream().map(sessionModel ->
                         new SessionResponseDTO(

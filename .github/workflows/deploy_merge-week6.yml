@@ -1,9 +1,6 @@
 name: SPOT Deploy Pipeline
 
 on:
-    push:
-        branches:
-            - merge-week6
     workflow_dispatch:
 
 jobs:

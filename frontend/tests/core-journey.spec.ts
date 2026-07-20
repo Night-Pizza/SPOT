@@ -99,13 +99,15 @@ test('logs in and creates a basic code session', async ({ page, context }) => {
 
   await expect(page).toHaveURL(/\/sessions\/create$/);
   await page.locator('.session-mode-choice .ant-radio-button-wrapper').filter({ hasText: 'Code Word session' }).click();
-  await page.getByLabel('Session Title').fill('Integration Testing 101');
   await page.locator('.session-switch-row').first().getByRole('switch').click();
   await page.getByRole('button', { name: 'Get Location' }).click();
   await page.getByLabel('Session Code').fill('spot-1234');
   await page.getByRole('button', { name: 'Create Session' }).click();
 
   await expect(page).toHaveURL(/\/sessions\/42$/);
+  await page.getByText('Click to name the session').click();
+  await page.getByRole('textbox').fill('Integration Testing 101');
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Integration Testing 101' })).toBeVisible();
   await expect(page.getByText('Session ID: 42')).toBeVisible();
   await expect(page.getByText('spot-1234')).toBeVisible();

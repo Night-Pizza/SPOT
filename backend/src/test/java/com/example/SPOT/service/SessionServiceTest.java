@@ -140,4 +140,25 @@ class SessionServiceTest {
                 () -> sessionService.closeSession(SESSION_ID, USER_ID));
         assertEquals("SESSION_ALREADY_CLOSE", exception.getErrorCode());
     }
+
+    @Test
+    void resumeSession_Success() {
+        session.setActive(false); // Сессия была закрыта
+        when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
+
+        sessionService.resumeSession(SESSION_ID, USER_ID);
+
+        assertTrue(session.isActive());
+    }
+
+    @Test
+    void resumeSession_WhenAlreadyActive_ThrowsException() {
+        session.setActive(true); // Сессия УЖЕ активна
+        when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
+
+        CustomException exception = assertThrows(CustomException.class, 
+                () -> sessionService.resumeSession(SESSION_ID, USER_ID));
+        assertEquals("SESSION_ALREADY_ACTIVE", exception.getErrorCode());
+    }
 }
+

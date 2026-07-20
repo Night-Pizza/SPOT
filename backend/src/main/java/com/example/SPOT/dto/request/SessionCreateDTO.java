@@ -6,7 +6,6 @@ import java.util.List;
 import com.example.SPOT.model.ValidationType;
 
 public record SessionCreateDTO (
-        @NotBlank(message = "Session title cannot be null or empty")
         String title,
 
         Double latitude,
