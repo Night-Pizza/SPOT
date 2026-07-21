@@ -121,6 +121,8 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=duckdns"
       - "traefik.http.routers.frontend.priority=10"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.tls.stores.default.defaultgeneratedcert.resolver=duckdns"
+      - "traefik.tls.stores.default.defaultgeneratedcert.domain.main=${APP_HOST}"
     networks:
       - app-network
 
@@ -132,7 +134,7 @@ services:
     ports:
       - "9092:9092"
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -147,7 +149,7 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-}
       
   face_recognition:
     image: ghcr.io/night-pizza/spot/spot-face_recognition:latest
