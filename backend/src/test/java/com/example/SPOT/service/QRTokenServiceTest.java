@@ -2,6 +2,8 @@ package com.example.SPOT.service;
 
 import com.example.SPOT.config.CacheConfig;
 import com.example.SPOT.exception.CustomException;
+import com.example.SPOT.model.SessionModel;
+import com.example.SPOT.model.UserModel;
 import com.example.SPOT.repository.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,8 +16,10 @@ import org.springframework.cache.CacheManager;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -32,6 +36,10 @@ class QRTokenServiceTest {
     
     @Mock
     private Cache cache;
+    @Mock
+    private SessionModel session;
+    @Mock
+    private UserModel owner;
 
     @InjectMocks
     private QRTokenService qrTokenService;
@@ -42,6 +50,9 @@ class QRTokenServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(cacheManager.getCache(anyString())).thenReturn(cache);
+        lenient().when(sessionRepository.findById(anyLong())).thenReturn(Optional.of(session));
+        lenient().when(session.getOwner()).thenReturn(owner);
+        lenient().when(owner.getId()).thenReturn(1L);
     }
 
     @Test
@@ -54,7 +65,7 @@ class QRTokenServiceTest {
         verify(cache, times(1)).put(generatedToken, SESSION_ID);
         
         verify(messageTemplate, times(1))
-                .convertAndSend(eq("/topic/session/" + SESSION_ID + "/qr"), eq(generatedToken));
+                .convertAndSendToUser(eq("1"), eq("/queue/session/" + SESSION_ID + "/qr"), eq(generatedToken));
     }
 
     @Test
@@ -95,8 +106,8 @@ class QRTokenServiceTest {
 
         verify(cache, times(3)).put(anyString(), anyLong());
         
-        verify(messageTemplate, times(1)).convertAndSend(eq("/topic/session/10/qr"), anyString());
-        verify(messageTemplate, times(1)).convertAndSend(eq("/topic/session/20/qr"), anyString());
-        verify(messageTemplate, times(1)).convertAndSend(eq("/topic/session/30/qr"), anyString());
+        verify(messageTemplate, times(1)).convertAndSendToUser(eq("1"), eq("/queue/session/10/qr"), anyString());
+        verify(messageTemplate, times(1)).convertAndSendToUser(eq("1"), eq("/queue/session/20/qr"), anyString());
+        verify(messageTemplate, times(1)).convertAndSendToUser(eq("1"), eq("/queue/session/30/qr"), anyString());
     }
 }
