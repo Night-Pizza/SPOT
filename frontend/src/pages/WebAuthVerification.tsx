@@ -3,9 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, Button, Typography, Space, message } from 'antd';
 import { SafetyCertificateOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function WebAuthVerificationPage() {
     const { verifyWebauth } = useAuth();
+    const { t } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
     const [verifying, setVerifying] = useState(false);
@@ -21,13 +23,13 @@ export default function WebAuthVerificationPage() {
         try {
             const success = await verifyWebauth();
             if (success) {
-                void message.success('Identity verified successfully!');
+                void message.success(t('identityVerifiedSuccess'));
                 navigate(from, { replace: true });
             } else {
-                setError('Biometric verification failed. Please try again.');
+                setError(t('biometricVerificationFailed'));
             }
         } catch (err: any) {
-            setError(err.message || 'An error occurred during verification.');
+            setError(err.message || t('biometricVerificationError'));
         } finally {
             setVerifying(false);
         }
@@ -42,9 +44,9 @@ export default function WebAuthVerificationPage() {
             <Card style={{ width: 400, textAlign: 'center', borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                 <Space direction="vertical" size={24} style={{ width: '100%' }}>
                     <SafetyCertificateOutlined style={{ fontSize: 48, color: '#5ec832' }} />
-                    <Typography.Title level={3} style={{ margin: 0 }}>Confirm Identity</Typography.Title>
+                    <Typography.Title level={3} style={{ margin: 0 }}>{t('confirmIdentity')}</Typography.Title>
                     <Typography.Text type="secondary">
-                        Please confirm your identity using WebAuthn (Touch ID, Face ID or Windows Hello) to proceed.
+                        {t('confirmIdentityDescription')}
                     </Typography.Text>
                     {error && <Typography.Text type="danger">{error}</Typography.Text>}
                     <Button 
@@ -54,7 +56,7 @@ export default function WebAuthVerificationPage() {
                         loading={verifying}
                         style={{ width: '100%', background: '#5ec832', borderColor: '#5ec832' }}
                     >
-                        {verifying ? 'Verifying...' : 'Verify Biometrics'}
+                        {verifying ? t('verifyingBiometrics') : t('verifyBiometrics')}
                     </Button>
                     <Button 
                         type="default" 
@@ -66,7 +68,7 @@ export default function WebAuthVerificationPage() {
                         disabled={verifying}
                         style={{ width: '100%' }}
                     >
-                        Skip for now
+                        {t('skipForNow')}
                     </Button>
                 </Space>
             </Card>
