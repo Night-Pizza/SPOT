@@ -15,6 +15,8 @@ export default function WebAuthVerificationPage() {
 
     const from = (location.state as any)?.from?.pathname || '/dashboard';
 
+    // Initiates the WebAuthn verification flow by calling the context method.
+    // Handles UI state updates (loading spinners, error messages) and redirects the user back to their previous page upon success.
     const triggerVerification = async () => {
         setVerifying(true);
         setError(null);

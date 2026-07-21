@@ -783,12 +783,13 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 586px;
+  max-height: 586px;
 }
 
 .scanned-card .ant-table-wrapper {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+  overflow: auto;
   max-width: 100%;
 }
 
@@ -1029,10 +1030,7 @@ body {
     align-items: flex-start;
   }
 
-  .session-switch-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+
 
   .form-actions .primary-action,
   .form-actions .ant-btn {
@@ -1187,6 +1185,10 @@ body {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.responsive-modal .ant-modal-footer .ant-btn {
+  margin: 0 !important;
 }
 
 .qr-modal-image {
@@ -1397,15 +1399,7 @@ body {
     border-radius: 14px;
   }
 
-  .session-switch-row {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 14px;
-  }
 
-  .session-switch-row .ant-space {
-    align-items: flex-start;
-  }
 
   .form-actions {
     margin-top: 30px;
@@ -1658,10 +1652,12 @@ body {
 
   .responsive-modal .ant-modal-footer {
     flex-direction: column-reverse;
+    gap: 12px;
   }
 
   .responsive-modal .ant-modal-footer .ant-btn {
     width: 100%;
+    margin: 0 !important;
   }
 
   .camera-modal video {
@@ -2485,9 +2481,7 @@ h4.ant-typography,
   }
 }
 
-.end-session-btn {
-  font-weight: 700;
-}
+
 
 .map-modal .ant-modal-body {
   padding: 0;

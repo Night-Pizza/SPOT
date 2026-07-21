@@ -59,6 +59,9 @@ const translations: Record<Language, Record<string, string>> = {
         accountActions: 'Account actions',
         openNavigation: 'Open navigation',
 
+        // Сессии
+        clickToNameSession: 'Click to name the session',
+        nameSessionBeforeEnd: 'Please name the session before ending it.',
         newSession: 'New Session',
         sessionDetails: 'Session Details',
         sessionCode: 'Session Code',

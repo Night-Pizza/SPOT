@@ -7,6 +7,8 @@ import {
     PlusOutlined,
     DeleteOutlined,
     DownloadOutlined,
+    PlayCircleOutlined,
+    CameraOutlined,
 } from '@ant-design/icons';
 import {
     Button,
@@ -37,7 +39,8 @@ import { useApp, type Session } from '../contexts/AppContext';
 import SessionMap from '../components/SessionMap';
 import { useTheme } from '../contexts/ThemeContext';
 import { subscribeToQrToken } from '../api/Qr';
-import { closeSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+import { closeSession, resumeSession, renameSession, getActiveSessionIds, getSessionDetails, getSessionUsers } from '../api/Session';
+
 import { addAttendeeByEmail, removeAttendeeByEmail } from '../api/Attendance';
 import { searchUsers } from '../api/User';
 
@@ -89,8 +92,8 @@ export default function ActiveSessionPage() {
     const [attendeeEmail, setAttendeeEmail] = useState('');
     const [addingAttendee, setAddingAttendee] = useState(false);
     const [removingAttendeeEmail, setRemovingAttendeeEmail] = useState<string | null>(null);
-    const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
     const [endingSession, setEndingSession] = useState(false);
+    const [resumingSession, setResumingSession] = useState(false);
     const [sessionEnded, setSessionEnded] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -111,7 +114,7 @@ export default function ActiveSessionPage() {
     // Безопасно достаем данные сессии
     const state = location.state as  { session?: Session } | null;
     const sessionFromState = state?.session;
-    const activeSession = fetchedSession || sessionFromUrl || sessionFromState;
+    const activeSession = fetchedSession || sessionFromState || sessionFromUrl;
     const isActive = !sessionEnded && (backendSessionActive ?? activeSession?.isActive !== false);
 
     const loadSessionDetails = useCallback(async () => {
@@ -140,6 +143,7 @@ export default function ActiveSessionPage() {
     }, [numericSessionId]);
 
     useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         void loadSessionDetails();
     }, [loadSessionDetails]);
 
@@ -395,6 +399,19 @@ export default function ActiveSessionPage() {
         ],
         [handleRemoveAttendee, removingAttendeeEmail, t],
     );
+    const handleRename = async (newTitle: string) => {
+        if (numericSessionId === null) return;
+        if (!newTitle.trim()) {
+            return;
+        }
+        try {
+            await renameSession(numericSessionId, newTitle.trim());
+            setFetchedSession(activeSession ? { ...activeSession, title: newTitle.trim() } : null);
+            void messageApi.success('Session renamed successfully');
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to rename session');
+        }
+    };
 
     const handleEndSession = async () => {
         if (numericSessionId === null) {
@@ -407,7 +424,6 @@ export default function ActiveSessionPage() {
             await closeSession(numericSessionId);
             setSessionEnded(true);
             setBackendSessionActive(false);
-            setEndSessionModalOpen(false);
             setQrModalOpen(false);
             setMapModalOpen(false);
             setAddAttendeeOpen(false);
@@ -424,6 +440,31 @@ export default function ActiveSessionPage() {
             setEndingSession(false);
         }
     };
+
+    const handleResumeSession = async () => {
+        if (numericSessionId === null) {
+            void messageApi.error('Session ID must be a positive number.');
+            return;
+        }
+
+        setResumingSession(true);
+        try {
+            await resumeSession(numericSessionId);
+            setSessionEnded(false);
+            setBackendSessionActive(true);
+            if (fetchedSession) {
+                setFetchedSession({ ...fetchedSession, isActive: true });
+            }
+            void messageApi.success('Session resumed.');
+            void loadSessionDetails();
+            void loadSessionUsers();
+        } catch (error: unknown) {
+            void messageApi.error(error instanceof Error ? error.message : 'Failed to resume session.');
+        } finally {
+            setResumingSession(false);
+        }
+    };
+
 
     const handleExport = async (format: string) => {
         if (numericSessionId === null) return;
@@ -487,7 +528,7 @@ export default function ActiveSessionPage() {
         activeSession?.lat !== undefined &&
         activeSession?.lng !== undefined;
 
-    const displayTitle = activeSession?.title || `Session ${numericSessionId}`;
+    const displayTitle = activeSession?.title || '';
     const sessionPassword = activeSession?.password || '';
     const qrPayload = qrToken ? JSON.stringify({ token: qrToken }) : '';
     const qrUrl = qrPayload
@@ -523,8 +564,20 @@ export default function ActiveSessionPage() {
                     }}
                 />
                 <div>
-                    <Typography.Title level={1}>{displayTitle}</Typography.Title>
-                    <Space size={12} wrap className="active-session-meta">
+                    <Typography.Title 
+                        level={1} 
+                        editable={{
+                            tooltip: t('edit') || 'Edit',
+                            onChange: handleRename,
+                            text: displayTitle,
+                            triggerType: ['text'],
+                            icon: <span />,
+                        }}
+                        style={{ color: displayTitle ? 'inherit' : '#bfbfbf', margin: 0 }}
+                    >
+                        {displayTitle || t('clickToNameSession') || 'Click to name the session'}
+                    </Typography.Title>
+                    <Space size={12} wrap className="active-session-meta" style={{ marginTop: 8 }}>
                         <Tag color={isActive ? 'success' : 'default'}>
                             {isActive ? t('active') : 'Ended'}
                         </Tag>
@@ -572,10 +625,18 @@ export default function ActiveSessionPage() {
                                 <img src={qrUrl} alt="QR Code" style={{ width: 200, height: 200 }} />
                             ) : (
                                 <Space direction="vertical" align="center">
-                                    <Spin />
-                                    <Typography.Text type="secondary">
-                                        {qrError || 'Waiting for backend QR token...'}
-                                    </Typography.Text>
+                                    {!isActive ? (
+                                        <Typography.Text type="secondary">
+                                            Session is stopped, QR is not available
+                                        </Typography.Text>
+                                    ) : (
+                                        <>
+                                            <Spin />
+                                            <Typography.Text type="secondary">
+                                                {qrError || 'Waiting for backend QR token...'}
+                                            </Typography.Text>
+                                        </>
+                                    )}
                                 </Space>
                             )}
                         </div>
@@ -583,7 +644,7 @@ export default function ActiveSessionPage() {
 
 
 
-                    <div className="session-detail-list">
+                    <div className="session-detail-list" style={{ marginTop: isQrSession ? 30 : 0 }}>
                         {!isQrSession && (
                             <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('sessionCode')}</Typography.Text>
@@ -591,17 +652,7 @@ export default function ActiveSessionPage() {
                             </Flex>
                         )}
 
-                        {activeSession?.validationTypes &&
-                            activeSession.validationTypes.length > 0 && (
-                                <Flex className="session-detail-row" justify="space-between" gap={16}>
-                                    <Typography.Text type="secondary">
-                                        Validation Methods
-                                    </Typography.Text>
-                                    <Typography.Text strong>
-                                        {activeSession.validationTypes.join(', ')}
-                                    </Typography.Text>
-                                </Flex>
-                            )}
+
 
                         <Flex className="session-detail-row" justify="space-between" gap={16}>
                             <Typography.Text type="secondary">{t('geolocation')}</Typography.Text>
@@ -616,10 +667,28 @@ export default function ActiveSessionPage() {
                                         {activeSession?.radius ? ` · ${activeSession.radius}m` : ''}
                                     </Space>
                                 ) : (
-                                    t('disabled')
+                                    'Disabled'
                                 )}
                             </Typography.Text>
                         </Flex>
+
+                        <Flex className="session-detail-row" justify="space-between" gap={16}>
+                            <Typography.Text type="secondary">Face Recognition</Typography.Text>
+                            <Typography.Text
+                                strong
+                                className={activeSession?.validationTypes?.includes('FACE') ? 'green-text' : undefined}
+                            >
+                                {activeSession?.validationTypes?.includes('FACE') ? (
+                                    <Space size={6}>
+                                        <CameraOutlined />
+                                        {t('enabled')}
+                                    </Space>
+                                ) : (
+                                    'Disabled'
+                                )}
+                            </Typography.Text>
+                        </Flex>
+
                         {hasLocation && (
                             <Flex className="session-detail-row" justify="space-between" gap={16}>
                                 <Typography.Text type="secondary">{t('location')}</Typography.Text>
@@ -628,15 +697,7 @@ export default function ActiveSessionPage() {
                                 </Typography.Text>
                             </Flex>
                         )}
-                        {hasLocation && isActive && (
-                            <Flex className="session-detail-row radius-edit-row" justify="space-between" gap={16} align="center">
-                                <Typography.Text type="secondary">Radius</Typography.Text>
-                                <Typography.Text strong>
-                                    {activeSession?.radius ? `${activeSession.radius}m` : 'N/A'}
-                                </Typography.Text>
-                                {/* TODO: re-enable editing when PATCH /session/{id} accepts allowedRadius. */}
-                            </Flex>
-                        )}
+
                     </div>
 
                     {hasLocation && isMounted && (
@@ -684,6 +745,16 @@ export default function ActiveSessionPage() {
                                         Export
                                     </Button>
                                 </Dropdown>
+                                {!isActive && (
+                                    <Button
+                                        size="small"
+                                        icon={<PlayCircleOutlined />}
+                                        loading={resumingSession}
+                                        onClick={() => void handleResumeSession()}
+                                    >
+                                        Resume
+                                    </Button>
+                                )}
                                 <Button
                                     size="small"
                                     icon={<ReloadOutlined />}
@@ -698,14 +769,20 @@ export default function ActiveSessionPage() {
                                         type="primary"
                                         danger
                                         icon={<StopOutlined />}
-                                        className="end-session-btn"
                                         loading={endingSession}
                                         disabled={endingSession}
-                                        onClick={() => setEndSessionModalOpen(true)}
+                                        onClick={() => {
+                                            if (!displayTitle.trim()) {
+                                                message.error(t('nameSessionBeforeEnd') || 'Please name the session before ending it.');
+                                            } else {
+                                                void handleEndSession();
+                                            }
+                                        }}
                                     >
                                         End Session
                                     </Button>
                                 )}
+
                             </Space>
                         </Flex>
                     }
@@ -776,6 +853,7 @@ export default function ActiveSessionPage() {
                     setAttendeeEmail('');
                     setSearchOptions([]);
                 }}
+                centered
                 destroyOnHidden
                 className="responsive-modal"
             >
@@ -797,28 +875,7 @@ export default function ActiveSessionPage() {
                 </AutoComplete>
             </Modal>
 
-            <Modal
-                title="End session?"
-                open={endSessionModalOpen}
-                okText="End Session"
-                cancelText="Cancel"
-                confirmLoading={endingSession}
-                okButtonProps={{ danger: true, disabled: endingSession }}
-                cancelButtonProps={{ disabled: endingSession }}
-                onOk={() => void handleEndSession()}
-                onCancel={() => {
-                    if (!endingSession) {
-                        setEndSessionModalOpen(false);
-                    }
-                }}
-                centered
-                destroyOnHidden
-                className="responsive-modal end-session-modal"
-            >
-                <Typography.Paragraph style={{ marginBottom: 0 }}>
-                    QR/code attendance will stop after ending the session. Participants will no longer be able to check in using this session.
-                </Typography.Paragraph>
-            </Modal>
+
 
             <Modal
                 open={mapModalOpen}
@@ -832,11 +889,11 @@ export default function ActiveSessionPage() {
                 title="Session Location"
             >
                 <div className="map-modal-frame">
-                    {isMounted && (
+                    {isMounted && hasLocation && activeSession && (
                         <SessionMap
                             key={mapKey + 1000}
-                            center={[activeSession!.lat!, activeSession!.lng!]}
-                            radius={activeSession!.radius || 100}
+                            center={[activeSession.lat!, activeSession.lng!]}
+                            radius={activeSession.radius || 100}
                         />
                     )}
                 </div>

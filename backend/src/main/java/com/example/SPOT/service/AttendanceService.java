@@ -57,6 +57,9 @@ public class AttendanceService {
         this.sessionService = sessionService;
     }
 
+    // Marks attendance for a user in a specific session.
+    // Ensures the user hasn't already attended, is an SSO student, and that the session is currently active.
+    // Iterates through required validations (GPS, Password, Face) and saves the attendance record if successful.
     public AttendDTO createAttendance(Long userId, AttendanceCreateDTO request){
         if (attendanceRepository.existsByUserIdAndSessionId(userId, request.sessionId()))
             throw new CustomException("USER_ALREADY_ATTENDED_SESSION", "User with this this id has already attended session with this id");
@@ -165,6 +168,9 @@ public class AttendanceService {
         return attendanceRepository.countByUserId(id);
     }
 
+    // Generates a file containing the attendance records for a specific session.
+    // Supports multiple formats: 'csv' for general use, 'moodle' formatted specifically for Moodle LMS import, and 'txt' for plain text emails.
+    // Streams data directly to the HttpServletResponse to efficiently handle large amounts of data.
     @Transactional(readOnly = true)
     public void exportAttendance(Long sessionId, String format, Long currentUserId, HttpServletResponse response) throws IOException {
         sessionService.getSessionOwnedByUser(sessionId, currentUserId);
@@ -224,6 +230,9 @@ public class AttendanceService {
         );
     }
 
+    // Validates the specific requirements set for a session (e.g., Password, GPS, Face Recognition)
+    // Extracts necessary data from the request payload and triggers the appropriate validation logic.
+    // Returns a request ID if asynchronous processing is required (like Face validation), or 0L otherwise.
     private Long validateAttendanceRequirements(Long userId, ValidationType type, SessionModel session, AttendanceCreateDTO request) {
         if (type == ValidationType.PASSWORD) {
             if (request.payload() == null || !request.payload().containsKey("password")) {
@@ -256,6 +265,8 @@ public class AttendanceService {
         return 0L;
     }
 
+    // Implementation of the Haversine formula to calculate the distance between two geographic coordinates in meters.
+    // It accounts for the spherical shape of the Earth using the mean Earth radius (6,371,000 meters).
     private boolean isInClass(Double originalLat, Double originalLong, Double allowedRadius, Double studentLat, Double studentLong) {
         final int EARTH_RADIUS_METERS = 6371000;
 
@@ -271,6 +282,8 @@ public class AttendanceService {
         return distance <= allowedRadius;
     }
 
+    // Prepares face recognition request by creating a pending KafkaModel record and dispatching messages
+    // for each of the 3 captured images to the Kafka queue for asynchronous processing by the Python worker.
     private Long validateFace(Long userId, Long sessionId, AttendanceCreateDTO request) {
         if (request.payload() == null || !request.payload().containsKey("images")) {
             throw new CustomException("MISSING_FACE_RECOGNITION_DATA", "Face Recognition requires exactly 3 images");

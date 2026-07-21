@@ -13,6 +13,8 @@ interface FaceCaptureProps {
     mode?: 'single' | 'triple';
 }
 
+// Applies a visual filter (brightness or grayscale) to the raw camera frame using an HTML canvas.
+// This is used to create artificial variations of the captured face image to improve the dataset for the face recognition model.
 function applyFilter(imageSrc: string, filterType: 'original' | 'brightness' | 'grayscale'): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image();
@@ -63,6 +65,8 @@ const TRIPLE_CAPTURE_INTERVAL_MS = 300;
 let sharedLandmarker: FaceLandmarker | null = null;
 let loadingPromise: Promise<FaceLandmarker> | null = null;
 
+// Singleton pattern implementation to ensure MediaPipe FaceLandmarker model is loaded only once.
+// It caches the Promise during loading to prevent concurrent instantiation requests.
 async function getFaceLandmarker(): Promise<FaceLandmarker> {
     if (sharedLandmarker) return sharedLandmarker;
     if (loadingPromise) return loadingPromise;
@@ -157,6 +161,8 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
         };
     }, [startLivenessCheck]);
 
+    // Automatically captures the required number of photos (single or triple) once liveness is confirmed.
+    // For triple mode, it applies 'brightness' and 'grayscale' filters to generate augmented image variants.
     const autoCaptureAndSubmit = useCallback(async () => {
         if (!webcamRef.current) return;
         setCapturing(true);
@@ -209,6 +215,8 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, onCancel, loading,
     }, [mode, onCapture, t]);
 
     // Active Liveness Detection Frame Loop
+    // Core liveness detection frame loop: continuously captures frames from the webcam and runs them through the MediaPipe model.
+    // It verifies if the user performs the requested action (e.g., opening their mouth) by checking the 'jawOpen' blendshape score.
     useEffect(() => {
         if (livenessStatus !== 'active' || modelLoading) return;
 

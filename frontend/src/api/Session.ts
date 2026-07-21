@@ -1,7 +1,7 @@
 import { converter } from './Converter';
 
 export type CreateSessionRequest = {
-    title: string;
+    title?: string;
     password?: string;
     latitude?: number;
     longitude?: number;
@@ -90,18 +90,6 @@ export async function getCreatedSessions(): Promise<CreatedSessionHistoryItem[]>
     return response.json() as Promise<CreatedSessionHistoryItem[]>;
 }
 
-export async function getSessionAttendees(sessionId: number): Promise<SessionAttendee[]> {
-    const response = await converter(`/attendance/session/${sessionId}`, {
-        method: 'GET',
-    });
-
-    if (!response.ok) {
-        throw new Error(await readErrorMessage(response, 'Failed to load session attendees'));
-    }
-
-    return response.json() as Promise<SessionAttendee[]>;
-}
-
 export async function getSessionDetails(sessionId: number): Promise<SessionDetails> {
     const response = await converter(`/session/${sessionId}/details`, {
         method: 'GET',
@@ -135,6 +123,29 @@ export async function closeSession(sessionId: number): Promise<void> {
         throw new Error(await readErrorMessage(response, 'Failed to end session.'));
     }
 }
+
+export async function resumeSession(sessionId: number): Promise<void> {
+    const response = await converter(`/session/resume/${sessionId}`, {
+        method: 'PATCH',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Error resuming session'));
+    }
+}
+
+export async function renameSession(sessionId: number, title: string): Promise<void> {
+    const response = await converter(`/session/rename/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Error renaming session'));
+    }
+}
+
 
 export async function getActiveSessionIds(): Promise<number[]> {
     const response = await converter('/session/alla', {
@@ -183,7 +194,7 @@ export async function getSessionPublicDetailsByQrToken(token: string): Promise<S
 }
 
 export async function exportSessionAttendance(sessionId: number, format: string = 'csv'): Promise<void> {
-    const response = await converter(`/attendance/export/${sessionId}?format=${format}`, {
+    const response = await converter(`/attendance/export?sessionId=${sessionId}&format=${format}`, {
         method: 'GET',
     });
 
@@ -195,7 +206,8 @@ export async function exportSessionAttendance(sessionId: number, format: string 
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `attendance_${sessionId}.${format}`;
+    const extension = format === 'txt' ? 'txt' : 'csv';
+    a.download = `attendance_${sessionId}.${extension}`;
     document.body.appendChild(a);
     a.click();
     a.remove();

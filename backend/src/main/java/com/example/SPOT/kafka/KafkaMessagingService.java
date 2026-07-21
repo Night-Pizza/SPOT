@@ -1,5 +1,15 @@
 package com.example.SPOT.kafka;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+
 import com.example.SPOT.exception.CustomException;
 import com.example.SPOT.model.AttendanceModel;
 import com.example.SPOT.model.EmbeddingStatus;
@@ -11,15 +21,6 @@ import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.repository.SessionRepository;
 import com.example.SPOT.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 @Service
 public class KafkaMessagingService {
@@ -72,6 +73,11 @@ public class KafkaMessagingService {
 
             KafkaModel request = (KafkaModel) kafkaRepository.findById(requestId).orElse(null);
             if (request == null || request.getStatus() == EmbeddingStatus.SUCCESS || request.getStatus() == EmbeddingStatus.FAILED) {
+                return;
+            }
+
+            if (request.getUserId() == null || !request.getUserId().equals(userId)) {
+                System.err.println("User ID mismatch for request_id=" + requestId + "ignoring message");
                 return;
             }
 

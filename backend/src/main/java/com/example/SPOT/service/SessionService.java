@@ -38,6 +38,8 @@ public class SessionService {
         this.qrTokenService = qrTokenService;
     }
 
+    // Retrieves a session by its ID and validates that the requesting user is the actual owner.
+    // This acts as a primary security check to prevent unauthorized access to session details or management features.
     public SessionModel getSessionOwnedByUser(Long sessionId, Long userId) {
         SessionModel session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new CustomException("ID_NOT_EXIST", "Session id does not exist"));
@@ -63,6 +65,8 @@ public class SessionService {
         return sessionModel;
     }
 
+    // Creates and configures a new attendance session with specific validation types, geolocation boundaries, and passwords.
+    // It links the newly created session to the user acting as the owner.
     public SessionResponseDTO createSession(SessionCreateDTO request, Long ownerId){
         SessionModel sessionModel = initializeSessionModel(request.title(), ownerId);
         
@@ -136,6 +140,14 @@ public class SessionService {
         if (!(sessionModel.isActive())) throw new CustomException("SESSION_ALREADY_CLOSE", "This session is already closed");
         sessionModel.setActive(false);
     }
+
+    @Transactional
+    public void resumeSession(Long id, Long userId){
+        SessionModel sessionModel = getSessionOwnedByUser(id, userId);
+        if (sessionModel.isActive()) throw new CustomException("SESSION_ALREADY_ACTIVE", "This session is already active");
+        sessionModel.setActive(true);
+    }
+
 
     public List<SessionResponseDTO> getAllSessions(){
         return sessionRepository.findAll().stream().map(sessionModel ->
