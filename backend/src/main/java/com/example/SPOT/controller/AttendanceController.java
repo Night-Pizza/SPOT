@@ -18,12 +18,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 
 import com.example.SPOT.config.AuthConstants;
 import com.example.SPOT.dto.request.AttendanceCreateDTO;
-import com.example.SPOT.dto.request.QrScanRequestDTO;
 import com.example.SPOT.dto.request.DeleteAttendanceRequestDTO;
 import com.example.SPOT.dto.request.EmailAttendanceRequestDTO;
 import com.example.SPOT.dto.request.QrScanRequestDTO;
@@ -33,12 +30,12 @@ import com.example.SPOT.dto.response.PollingStatusDTO;
 import com.example.SPOT.dto.response.UserAttendanceDTO;
 import com.example.SPOT.dto.response.UsersForSessionDTO;
 import com.example.SPOT.exception.CustomException;
-import java.util.List;
 import com.example.SPOT.model.KafkaModel;
 import com.example.SPOT.repository.KafkaRepository;
 import com.example.SPOT.service.AttendanceService;
 import com.example.SPOT.service.QRTokenService;
 import com.example.SPOT.service.RateLimitService;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -115,7 +112,7 @@ public class AttendanceController {
         Long userId = Long.valueOf(userIdStr);
 
         String key = "attendance-email:" + userId + ":" + emailAttendanceCreateDTO.sessionId();
-        if (!rateLimitService.tryConsume(key, 5, Duration.ofMinutes(1))) {
+        if (!rateLimitService.tryConsume(key, 10, Duration.ofMinutes(1))) {
             throw new CustomException("RATE_LIMIT_EXCEEDED", "Too many email attendance requests");
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(attendanceService.createAttendanceByEmail(emailAttendanceCreateDTO, userId));
