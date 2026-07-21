@@ -44,6 +44,8 @@ public class WebAuthService implements CredentialRepository {
         this.objectMapper = objectMapper;
     }
 
+    // Generates WebAuthn registration options for a user.
+    // It also fetches other credentials to exclude them, ensuring the user doesn't register the same device multiple times.
     public WebAuthRegistrationOptionsDTO generateRegisterOptions(Long userId) {
         UserModel user = getUserOrThrow(userId);
 
@@ -93,6 +95,8 @@ public class WebAuthService implements CredentialRepository {
         }
     }
 
+    // Validates the WebAuthn registration response from the client.
+    // It checks if the physical device (fingerprint) is already bound to another user and prevents duplicate registrations.
     public void verifyRegisterResponse(Long userId, WebAuthRegistrationVerifyDTO requestDto) {
         UserModel user = getUserOrThrow(userId);
 
@@ -159,6 +163,8 @@ public class WebAuthService implements CredentialRepository {
         }
     }
 
+    // Validates the WebAuthn assertion (authentication) response.
+    // It performs security checks including signature count verification to detect cloned authenticators.
     public void verifyAttendanceResponse(Long userId, WebAuthAssertionVerifyDTO requestDto) {
         UserModel user = getUserOrThrow(userId);
 

@@ -206,7 +206,7 @@ export async function getSessionPublicDetailsByQrToken(token: string): Promise<S
 }
 
 export async function exportSessionAttendance(sessionId: number, format: string = 'csv'): Promise<void> {
-    const response = await converter(`/attendance/export/${sessionId}?format=${format}`, {
+    const response = await converter(`/attendance/export?sessionId=${sessionId}&format=${format}`, {
         method: 'GET',
     });
 
@@ -218,7 +218,8 @@ export async function exportSessionAttendance(sessionId: number, format: string 
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `attendance_${sessionId}.${format}`;
+    const extension = format === 'txt' ? 'txt' : 'csv';
+    a.download = `attendance_${sessionId}.${extension}`;
     document.body.appendChild(a);
     a.click();
     a.remove();

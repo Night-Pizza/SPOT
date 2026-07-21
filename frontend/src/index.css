@@ -783,12 +783,13 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 586px;
+  max-height: 586px;
 }
 
 .scanned-card .ant-table-wrapper {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+  overflow: auto;
   max-width: 100%;
 }
 
