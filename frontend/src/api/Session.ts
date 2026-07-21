@@ -90,6 +90,18 @@ export async function getCreatedSessions(): Promise<CreatedSessionHistoryItem[]>
     return response.json() as Promise<CreatedSessionHistoryItem[]>;
 }
 
+export async function getSessionAttendees(sessionId: number): Promise<SessionAttendee[]> {
+    const response = await converter(`/attendance/session/${sessionId}`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to load session attendees'));
+    }
+
+    return response.json() as Promise<SessionAttendee[]>;
+}
+
 export async function getSessionDetails(sessionId: number): Promise<SessionDetails> {
     const response = await converter(`/session/${sessionId}/details`, {
         method: 'GET',
